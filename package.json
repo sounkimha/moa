@@ -1,0 +1,28 @@
+{
+  "name": "moa-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:mobile": "npm run start -w @moa/mobile",
+    "dev:api": "npm run dev -w @moa/api",
+    "build": "npm run build -w @moa/domain && npm run build -w @moa/api && npm run export -w @moa/mobile",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run build -w @moa/domain && npm run test -w @moa/api",
+    "test:ui": "npm run build -w @moa/domain && npm run build -w @moa/api && npm run export -w @moa/mobile && node scripts/ui-smoke.mjs",
+    "db:migrate": "node scripts/migrate.mjs",
+    "reset": "node scripts/reset.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.0",
+    "jsdom": "^26.1.0",
+    "typescript": "~5.9.2"
+  }
+}

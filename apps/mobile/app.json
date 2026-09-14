@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "모아",
+    "slug": "moa",
+    "scheme": "moa",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": { "supportsTablet": true, "bundleIdentifier": "com.moa.prototype" },
+    "android": { "package": "com.moa.prototype", "adaptiveIcon": { "backgroundColor": "#F9FAF5" } },
+    "web": {
+      "bundler": "metro",
+      "name": "모아 · 가는 김에, 하나 더.",
+      "shortName": "모아",
+      "lang": "ko",
+      "backgroundColor": "#F9FAF5",
+      "themeColor": "#147D4E"
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "상품 사진과 영수증을 선택할 때 사진 접근이 필요해요.",
+          "cameraPermission": "구매한 상품을 촬영할 때 카메라가 필요해요."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "반경 2km 안에서 공개된 여행 일정을 찾기 위해 현재 위치를 사용해요."
+        }
+      ],
+      "expo-secure-store"
+    ]
+  }
+}

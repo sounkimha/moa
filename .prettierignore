@@ -1,0 +1,7 @@
+node_modules
+dist
+dist-native
+.data
+.expo
+package-lock.json
+apps/mobile/src/lib/demo-images.json

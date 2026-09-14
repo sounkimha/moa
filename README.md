@@ -1,0 +1,214 @@
+# 모아 · 가는 김에, 하나 더.
+
+**이미 그곳에 가는 사람과, 그곳의 상품이 필요한 사람을 연결하는 구매 매칭 플랫폼.**
+
+가칭 **모아**로 만든 실행 가능한 프로토타입입니다. 장소 중심 구매자 홈, 반경 2km 여행자 발견, 여행 동선 중심 여행자 홈, 같은 장소의 부탁 일괄 수락, 금액 분해, 결제 보관 상태, 구매 인증, 배송, 수령 확인과 정산까지 연결했습니다. 화면만 바뀌는 정적 시안이 아니라 React Native 앱이 NestJS API를 호출하고 서버가 데이터를 저장합니다.
+
+실제 인증·PG·지도·수집 시스템은 아직 연결하지 않았습니다. 앱에서 체험 모드로 표시하며, 실제 자금 이동이나 상품 구매는 발생하지 않습니다. `NODE_ENV=production`에서는 서버가 시작되지 않습니다. 운영 서비스를 완성했다고 주장하는 버전이 아닙니다.
+
+## 1. VS Code에서 바로 실행
+
+**준비물: Node.js 22.13 이상과 npm.** 권장 Node 22 LTS. 가장 먼저 웹 체험으로 실행하면 Xcode·Android Studio·DB 설치가 필요 없습니다.
+
+1. ZIP을 풀고 **package.json이 들어 있는 `moa` 폴더**를 VS Code로 엽니다.
+2. 터미널에서 실행합니다.
+
+```bash
+npm ci
+npm run dev
+```
+
+3. 브라우저에서 **http://localhost:8081** 을 엽니다.
+4. **사고 싶어요 → 가입 없이 체험 시작**을 누릅니다.
+
+`npm run dev`는 공통 도메인 빌드·변경 감시, NestJS API, Expo 웹 개발 서버를 함께 시작합니다. 첫 실행 시 Metro가 준비될 때까지 기다리세요. 종료는 터미널에서 `Ctrl+C`입니다.
+
+| 주소                               | 용도                           |
+| ---------------------------------- | ------------------------------ |
+| http://localhost:8081              | 앱 웹 체험                     |
+| http://localhost:4000/health       | API 실행 확인                  |
+| http://localhost:4000/api/snapshot | bearer 인증이 필요한 앱 데이터 |
+
+키·환경변수 없이 실행하면 `apps/api/.data/moa.json`에 저장됩니다. 로그인 세션은 서버 재시작 시 만료되므로 다시 체험 시작을 누르면 됩니다. 거래 데이터는 유지됩니다.
+
+## 2. 먼저 볼 문서: 요청한 설계 순서
+
+| 순서                 | 문서/코드                                                                                  | 포함 내용                                       |
+| -------------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------- |
+| 1. IA와 User Flow    | [01-product-and-flows.md](docs/01-product-and-flows.md)                                    | 두 역할, 구매/여행자 흐름, 묶음 규칙, 성장 실험 |
+| 2. 디자인 시스템     | [02-design-system.md](docs/02-design-system.md)                                            | 색상·여백·타이포·접근성·상태 UX                 |
+| 3. 핵심 화면         | `apps/mobile/src/screens/`                                                                 | 18개 핵심 화면 + 검색·묶음·알림·설정 등         |
+| 4. Frontend          | `apps/mobile/`                                                                             | 재사용 컴포넌트, 상태, API, 이미지 입력         |
+| 5. Backend           | `apps/api/` 및 [03-architecture-and-data.md](docs/03-architecture-and-data.md)             | Controller/Service/Repository·인증·거래         |
+| 6. DB Schema         | [001_initial.sql](database/001_initial.sql)                                                | 25개 Entity/보조 테이블·FK·금액 CHECK·unique    |
+| 7. API Specification | [04-api-specification.md](docs/04-api-specification.md), [openapi.json](docs/openapi.json) | 모든 엔드포인트·DTO·권한·상태 명령              |
+| 8. 로컬 실행·검증    | 이 README, [05-validation.md](docs/05-validation.md)                                       | 설치, 체험 시나리오, DB 연결, 검증 범위         |
+
+## 3. 핵심 기능과 구현 수준
+
+| 기능                | 이 버전의 실제 동작                                                                       |
+| ------------------- | ----------------------------------------------------------------------------------------- |
+| 두 역할             | 같은 사용자로 구매자/여행자 홈을 즉시 전환                                                |
+| 장소 탐색           | 8개 장소, 도시 필터, 장소/상품/경로 검색, 관심 장소 저장                                  |
+| 구매 요청           | URL/사진, 옵션, 수량, 최대 예산, 수령 국가·도시·날짜 등록                                 |
+| 자동 채우기         | 상품 URL 붙여넣기 시 JSON-LD/Open Graph에서 상품명·가격·이미지·판매처 자동 추출 |
+| 이미지 입력         | JPG/PNG/WebP 선택, OCR+시각 상품 인식, 카탈로그 별칭 매칭. 키 없는 샘플 인식 지원         |
+| 여행 등록           | 출발/도착, 기간, 방문 장소, 최대 처리 수량 등록                                           |
+| 묶음 수락           | 같은 장소·일정 조건의 요청 선택 → 건별 거래·채팅방 원자적 생성                            |
+| 자동 보상           | 상품 원화 환산가의 10%를 여행자 보상으로 고정 계산                                        |
+| 가격                | 서버 계산, 상품/보상/수수료/운송비/세금 예치액 표시, 예산 초과 차단                       |
+| 결제                | Mock 승인·실패·보관·중복 방지·구매 전 환불                                                |
+| 구매 인증           | 상품/영수증 이미지, 매장·구매일·현지 금액·위치 메모 저장                                  |
+| 거래 진행           | 명령별 권한/상태/버전 검증, 타임라인·거래 업데이트                                        |
+| 채팅                | 거래 참여자 텍스트·자주 쓰는 문장, 5초 polling                                            |
+| 전달                | 여행자의 원래 국가 간 이동 후 국내 택배·직접 전달 선택, 운송 정보 등록                 |
+| 수령·정산           | 구매자 수령 → 구매 확정 → 여행자 Mock 정산                                                |
+| 문제 접수           | 분쟁 생성, 보관금 FROZEN, 정산 차단                                                       |
+| MY                  | 여행·관심 장소·알림·후기·정산·체험 계정 선택                                              |
+| 지도                | **예시 위치 미리보기**. 실제 지도 SDK·경로 계산은 미연결                                  |
+| 직구 비교/매칭 시간 | 출처 없는 수치를 만들지 않고 ‘확인 필요’로 표시                                           |
+| 인증                | 휴대폰·Apple·Google·Kakao 버튼은 모두 **가상 계정 로그인**                                |
+
+MVP 상품은 캐릭터·게임/애니·팝업·지역 한정·패션 잡화·콘서트 MD로 제한했습니다. 자유텍스트와 사진 속 실제 품목까지 분류하는 심사 기능은 출시 전 추가해야 합니다.
+
+국내 성수·잠실·제주는 UX 체험 데이터입니다. 해외에서 수령 국가까지의 이동은 여행자의 기존 일정으로 보고, 구매자는 귀국 후 국내 택배(데모 3,500원) 또는 직접 전달(0원)을 선택합니다. 여행자의 출발 국가가 수령 국가와 같은 일정만 매칭합니다. 데모 환율은 **1 JPY = 9.4 KRW**, 실시간 환율이 아닙니다.
+
+## 4. 5분 체험 시나리오
+
+### 구매자 → 여행자 → 정산
+
+1. 기본 `소운` 계정으로 시작합니다.
+2. **거래 → 내 요청 → 치이카와 도쿄역 한정 키링**을 엽니다.
+3. **누가 가져올까요? → 민트로드님과 함께하기**를 누릅니다.
+4. 금액·운송 방식·모의 결제를 확인하고 모의 결제합니다. ‘결제 실패 상태도 체험하기’도 가능합니다.
+5. 거래 화면 아래 **민트로드님 계정으로 바꾸기**를 누릅니다.
+6. **상품 구매 인증하기 → 체험용 샘플 사진 채우기 → 구매 인증 보내기**를 누릅니다.
+7. **전달 준비 시작하기 → 운송장 등록하기 → 등록하고 알리기**를 진행합니다.
+8. 아래에서 **소운님 계정으로 바꾸기 → 상품을 받았어요**를 누릅니다.
+9. 확인 항목을 선택해 수령을 기록하고, 다시 상품 확인 후 **구매 확정**합니다.
+10. 여행자 계정으로 바꾸어 **보상 정산 체험하기**를 누릅니다. 상품대금 상환과 보상 수익이 분리됩니다.
+
+### 새로운 부탁 / 같은 장소 묶음
+
+- 홈 **이거 부탁하기 → 예시 링크로 빠르게 채우기 → 예산과 수령일 → 등록**.
+- 홈 **가져올게요 → 시부야 PARCO 묶음 → 요청 선택 → 한 번에 수락하기**.
+- 실제 구매는 구매자가 선택하고 Mock 결제까지 완료한 뒤 가능하도록 상태를 제한합니다.
+- 각 부탁을 수락하면 구매자별 거래와 채팅방이 즉시 열립니다. 묶음 전체를 한 사람의 결제로 합치지 않습니다.
+
+MY의 **인증과 체험 설정**에서 다른 가상 사용자로 전환할 수 있습니다. 이것은 데모 전용 기능이며 실계정 전환/관리자 권한이 아닙니다.
+
+## 5. iOS·Android
+
+이 소스는 React Native 앱입니다. 웹 화면만 들어 있는 프로젝트가 아닙니다. iOS/Android 공통 화면과 각 플랫폼용 Expo 패키지가 포함되어 있습니다.
+
+API를 먼저 실행합니다.
+
+```bash
+npm run build -w @moa/domain
+npm run dev:api
+```
+
+별도 터미널에서 해당 개발 빌드를 실행합니다.
+
+```bash
+# macOS + Xcode: iOS 개발 빌드
+npm run ios -w @moa/mobile
+
+# Android Studio + SDK + JDK: Android 개발 빌드
+npm run android -w @moa/mobile
+```
+
+이미 개발 빌드를 설치했다면 `npm run dev:mobile`로 Metro만 시작할 수 있습니다. **SDK 54에 맞는 개발 빌드**를 사용하세요. 최신 App Store Expo Go가 이 고정 SDK 버전을 지원한다고 가정하면 안 됩니다.
+
+- iOS simulator API 기본값: `http://localhost:4000`.
+- Android emulator 기본값: `http://10.0.2.2:4000`.
+- 실제 휴대폰: `apps/mobile/.env.example`을 `.env`로 복사하고 `EXPO_PUBLIC_API_URL=http://내컴퓨터의LAN주소:4000`으로 설정합니다. 컴퓨터와 휴대폰은 같은 네트워크여야 합니다. 환경변수 변경 뒤 Metro를 재시작합니다.
+- 기관/회사 단말 정책으로 네트워크가 차단되면 개인 개발 환경에서 실행하세요. 단말 정책을 우회하는 설정은 포함하지 않습니다.
+
+이 환경에서는 iOS/Android 코드 번들 생성까지만 검증했습니다. Xcode/Gradle 네이티브 빌드·실제 단말 실행 검증은 별도입니다.
+
+## 6. PostgreSQL·Redis 연결
+
+기본 데모는 Docker가 없어도 실행됩니다. PostgreSQL로 저장하려면 Docker Desktop을 실행하고 다음 순서로 진행합니다.
+
+```bash
+docker compose up -d
+```
+
+`apps/api/.env.example`을 `apps/api/.env`로 복사하고 다음 설정의 주석을 해제합니다.
+
+```dotenv
+DATABASE_URL=postgresql://moa:moa_local_only@localhost:5432/moa
+REDIS_URL=redis://localhost:6379
+```
+
+```bash
+npm run db:migrate
+npm run dev
+```
+
+DB 비밀번호는 로컬 전용 예시입니다. Docker 포트는 127.0.0.1에만 열도록 설정되어 있습니다. 파일 DB의 기존 체험 거래를 PostgreSQL로 자동 이관하지는 않으며, 첫 접근 시 별도의 seed를 생성합니다.
+
+PostgreSQL 테이블은 Entity별 JSONB payload + 타입 있는 generated 컬럼을 사용합니다. FK·상태·금액·중복 제약을 DB에서 검증합니다. Repository의 전체 컬렉션 읽기는 작은 프로토타입용이며, 트래픽이 커지면 indexed row query로 교체합니다. 자세한 결정은 아키텍처 문서에 있습니다.
+
+## 7. 프로젝트 구조
+
+| 경로                                     | 책임                                                 |
+| ---------------------------------------- | ---------------------------------------------------- |
+| `apps/mobile/App.tsx`                    | 앱 shell, 화면 연결, 모바일 하단 탭, 웹 사이드바     |
+| `apps/mobile/src/screens/`               | Home / Forms / Matching / Trading / Account 화면군   |
+| `apps/mobile/src/components/ui.tsx`      | 버튼·입력·카드·알림·빈 상태·페이지 등                |
+| `apps/mobile/src/components/visuals.tsx` | 상품 예시 그림, 장소 카드, 예시 지도, 타임라인, 가격 |
+| `apps/mobile/src/state/AppContext.tsx`   | 현재 역할·화면·세션·상태 갱신                        |
+| `apps/mobile/src/lib/`                   | API·이미지 선택·명시적 샘플 증빙                     |
+| `apps/mobile/src/theme/`                 | 공유 디자인 토큰                                     |
+| `apps/api/src/auth/`                     | 가상 세션·인증 Guard                                 |
+| `apps/api/src/catalog/`                  | 공개 카탈로그·권한별 snapshot·메타데이터 fallback    |
+| `apps/api/src/requests/`, `trips/`       | 구매 요청·일정·매칭·묶음                             |
+| `apps/api/src/transactions/`, `chat/`    | 금액·상태 전이·정산·대화                             |
+| `apps/api/src/infrastructure/`           | 저장소·Mock PG·Redis·S3 확장 어댑터                  |
+| `packages/domain/src/`                   | 공유 Entity, 가격 계산, 묶음 추천, seed              |
+| `database/001_initial.sql`               | 초기 PostgreSQL migration                            |
+| `docs/`                                  | IA·디자인·아키텍처·API·검증 문서                     |
+| `scripts/`                               | 실행, migration, 데이터 백업/초기화, DOM 통합 테스트 |
+
+은행 실무 방식으로 이해하면 **화면 → Controller → Service → Repository → DB/외부 인터페이스 → 응답**입니다. 화면에서 `status='SETTLED'`를 직접 덮어쓰는 API는 없습니다. 허용 명령과 사용자·이전 상태·버전을 서버에서 검증합니다.
+
+## 8. 검증·빌드 명령
+
+```bash
+npm run typecheck
+npm test
+npm run test:ui
+npm run build
+```
+
+`npm test`는 NestJS HTTP API와 실제 임시 파일 저장소를 사용한 거래 테스트, PGlite(PostgreSQL 엔진)의 SQL 제약 검증을 수행합니다. `npm run test:ui`는 export한 React Native Web 코드를 jsdom에서 실제 NestJS API에 연결해 화면 동작을 확인합니다. **jsdom 테스트는 실제 브라우저 렌더링/레이아웃 검증이 아닙니다.**
+
+`npm run build`의 출력: `packages/domain/dist`, `apps/api/dist`, `apps/mobile/dist`.
+
+native 번들만 확인하려면:
+
+```bash
+cd apps/mobile
+npx expo export --platform ios --platform android --output-dir dist-native
+```
+
+## 9. 자주 막히는 지점
+
+- **8081/4000 사용 중**: 기존 프로세스를 종료하거나 명시적으로 포트를 맞춰 변경합니다. API 포트를 바꾸면 모바일 API URL도 바꾸세요.
+- **`@moa/domain`을 찾을 수 없음**: `npm run dev` 또는 `npm run build -w @moa/domain`으로 먼저 빌드합니다.
+- **로그인 후 401**: 서버 재시작으로 가상 세션이 만료됐습니다. 다시 체험 시작을 누르세요.
+- **409 수락/거래 충돌**: 이미 변경된 상태, 방문 장소·기간 불일치, 처리 수량 초과를 확인합니다.
+- **프로필 변경 후 거래가 안 보임**: 거래 참여자만 보이는 것이 정상입니다. 거래의 구매자 또는 선택된 여행자 계정으로 바꾸세요.
+- **상품 링크가 자동으로 안 채워짐**: 상품 주소 전체를 붙여넣었는지 확인하세요. 삭제된 페이지·비공개 몰·로봇 접근을 차단하는 몰은 즉시 안내하고 사진 인식/직접 입력을 제공합니다.
+- **`Cannot POST /api/recognize`**: 이전 API 서버에 연결된 상태입니다. 실행 중인 개발 서버를 종료한 뒤 프로젝트 루트에서 `npm run dev`를 한 번만 실행하고 앱을 새로고침하세요. 이제 사용 중인 포트가 있으면 새 실행을 중단하며, 종료할 때 API·Metro 자식 프로세스도 함께 정리합니다. `/health`의 `apiVersion: recognition-v2` 및 `capabilities`로 인식 기능을 확인할 수 있습니다.
+- **샘플은 되지만 업로드 사진 분석이 안 됨**: 샘플은 고정된 상품 데이터로 자동 입력 흐름을 확인하는 기능입니다. 실제 사진 분석은 `apps/api/.env`에 서버 전용 `OPENAI_API_KEY`가 필요합니다. 키를 채팅이나 모바일 환경변수에 넣지 마세요. 기본 모델은 [이미지 입력과 구조화 출력을 지원하는 GPT-4.1 mini](https://developers.openai.com/api/docs/models/gpt-4.1-mini)이며 `OPENAI_VISION_MODEL`로 설정할 수 있습니다. 키 추가 후 서버를 재시작하세요. 현재 인식 데이터는 검색용 예시이며 별도 모델 학습을 수행한 것이 아닙니다.
+- **이미지가 안 올라감**: JPG/PNG/WebP, 이미지당 2MB 이하로 준비합니다. HEIC는 지원하지 않습니다.
+- **초기 데이터로 돌아가고 싶음**: API를 종료한 뒤 `npm run reset`을 실행하면 파일을 삭제하지 않고 타임스탬프가 붙은 backup으로 옮깁니다. 다시 API를 시작하세요. PostgreSQL DB는 변경하지 않습니다.
+
+## 10. 실서비스 연결 전에
+
+PG 승인/취소/webhook·대사, 실 OAuth와 휴대폰 인증, 국가별 운송·통관·세금 검증, 실 지도·매장/상품 수집, 부분 품절/가격 변경 승인, 이미지 검증·S3 private 저장, 분쟁 해결 운영도구가 남아 있습니다. S3 presigner와 Redis 캐시 어댑터는 포함되어 있으나 실제 AWS 호출은 검증하지 않았습니다.
+
+현재 프로필의 인증·성공률·방문자 수·거래량은 전부 샘플입니다. 상품 그림은 실제 판매 상품 사진이 아닙니다. 일본 사진은 여행 분위기 이미지이며 특정 매장 사진이라고 표시하지 않았습니다. 이미지 출처와 사용 구분은 [assets-and-sources.md](docs/assets-and-sources.md)에 있습니다.

@@ -1,0 +1,12 @@
+node_modules/
+dist/
+dist-native/
+.expo/
+.env
+!.env.example
+*.log
+.data/
+coverage/
+test-results/
+ios/
+android/
