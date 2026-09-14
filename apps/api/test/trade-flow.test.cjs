@@ -96,6 +96,64 @@ after(async () => {
 test('unauthenticated clients cannot read private snapshots', async () => {
   assert.equal((await call('/snapshot', undefined, 'anonymous')).status, 401);
 });
+test('cancelled request retry notifies previous other travelers once, without reusing old offers', async () => {
+  const r = (await call('/requests', requestBody())).data;
+  const first = await call(`/requests/${r.id}/offers`, offerBody(), 'u-min');
+  const second = await call(`/requests/${r.id}/offers`, offerBody({ tripId: 'trip-u-haru' }), 'u-haru');
+  assert.equal(first.status, 201); assert.equal(second.status, 201);
+  let t = (await call(`/offers/${first.data.id}/accept`, { expectedRevision: 2 })).data;
+  t = await act(t, 'CANCEL', 'u-me');
+  assert.equal(t.status, 'CANCELLED');
+  const body = requestBody({ retryOfRequestId: r.id });
+  const key = randomUUID();
+  const retry = await call('/requests', body, 'u-me', key);
+  assert.equal(retry.status, 201);
+  const again = await call('/requests', body, 'u-me', key);
+  assert.equal(again.data.id, retry.data.id);
+  assert.notEqual((await call('/requests', body)).status, 201);
+  assert.notEqual((await call('/requests', body, 'u-joon')).status, 201);
+  const state = await app.get(Store).read((db) => db);
+  const notices = state.notifications.filter((n) => n.requestId === retry.data.id);
+  assert.deepEqual(notices.map((n) => n.userId), ['u-haru']);
+  assert.equal(state.transactions.find((item) => item.id === t.id).status, 'CANCELLED');
+  assert.equal(state.offers.filter((o) => o.requestId === retry.data.id).length, 0);
+  assert.equal((await call(`/requests/${retry.data.id}/offers`, offerBody({ tripId: 'trip-u-haru' }), 'u-haru')).status, 201);
+});
+test('meetup coordinates and detail persist privately; invalid coordinates are rejected', async () => {
+  const point = { name: '직거래 테스트 역', address: '서울 중구', latitude: 37.555, longitude: 126.97, detail: '1번 출구 편의점 앞' };
+  const body = requestBody({ transport: 'MEETUP', meetupLocation: point.name, meetupPoint: point });
+  const r = await call('/requests', body);
+  assert.equal(r.status, 201); assert.deepEqual(r.data.meetupPoint, point);
+  const other = (await call('/snapshot', undefined, 'u-joon')).data.requests.find((v) => v.id === r.data.id);
+  assert.equal(other.meetupPoint, undefined); assert.equal(other.meetupLocation, undefined);
+  const o = (await call(`/requests/${r.data.id}/offers`, offerBody({ transport: 'MEETUP' }), 'u-min')).data;
+  assert.equal((await call(`/offers/${o.id}/accept`, { expectedRevision: 1 })).status, 201);
+  const partner = (await call('/snapshot', undefined, 'u-min')).data.requests.find((v) => v.id === r.data.id);
+  assert.deepEqual(partner.meetupPoint, point);
+  assert.equal((await call('/requests', { ...body, meetupPoint: { ...point, latitude: 91 } })).status, 400);
+});
+test('place search never returns fake results when the provider is not configured', async () => {
+  const original = process.env.KAKAO_REST_API_KEY;
+  delete process.env.KAKAO_REST_API_KEY;
+  try {
+    assert.equal((await call('/meetup/search?q=' + encodeURIComponent('서울역'))).status, 503);
+    assert.equal((await call('/meetup/search?q=a')).status, 400);
+  } finally { if (original) process.env.KAKAO_REST_API_KEY = original; }
+});
+test('Asian cities, local currencies, decimal prices and multiple Japanese cities work', async () => {
+  const { DESTINATIONS, quote, recommendedReward } = require('@moa/domain');
+  const state = (await call('/snapshot')).data;
+  for (const [country, entry] of Object.entries(DESTINATIONS)) for (const city of entry.cities)
+    assert.ok(state.places.some((p) => p.country === country && p.city === city), country + city);
+  const r = await call('/requests', requestBody({ placeId: 'p-singapore-haji', localPrice: 12.75 }));
+  assert.equal(r.status, 201); assert.equal(r.data.currency, 'SGD');
+  assert.equal(quote(r.data, recommendedReward(r.data), 'MEETUP').productPrice, 12750);
+  const tripBody = { departureCountry: 'KR', departureCity: '서울', destinationCountry: 'TW', destinationCity: '타이베이', startDate: future(2), endDate: future(8), placeIds: ['p-taipei-ximen'], maxItems: 5 };
+  assert.equal((await call('/trips', tripBody, 'u-joon')).status, 201);
+  assert.notEqual((await call('/trips', { ...tripBody, destinationCity: '도쿄' }, 'u-joon')).status, 201);
+  const sapporo = state.places.find((p) => p.city === '삿포로');
+  assert.equal((await call('/trips', { ...tripBody, destinationCountry: 'JP', destinationCity: '도쿄', placeIds: ['p-station', sapporo.id] }, 'u-joon')).status, 201);
+});
 test('metadata has a deterministic catalog and safe manual fallback', async () => {
   assert.equal(
     (await call('/metadata', { url: 'https://demo.moa.local/products/1' })).data.status,
@@ -422,6 +480,7 @@ test('PostgreSQL schema loads seed and rejects invalid totals and foreign keys',
   const db = new PGlite();
   try {
     await db.exec(await readFile(path.resolve('../../database/001_initial.sql'), 'utf8'));
+    await db.exec(await readFile(path.resolve('../../database/002_asia_currency.sql'), 'utf8'));
     const data = seedDatabase();
     await db.exec('BEGIN; SET CONSTRAINTS ALL DEFERRED;');
     for (const [table, rows] of Object.entries(data))
@@ -433,6 +492,9 @@ test('PostgreSQL schema loads seed and rejects invalid totals and foreign keys',
     await db.exec('COMMIT');
     const count = await db.query('SELECT count(*)::int AS n FROM moa.requests');
     assert.equal(count.rows[0].n, 15);
+    const decimalRequest = { ...data.requests[0], id: 'asia-decimal', currency: 'SGD', localPrice: 12.75 };
+    await db.query('INSERT INTO moa.requests(id,payload) VALUES($1,$2)', [decimalRequest.id, JSON.stringify(decimalRequest)]);
+    assert.equal(Number((await db.query("SELECT local_price FROM moa.requests WHERE id='asia-decimal'")).rows[0].local_price), 12.75);
     const request = { ...data.requests[0], id: 'bad-fk', placeId: 'missing-place' };
     await assert.rejects(
       db.query('INSERT INTO moa.requests(id,payload) VALUES($1,$2)', [

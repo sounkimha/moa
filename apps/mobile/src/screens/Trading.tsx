@@ -22,6 +22,7 @@ import {
 } from 'lucide-react-native';
 import { Place, Transaction, money, shortDate, STATUS_LABEL, TRANSPORT_LABEL } from '@moa/domain';
 import { useApp } from '../state/AppContext';
+import { MeetupSummary } from '../components/MeetupSummary';
 import { colors as c } from '../theme/tokens';
 import { pickImage } from '../lib/images';
 import demoImages from '../lib/demo-images.json';
@@ -422,6 +423,7 @@ export function TransactionScreen() {
             ? `결제한 모의 금액 ${money(t.totalPrice)}은 전액 환불됐어요.`
             : '결제 전에 취소되어 청구된 금액은 없어요.'}
           {'\n'}새 부탁은 직접 등록하기 전까지 공개되지 않아요.
+          {'\n'}다시 등록하면 이전에 제안한 다른 여행자에게 앱 내 알림을 보내요.
         </Notice>
         <Txt size={13} color={c.secondary}>
           취소된 거래와 대화 기록은 거래 메뉴에서 다시 확인할 수 있어요.
@@ -451,6 +453,7 @@ export function TransactionScreen() {
         )
       }
     >
+      {t.transport === 'MEETUP' && <MeetupSummary point={r.meetupPoint} />}
       <View
         style={{
           backgroundColor: frozen ? c.dangerBg : held ? c.darkGreen : c.mint,

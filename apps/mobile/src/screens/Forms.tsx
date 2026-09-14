@@ -18,6 +18,7 @@ import {
   CATEGORIES,
   Product,
   ProductRequest,
+  MeetupPoint,
   Trip,
   Transport,
   quote,
@@ -31,6 +32,7 @@ import {
   localMoney,
 } from '@moa/domain';
 import { DestinationPicker } from '../components/DestinationPicker';
+import { MeetupPicker } from '../components/MeetupPicker';
 import { useApp } from '../state/AppContext';
 import { api } from '../lib/api';
 import { pickImage } from '../lib/images';
@@ -53,13 +55,6 @@ import {
 } from '../components/ui';
 import { ProductArt, MoneyBreakdown } from '../components/visuals';
 const future = (n: number) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
-const meetupSpots = [
-  { name: '서울역 1번 출구', area: '서울 중구 한강대로', distance: '1.2km' },
-  { name: '강남역 10번 출구', area: '서울 강남구 강남대로', distance: '1.8km' },
-  { name: '홍대입구역 8번 출구', area: '서울 마포구 양화로', distance: '1.5km' },
-  { name: '성수역 3번 출구', area: '서울 성동구 아차산로', distance: '0.6km' },
-  { name: '잠실역 2번 출구', area: '서울 송파구 올림픽로', distance: '1.9km' },
-];
 type RecognitionSuggestion = {
   productName: string;
   category: Category;
@@ -126,9 +121,9 @@ export function RequestForm() {
     [deliveryPostalCode, setDeliveryPostalCode] = useState(preset?.deliveryPostalCode || draft?.deliveryPostalCode || defaultAddress?.postalCode || ''),
     [deliveryAddress1, setDeliveryAddress1] = useState(preset?.deliveryAddress1 || draft?.deliveryAddress1 || defaultAddress?.address1 || ''),
     [deliveryAddress2, setDeliveryAddress2] = useState(preset?.deliveryAddress2 || draft?.deliveryAddress2 || defaultAddress?.address2 || ''),
-    [meetupLocation, setMeetupLocation] = useState(preset?.meetupLocation || draft?.meetupLocation || '서울역 1번 출구'),
-    [inventoryStatus, setInventoryStatus] = useState(preset?.inventoryStatus || draft?.inventoryStatus || 'CHECK_REQUIRED'),
-    [meetupSearch, setMeetupSearch] = useState('');
+    [meetupLocation, setMeetupLocation] = useState(preset?.meetupLocation || draft?.meetupLocation || ''),
+    [meetupPoint, setMeetupPoint] = useState<MeetupPoint | undefined>(preset?.meetupPoint || draft?.meetupPoint),
+    [inventoryStatus, setInventoryStatus] = useState(preset?.inventoryStatus || draft?.inventoryStatus || 'CHECK_REQUIRED');
   // A retry already has confirmed product details; only recognize a newly edited URL.
   const lastResolvedUrl = useRef(preset?.productUrl?.trim() || '');
   const currentUrl = useRef(url);
@@ -162,7 +157,11 @@ export function RequestForm() {
   const q = quote(pricingInput, recommendedReward(pricingInput), mode);
   const parcelQuote = quote(pricingInput, recommendedReward(pricingInput), 'DOMESTIC_PARCEL');
   const meetupQuote = quote(pricingInput, recommendedReward(pricingInput), 'MEETUP');
-  const meetupResults = meetupSpots.filter((spot) => `${spot.name} ${spot.area}`.includes(meetupSearch.trim()));
+  const completedMeetups = d.transactions.filter((t) => t.buyerId === d.me.id &&
+    ['CONFIRMED', 'SETTLED'].includes(t.status)).map((t) => d.requests.find((r) => r.id === t.requestId))
+    .filter((r) => r?.transport === 'MEETUP' && r.deliveryCountry === deliveryCountry && r.meetupPoint)
+    .map((r) => r!.meetupPoint!).reverse()
+    .filter((p, index, all) => all.findIndex((other) => other.latitude === p.latitude && other.longitude === p.longitude) === index).slice(0, 3);
   useEffect(() => {
     a.setRequestDraft({
       step,
@@ -192,6 +191,7 @@ export function RequestForm() {
       deliveryAddress1,
       deliveryAddress2,
       meetupLocation,
+      meetupPoint,
       inventoryStatus,
     });
   }, [
@@ -222,6 +222,7 @@ export function RequestForm() {
     deliveryAddress1,
     deliveryAddress2,
     meetupLocation,
+    meetupPoint,
     inventoryStatus,
   ]);
   const setProduct = (p: Product) => {
@@ -358,8 +359,8 @@ export function RequestForm() {
       setError('국내 택배를 받을 배송지 정보를 모두 입력해주세요.');
       return;
     }
-    if (mode === 'MEETUP' && !meetupLocation.trim()) {
-      setError('직거래 희망 장소를 선택하거나 입력해주세요.');
+    if (mode === 'MEETUP' && !meetupPoint) {
+      setError('지도를 움직여 만날 지점을 정하고 ‘이 위치에서 만날게요’를 눌러주세요.');
       return;
     }
     setError('');
@@ -381,6 +382,7 @@ export function RequestForm() {
         option,
         transport: mode,
         inventoryStatus,
+        ...(preset?.requesterId === d.me.id && preset.status === 'CANCELLED' ? { retryOfRequestId: preset.id } : {}),
         ...(mode === 'DOMESTIC_PARCEL' ? {
           deliveryAddressId: deliveryAddressId || undefined,
           deliveryRecipient: deliveryRecipient.trim(),
@@ -388,7 +390,7 @@ export function RequestForm() {
           deliveryPostalCode: deliveryPostalCode.trim(),
           deliveryAddress1: deliveryAddress1.trim(),
           deliveryAddress2: deliveryAddress2.trim(),
-        } : { meetupLocation: meetupLocation.trim() }),
+        } : { meetupLocation: meetupLocation.trim(), meetupPoint }),
       },
       '부탁을 등록했어요. 가는 길의 여행자가 수락하면 알려드릴게요.',
     );
@@ -782,18 +784,11 @@ export function RequestForm() {
               </Stack>
             </Card>
           ) : (
-            <Stack gap={10}>
-              <Txt size={17} weight="700">직거래 희망 장소</Txt>
-              <Field label="장소 검색" value={meetupSearch} onChange={setMeetupSearch} placeholder="역, 동네, 건물 이름으로 검색" />
-              {meetupResults.map((spot) => (
-                <Pressable key={spot.name} accessibilityRole="button" accessibilityLabel={`${spot.name} 직거래 장소 선택`} onPress={() => setMeetupLocation(spot.name)} style={{ borderWidth: 1, borderColor: meetupLocation === spot.name ? c.green : c.border, backgroundColor: meetupLocation === spot.name ? c.mint : c.paper, padding: 14, borderRadius: 14 }}>
-                  <Row><MapPin size={19} color={c.green} /><View style={{ flex: 1 }}><Txt weight="700">{spot.name}</Txt><Txt size={12} color={c.secondary}>{spot.area} · 현재 위치에서 {spot.distance} 예시</Txt></View>{meetupLocation === spot.name && <Check size={19} color={c.green} />}</Row>
-                </Pressable>
-              ))}
-              {!meetupResults.length && <Notice>검색 결과가 없어요. 아래에 원하는 장소를 직접 입력해주세요.</Notice>}
-              <Field label="희망 장소 직접 입력" required value={meetupLocation} onChange={setMeetupLocation} placeholder="예: 성수역 3번 출구" />
-              <Notice>정확한 시간은 여행자와 매칭된 뒤 거래 채팅에서 정해요.</Notice>
-            </Stack>
+            <MeetupPicker value={meetupPoint} legacyName={meetupLocation} history={completedMeetups}
+              onChange={(point) => {
+                setMeetupPoint(point);
+                if (point) { setMeetupLocation(point.name); setError(''); }
+              }} />
           )}
           <Card>
             <Stack>

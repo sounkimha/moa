@@ -40,7 +40,7 @@ export function MeetupPicker({ value, onChange, history, legacyName }: {
     <Txt size={13} color={c.secondary}>장소를 검색하고, 지도를 움직여 정확히 만날 지점을 맞춰주세요.</Txt>
     <Field label="장소 검색" value={query} onChange={(text) => { run.current++; setBusy(false); setQuery(text); setError(''); setResults([]); setSearched(false); }} placeholder="역, 동네, 건물 이름으로 검색" />
     <Button label="장소 검색하기" icon={Search} onPress={search} loading={busy} kind="secondary" />
-    {error !== '' && <Notice danger>{error}</Notice>}
+    {error !== '' && <Notice tone="error">{error}</Notice>}
     {searched && results.length === 0 && <Notice>검색 결과가 없어요. 지역명을 함께 넣거나 지도에서 직접 위치를 지정해주세요.</Notice>}
     {results.length > 0 && <Stack gap={8}>
       <Txt size={12} color={c.secondary}>검색 결과 · Kakao</Txt>

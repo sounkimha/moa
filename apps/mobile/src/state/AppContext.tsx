@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
-import { BackHandler, Platform } from 'react-native';
+import { AppState, BackHandler, Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { Art, Category, Country, Role, Snapshot, Transport } from '@moa/domain';
 import { api, ApiError, setToken } from '../lib/api';
@@ -176,6 +176,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
         `#${name}${params.id ? '/' + encodeURIComponent(params.id) : ''}`,
       );
   };
+  useEffect(() => {
+    if (!data?.me.id) return;
+    let running = false;
+    const sync = async () => {
+      if (running || (Platform.OS === 'web' ? document.visibilityState !== 'visible' : AppState.currentState !== 'active')) return;
+      running = true;
+      try { await refresh(); } catch {} finally { running = false; }
+    };
+    const timer = setInterval(sync, 20000);
+    return () => clearInterval(timer);
+  }, [data?.me.id]);
   const back = () => {
     if (Platform.OS === 'web' && history.current.length) {
       window.history.back();

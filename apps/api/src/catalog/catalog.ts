@@ -220,6 +220,8 @@ export class CatalogService {
           deliveryPostalCode: undefined,
           deliveryAddress1: undefined,
           deliveryAddress2: undefined,
+          meetupPoint: undefined,
+          meetupLocation: undefined,
         })),
         addresses: db.addresses.filter((address) => address.userId === actor),
         offers: db.offers.filter(

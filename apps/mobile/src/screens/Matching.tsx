@@ -29,6 +29,7 @@ import {
   recommendedReward,
 } from '@moa/domain';
 import { useApp } from '../state/AppContext';
+import { MeetupSummary } from '../components/MeetupSummary';
 import { colors as c } from '../theme/tokens';
 import {
   Badge,
@@ -163,7 +164,7 @@ export function RequestScreen() {
             [
               r.transport === 'MEETUP' ? '직거래 희망 장소' : '배송지',
               r.transport === 'MEETUP'
-                ? r.meetupLocation || '매칭 후 협의'
+                ? r.meetupLocation || `${r.deliveryCity} · 매칭 후 정확한 위치 공개`
                 : r.deliveryAddress1
                   ? `${r.deliveryAddress1}${r.deliveryAddress2 ? ` · ${r.deliveryAddress2}` : ''}`
                   : `${r.deliveryCity} · 매칭 후 상세 주소 확인`,
@@ -181,6 +182,7 @@ export function RequestScreen() {
         </Stack>
       </Card>
       <Stack gap={14}>
+        {r.transport === 'MEETUP' && <MeetupSummary point={r.meetupPoint} />}
         <Section title="예상 금액, 한눈에" subtitle="여행자 보상은 상품 환산가의 10%로 계산해요." />
         <MoneyBreakdown price={quote(r, recommendedReward(r), r.transport)} />
         <Notice>

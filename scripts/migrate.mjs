@@ -13,17 +13,15 @@ try {
   await client.query(
     'CREATE TABLE IF NOT EXISTS moa.schema_migrations (version integer PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())',
   );
-  const applied = await client.query('SELECT version FROM moa.schema_migrations WHERE version=1');
-  if (!applied.rowCount) {
-    await client.query(await readFile('database/001_initial.sql', 'utf8'));
-    await client.query('INSERT INTO moa.schema_migrations(version) VALUES(1)');
+  for (const [version, file] of [[1, '001_initial.sql'], [2, '002_asia_currency.sql']]) {
+    const applied = await client.query('SELECT version FROM moa.schema_migrations WHERE version=$1', [version]);
+    if (!applied.rowCount) {
+      await client.query(await readFile(`database/${file}`, 'utf8'));
+      await client.query('INSERT INTO moa.schema_migrations(version) VALUES($1)', [version]);
+    }
   }
   await client.query('COMMIT');
-  console.log(
-    applied.rowCount
-      ? 'Schema already at version 1.'
-      : 'Applied schema version 1. Seed data is inserted on the first authenticated request.',
-  );
+  console.log('Schema is at version 2. Existing payloads are preserved.');
 } catch (e) {
   await client.query('ROLLBACK');
   throw e;
