@@ -7,9 +7,10 @@ import { colors as c } from '../theme/tokens';
 import { Button, Card, Field, Notice, Row, Stack, Txt } from './ui';
 import MeetupMap from './MeetupMap';
 
-export function MeetupPicker({ value, onChange, history, legacyName }: {
+export function MeetupPicker({ value, onChange, history, legacyName, country = 'KR' }: {
   value?: MeetupPoint; onChange: (point?: MeetupPoint) => void;
   history: MeetupPoint[]; legacyName?: string;
+  country?: string;
 }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<MeetupPoint[]>([]);
@@ -17,11 +18,12 @@ export function MeetupPicker({ value, onChange, history, legacyName }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [candidate, setCandidate] = useState<MeetupPoint | undefined>(value);
-  const [center, setCenter] = useState({ latitude: value?.latitude ?? 37.5665, longitude: value?.longitude ?? 126.978, zoom: value ? 18 : 12 });
+  const [center, setCenter] = useState({ latitude: value?.latitude ?? (country === 'JP' ? 35.6812 : 37.5665), longitude: value?.longitude ?? (country === 'JP' ? 139.7671 : 126.978), zoom: value ? 18 : 12 });
   const run = useRef(0);
   useEffect(() => () => { run.current++; }, []);
   const search = async () => {
     const current = ++run.current;
+    if (country !== 'KR') { setError('현재 이름 검색은 국내 장소만 지원해요. 일본 수령은 지도에서 위치를 직접 지정해주세요.'); return; }
     if (query.trim().length < 2) { setError('장소 이름을 두 글자 이상 입력해주세요.'); return; }
     setBusy(true); setError(''); setSearched(false); setResults([]);
     try {
@@ -38,7 +40,7 @@ export function MeetupPicker({ value, onChange, history, legacyName }: {
   return <Stack gap={12}>
     <Txt size={17} weight="700">직거래 희망 장소</Txt>
     <Txt size={13} color={c.secondary}>장소를 검색하고, 지도를 움직여 정확히 만날 지점을 맞춰주세요.</Txt>
-    <Field label="장소 검색" value={query} onChange={(text) => { run.current++; setBusy(false); setQuery(text); setError(''); setResults([]); setSearched(false); }} placeholder="역, 동네, 건물 이름으로 검색" />
+    <Field label="장소 검색" value={query} onSubmit={search} onChange={(text) => { run.current++; setBusy(false); setQuery(text); setError(''); setResults([]); setSearched(false); }} placeholder="역, 동네, 건물 이름으로 검색" />
     <Button label="장소 검색하기" icon={Search} onPress={search} loading={busy} kind="secondary" />
     {error !== '' && <Notice tone="error">{error}</Notice>}
     {searched && results.length === 0 && <Notice>검색 결과가 없어요. 지역명을 함께 넣거나 지도에서 직접 위치를 지정해주세요.</Notice>}

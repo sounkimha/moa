@@ -18,6 +18,10 @@ import {
 } from '../common/validation';
 
 const createSchema = z.object({
+  originalText: z.object({
+    productName: z.string().max(1500), storeName: z.string().max(500),
+    purchaseLocation: z.string().max(200), option: z.string().max(500),
+  }).strict().optional(),
   productName: z.string().trim().min(2).max(100),
   productUrl: z.union([z.literal(''), z.string().url().max(2048)]).default(''),
   productImage: z

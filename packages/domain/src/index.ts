@@ -93,6 +93,7 @@ export interface Product extends Entity {
   url?: string;
 }
 export interface ProductRequest extends Entity {
+  originalText?: ProductOriginalText;
   requesterId: string;
   productName: string;
   productUrl: string;
@@ -132,6 +133,12 @@ export interface MeetupPoint {
   longitude: number;
   detail: string;
   providerId?: string;
+}
+export interface ProductOriginalText {
+  productName: string;
+  storeName: string;
+  purchaseLocation: string;
+  option: string;
 }
 export interface UserAddress extends Entity {
   userId: string;

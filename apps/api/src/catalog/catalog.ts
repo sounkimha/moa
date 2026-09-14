@@ -18,6 +18,7 @@ import { ActorRequest, AuthGuard } from '../auth/auth';
 import { Store } from '../infrastructure/store';
 import { base, get, parse } from '../common/validation';
 import { CatalogCache } from '../infrastructure/adapters';
+import { translateProductText } from './korean-translation';
 import {
   rankCatalogProducts,
   RecognitionSignals,
@@ -246,7 +247,7 @@ export class CatalogService {
     });
   }
   async metadata(url: string) {
-    const cacheKey = `metadata:v2:${url}`;
+    const cacheKey = `metadata:ko-v3:${process.env.OPENAI_API_KEY ? (process.env.OPENAI_TRANSLATION_MODEL || process.env.OPENAI_VISION_MODEL || 'gpt-4.1-mini') : 'no-ai'}:${url}`;
     const cached = await this.cache.get<unknown>(cacheKey);
     if (cached) return cached;
     const u = new URL(url);
@@ -316,9 +317,7 @@ export class CatalogService {
         : availability.includes('preorder')
           ? 'PREORDER'
           : 'CHECK_REQUIRED';
-    const rawName = String(meta(page.html, 'og:title') || json?.name || title)
-      .replace(/\s*[|\-]\s*[^|\-]+$/, '')
-      .trim();
+    const rawName = decodeHtml(String(json?.name || meta(page.html, 'og:title') || title)).slice(0, 1500);
     const rawPrice = String(
       offer?.price || meta(page.html, 'product:price:amount') || meta(page.html, 'og:price:amount'),
     ).replace(/[^0-9.]/g, '');
@@ -330,7 +329,7 @@ export class CatalogService {
     const suffixCountry = ['JP', 'KR', 'TW', 'HK', 'CN', 'TH', 'VN', 'SG', 'MY', 'ID'].includes(suffix || '') ? suffix as Country : null;
     const currency: Currency | null = CURRENCY_CODES.includes(currencyValue as Currency)
       ? currencyValue as Currency : suffixCountry ? currencyForCountry(suffixCountry) : null;
-    const siteName = meta(page.html, 'og:site_name') || u.hostname.replace(/^www\./, '');
+    const siteName = meta(page.html, 'og:site_name') || '온라인 판매처';
     const storeName = /chiikawa/i.test(u.hostname) ? '치이카와 마켓' : siteName;
     const imageValue = json?.image;
     const rawImage = Array.isArray(imageValue)
@@ -351,6 +350,19 @@ export class CatalogService {
         [p.name, p.englishName, p.city, p.region].some((term) => searchable.includes(term.toLocaleLowerCase())),
       ) || null;
     });
+    const rawOption = [['색상', json?.color], ['크기', json?.size]]
+      .filter(([, value]) => typeof value === 'string' && value.trim())
+      .map(([label, value]) => `${label}: ${String(value).slice(0, 200)}`).join(' · ');
+    const translated = rawName ? await translateProductText({
+      productName: rawName, storeName: storeName.slice(0, 500), option: rawOption,
+      purchaseLocation: matchedPlace ? `${matchedPlace.city} · ${matchedPlace.region}` : '온라인 판매처',
+    }) : null;
+    const localized = translated ? {
+      ...translated.text,
+      originalText: { ...translated.original, storeName: siteName.slice(0, 500), purchaseLocation: '' },
+      translationStatus: translated.status,
+    } : {};
+    const translationNotice = translated?.notice ? ` ${translated.notice}` : '';
     if (!rawName || !price) {
       const result = {
         status: 'PARTIAL_METADATA',
@@ -368,14 +380,15 @@ export class CatalogService {
               currency,
               imageUrl,
               stockStatus,
+              ...localized,
             }
           : null,
         source: page.finalUrl,
         notice: rawName
-          ? '링크에서 상품은 찾았지만 가격은 확인이 필요해요.'
+          ? '링크에서 상품은 찾았지만 가격은 확인이 필요해요.' + translationNotice
           : '상품 정보를 읽지 못했어요. 사진을 올리거나 직접 입력해주세요.',
       };
-      await this.cache.set(cacheKey, result);
+      if (translated?.status !== 'FAILED') await this.cache.set(cacheKey, result);
       return result;
     }
     const result = {
@@ -393,11 +406,12 @@ export class CatalogService {
         currency,
         imageUrl,
         stockStatus,
+        ...localized,
       },
       source: page.finalUrl,
-      notice: '링크에서 상품명·가격·판매처를 자동으로 채웠어요.',
+      notice: '링크에서 상품명·가격·판매처를 자동으로 채웠어요.' + translationNotice,
     };
-    await this.cache.set(cacheKey, result);
+    if (translated?.status !== 'FAILED') await this.cache.set(cacheKey, result);
     return result;
   }
 

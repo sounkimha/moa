@@ -131,6 +131,13 @@ try {
   await expectText('월');
   await click('희망 수령일 달력 열기');
   await click('직접 전달 · 무료');
+  const mapFrame = await wait(() => document.querySelector('iframe[title="직거래 위치 지도"]'), 'meetup map');
+  const channel = mapFrame.srcdoc.match(/channel:"([^"]+)"/)[1];
+  dom.window.dispatchEvent(new dom.window.MessageEvent('message', {
+    source: mapFrame.contentWindow,
+    data: JSON.stringify({ channel, latitude: 37.555, longitude: 126.97 }),
+  }));
+  await click('이 위치에서 만날게요');
   await expectText('국내 전달비');
   await expectText('여행자 보상 · 상품가 10%');
   await expectText('받는 방법별 금액 비교');
@@ -141,6 +148,7 @@ try {
     const label = [...document.querySelectorAll('*')].find((e) => e.textContent === '국내 전달비');
     return label?.parentElement?.textContent.includes('₩0');
   }, 'preserved free meetup fee');
+  await expectText('직거래 위치가 저장됐어요');
   await click('부탁 등록하기');
   await expectText('여행자의 수락을 기다려요');
   console.log('PASS: onboarding → real API login → link metadata → request creation');

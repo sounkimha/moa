@@ -18,6 +18,7 @@ import {
   CATEGORIES,
   Product,
   ProductRequest,
+  ProductOriginalText,
   MeetupPoint,
   Trip,
   Transport,
@@ -33,6 +34,7 @@ import {
 } from '@moa/domain';
 import { DestinationPicker } from '../components/DestinationPicker';
 import { MeetupPicker } from '../components/MeetupPicker';
+import { ProductOriginal } from '../components/ProductOriginal';
 import { useApp } from '../state/AppContext';
 import { api } from '../lib/api';
 import { pickImage } from '../lib/images';
@@ -56,6 +58,8 @@ import {
 import { ProductArt, MoneyBreakdown } from '../components/visuals';
 const future = (n: number) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
 type RecognitionSuggestion = {
+  originalText?: ProductOriginalText;
+  option?: string;
   productName: string;
   category: Category;
   art: Art;
@@ -87,6 +91,7 @@ export function RequestForm() {
   const draft = preset ? null : a.requestDraft;
   const defaultAddress = (d.addresses || []).find((item) => item.userId === d.me.id && item.isDefault);
   const [step, setStep] = useState(draft?.step || 1),
+    [originalText, setOriginalText] = useState<ProductOriginalText | undefined>(preset?.originalText || draft?.originalText),
     [method, setMethod] = useState<'link' | 'photo'>(a.route.method || draft?.method || 'link'),
     [url, setUrl] = useState(preset?.productUrl || draft?.url || ''),
     [name, setName] = useState(preset?.productName || draft?.name || ''),
@@ -131,6 +136,7 @@ export function RequestForm() {
   const recognitionRun = useRef(0);
   useEffect(() => () => { recognitionRun.current++; }, []);
   const clearProduct = () => {
+    setOriginalText(undefined);
     setName(''); setPrice(''); setImage(''); setStoreName('');
     setOption('기본 옵션'); setInventoryStatus('CHECK_REQUIRED');
     setAiFilled(false); setSampleFilled(false); setEditingDetails(false);
@@ -157,13 +163,14 @@ export function RequestForm() {
   const q = quote(pricingInput, recommendedReward(pricingInput), mode);
   const parcelQuote = quote(pricingInput, recommendedReward(pricingInput), 'DOMESTIC_PARCEL');
   const meetupQuote = quote(pricingInput, recommendedReward(pricingInput), 'MEETUP');
-  const completedMeetups = d.transactions.filter((t) => t.buyerId === d.me.id &&
+  const completedMeetups = d.transactions.filter((t) => (t.buyerId === d.me.id || t.travelerId === d.me.id) &&
     ['CONFIRMED', 'SETTLED'].includes(t.status)).map((t) => d.requests.find((r) => r.id === t.requestId))
     .filter((r) => r?.transport === 'MEETUP' && r.deliveryCountry === deliveryCountry && r.meetupPoint)
     .map((r) => r!.meetupPoint!).reverse()
     .filter((p, index, all) => all.findIndex((other) => other.latitude === p.latitude && other.longitude === p.longitude) === index).slice(0, 3);
   useEffect(() => {
     a.setRequestDraft({
+      originalText,
       step,
       method,
       url,
@@ -195,6 +202,7 @@ export function RequestForm() {
       inventoryStatus,
     });
   }, [
+    originalText,
     step,
     method,
     url,
@@ -235,6 +243,7 @@ export function RequestForm() {
     setOption('기본 옵션');
   };
   const applyRecognition = (result: RecognitionResult, uploadedImage?: string) => {
+    setOriginalText(result.suggestion?.originalText);
     setSampleFilled(result.source === 'DEMO_SAMPLE' || result.status === 'DEMO_FOUND');
     setImage(uploadedImage ?? result.suggestion?.imageUrl ?? result.product?.image ?? '');
     const detectedPlaceId = result.product?.placeId || result.suggestion?.placeId || placeId;
@@ -251,6 +260,7 @@ export function RequestForm() {
       if (suggestion.localPrice) setPrice(String(suggestion.localPrice));
       if (suggestion.storeName) setStoreName(suggestion.storeName);
       if (suggestion.stockStatus) setInventoryStatus(suggestion.stockStatus);
+      setOption(suggestion.option || '기본 옵션');
     }
     const filled = Boolean(result.product || result.suggestion?.productName);
     setAiFilled(filled);
@@ -367,6 +377,7 @@ export function RequestForm() {
     const request = await a.mutate<ProductRequest>(
       '/requests',
       {
+        ...(originalText ? { originalText } : {}),
         productName: name.trim(),
         productUrl: url.trim(),
         productImage: image,
@@ -479,7 +490,7 @@ export function RequestForm() {
                 placeholder="https://..."
               />
               <Button
-                label="링크에서 정보 가져오기"
+                label={resolving ? '상품 정보·한국어 번역을 가져오는 중' : '링크에서 정보 가져오기'}
                 kind="secondary"
                 icon={Sparkles}
                 loading={resolving}
@@ -562,6 +573,7 @@ export function RequestForm() {
                         ? localMoney(Number(price), currencyForCountry(place.country))
                         : '가격 확인 필요'}
                     </Txt>
+                    {option !== '기본 옵션' && <Txt size={13} color={c.secondary}>{option}</Txt>}
                   </Stack>
                 </Row>
                 <Txt size={12} color={c.muted}>
@@ -664,6 +676,7 @@ export function RequestForm() {
           </Txt>
             </>
           ) : null}
+          <ProductOriginal text={originalText} />
           {!aiFilled && !editingDetails && (
             <Button
               small
@@ -719,6 +732,7 @@ export function RequestForm() {
                 label="한국"
                 selected={deliveryCountry === 'KR'}
                 onPress={() => {
+                  if (deliveryCountry !== 'KR') { setMeetupPoint(undefined); setMeetupLocation(''); }
                   setDeliveryCountry('KR');
                   setDeliveryCity('서울');
                 }}
@@ -727,6 +741,7 @@ export function RequestForm() {
                 label="일본"
                 selected={deliveryCountry === 'JP'}
                 onPress={() => {
+                  if (deliveryCountry !== 'JP') { setMeetupPoint(undefined); setMeetupLocation(''); }
                   setDeliveryCountry('JP');
                   setDeliveryCity('도쿄');
                 }}
@@ -784,7 +799,7 @@ export function RequestForm() {
               </Stack>
             </Card>
           ) : (
-            <MeetupPicker value={meetupPoint} legacyName={meetupLocation} history={completedMeetups}
+            <MeetupPicker key={deliveryCountry} country={deliveryCountry} value={meetupPoint} legacyName={meetupLocation} history={completedMeetups}
               onChange={(point) => {
                 setMeetupPoint(point);
                 if (point) { setMeetupLocation(point.name); setError(''); }
@@ -886,7 +901,7 @@ export function TripForm() {
         <Chip
           label="한국 출발"
           selected={depCountry === 'KR'}
-          onPress={() => setDepCountry('KR')}
+          onPress={() => { setDepCountry('KR'); setDeparture('서울'); }}
         />
         <Chip
           label="일본 출발"

@@ -262,6 +262,7 @@ export function Field({
   error,
   style,
   secure = false,
+  onSubmit,
 }: {
   label: string;
   value: string;
@@ -274,6 +275,7 @@ export function Field({
   error?: string;
   style?: StyleProp<ViewStyle>;
   secure?: boolean;
+  onSubmit?: () => void;
 }) {
   return (
     <View style={[{ gap: 7 }, style]}>
@@ -283,6 +285,8 @@ export function Field({
       </Txt>
       <TextInput
         accessibilityLabel={label}
+        onSubmitEditing={onSubmit}
+        returnKeyType={onSubmit ? 'search' : undefined}
         value={value}
         onChangeText={onChange}
         placeholder={placeholder}

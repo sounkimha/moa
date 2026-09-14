@@ -30,6 +30,7 @@ import {
 } from '@moa/domain';
 import { useApp } from '../state/AppContext';
 import { MeetupSummary } from '../components/MeetupSummary';
+import { ProductOriginal } from '../components/ProductOriginal';
 import { colors as c } from '../theme/tokens';
 import {
   Badge,
@@ -183,6 +184,7 @@ export function RequestScreen() {
       </Card>
       <Stack gap={14}>
         {r.transport === 'MEETUP' && <MeetupSummary point={r.meetupPoint} />}
+        <ProductOriginal text={r.originalText} />
         <Section title="예상 금액, 한눈에" subtitle="여행자 보상은 상품 환산가의 10%로 계산해요." />
         <MoneyBreakdown price={quote(r, recommendedReward(r), r.transport)} />
         <Notice>

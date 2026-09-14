@@ -27,7 +27,7 @@ export async function api<T>(path: string, body?: unknown): Promise<T> {
   const id = keys.get(fingerprint) || key();
   if (body !== undefined) keys.set(fingerprint, id);
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), path === '/recognize' ? 45000 : path === '/metadata' ? 20000 : 15000);
+  const timer = setTimeout(() => controller.abort(), path === '/recognize' ? 45000 : path === '/metadata' ? 35000 : 15000);
   try {
     const response = await fetch(`${API_URL}/api${path}`, {
       method: body === undefined ? 'GET' : 'POST',

@@ -7,7 +7,7 @@ export type MeetupMapProps = {
 };
 export default function MeetupMap({ latitude, longitude, zoom, onMove }: MeetupMapProps) {
   const html = useMemo(() => meetupMapHtml(latitude, longitude, zoom, 'meetup'), [latitude, longitude, zoom]);
-  return <WebView source={{ html }} style={{ height: 300 }} userAgent="MoaMeetupMap/0.1"
+  return <WebView source={{ html }} style={{ height: 300 }} startInLoadingState userAgent="MoaMeetupMap/0.1"
     originWhitelist={['about:*']} onShouldStartLoadWithRequest={(request) => request.url === 'about:blank'}
     onMessage={(event) => { try {
       const p = JSON.parse(event.nativeEvent.data);

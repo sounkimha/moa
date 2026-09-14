@@ -51,6 +51,7 @@ const webRoute = (): Route => {
   return { name, ...(rawId ? { id: decodeURIComponent(rawId) } : {}) };
 };
 export type RequestDraft = {
+  originalText?: import('@moa/domain').ProductOriginalText;
   step: number;
   method: 'link' | 'photo';
   url: string;
