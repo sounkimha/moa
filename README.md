@@ -4,7 +4,7 @@
 
 가칭 **모아**로 만든 실행 가능한 프로토타입입니다. 장소 중심 구매자 홈, 반경 2km 여행자 발견, 여행 동선 중심 여행자 홈, 같은 장소의 부탁 일괄 수락, 금액 분해, 결제 보관 상태, 구매 인증, 배송, 수령 확인과 정산까지 연결했습니다. 화면만 바뀌는 정적 시안이 아니라 React Native 앱이 NestJS API를 호출하고 서버가 데이터를 저장합니다.
 
-실제 인증·PG·수집 시스템은 아직 연결하지 않았습니다. 직거래 위치 지도는 Leaflet/OpenStreetMap을 사용하고, 국내 장소 검색은 별도 카카오 로컬 API 키가 필요합니다. 앱에서 체험 모드로 표시하며, 실제 자금 이동이나 상품 구매는 발생하지 않습니다. `NODE_ENV=production`에서는 서버가 시작되지 않습니다. 운영 서비스를 완성했다고 주장하는 버전이 아닙니다.
+카카오·Google·네이버 OAuth 코드 흐름은 구현되어 있으며 공급자 콘솔 키를 설정해야 실제 계정 버튼이 활성화됩니다. PG와 실상품 수집 시스템은 아직 연결하지 않았습니다. 직거래 위치 지도는 Leaflet/OpenStreetMap을 사용하고, 국내 장소 검색은 별도 카카오 로컬 API 키가 필요합니다. 앱에서 체험 모드로 표시하며, 실제 자금 이동이나 상품 구매는 발생하지 않습니다. `NODE_ENV=production`에서는 서버가 시작되지 않습니다. 운영 서비스를 완성했다고 주장하는 버전이 아닙니다.
 
 ## 1. VS Code에서 바로 실행
 
@@ -31,7 +31,29 @@ Codespaces의 브라우저 체험은 8081 웹 주소에서 API도 함께 전달�
 | http://localhost:4000/health       | API 실행 확인                  |
 | http://localhost:4000/api/snapshot | bearer 인증이 필요한 앱 데이터 |
 
-키·환경변수 없이 실행하면 `apps/api/.data/moa.json`에 저장됩니다. 온보딩의 **체험 계정으로 로그인**은 매번 완료 전 초기 데이터로 새 체험을 시작합니다. 로그인 뒤 MY에서 체험 사용자를 바꿀 때는 진행 중인 거래가 그대로 이어집니다. 로그인 세션은 서버 재시작 시 만료됩니다.
+키·환경변수 없이 실행하면 `apps/api/.data/moa.json`에 저장됩니다. 온보딩의 **체험 계정으로 로그인**은 로컬 파일 모드에서 완료 전 초기 데이터로 새 체험을 시작합니다. PostgreSQL 또는 실제 OAuth 키를 설정한 환경에서는 사용자 보호를 위해 초기화만 건너뛰고 체험 로그인은 정상 진행합니다. 로그인 뒤 MY에서 체험 사용자를 바꿀 때는 진행 중인 거래가 그대로 이어집니다. 로그인 세션은 서버 재시작 시 만료됩니다.
+
+### 카카오·Google·네이버 계정 연결
+
+`apps/api/.env.example`을 `apps/api/.env`로 복사하고 사용할 공급자의 서버 키를 설정합니다. 비밀키는 `EXPO_PUBLIC_*`나 앱 코드에 넣지 않습니다.
+
+```dotenv
+OAUTH_CALLBACK_BASE_URL=http://localhost:8081
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+KAKAO_LOGIN_REST_API_KEY=...
+KAKAO_LOGIN_CLIENT_SECRET=... # 카카오 콘솔에서 Client Secret을 사용할 때만
+NAVER_CLIENT_ID=...
+NAVER_CLIENT_SECRET=...
+```
+
+각 공급자 개발자 콘솔에 다음 Callback/Redirect URI를 정확히 등록합니다.
+
+- `http://localhost:8081/api/auth/oauth/google/callback`
+- `http://localhost:8081/api/auth/oauth/kakao/callback`
+- `http://localhost:8081/api/auth/oauth/naver/callback`
+
+운영 환경에서는 `OAUTH_CALLBACK_BASE_URL`을 공개 HTTPS API/웹 프록시 주소로 바꾸고 동일한 세 경로를 등록해야 합니다. 서버는 CSRF 방지용 일회성 `state`, 10분 만료, 공급자 토큰의 서버 교환, 5분짜리 일회용 앱 코드를 사용합니다. 공급자의 access token과 이메일은 앱이나 DB에 저장하지 않습니다. 설정 방법은 [Google OAuth 웹 서버](https://developers.google.com/identity/protocols/oauth2/web-server), [카카오 로그인 REST API](https://developers.kakao.com/docs/latest/ko/kakaologin/rest-api), [네이버 로그인 API](https://developers.naver.com/docs/login/api/api.md) 공식 문서를 따릅니다.
 
 ## 2. 먼저 볼 문서: 요청한 설계 순서
 
@@ -80,7 +102,7 @@ Codespaces의 브라우저 체험은 8081 웹 주소에서 API도 함께 전달�
 | MY                  | 여행·관심 장소·알림·후기·정산·체험 계정 선택                                              |
 | 지도                | 둘러보기는 예시 위치 미리보기. 직거래는 이동·확대 가능한 실제 지도와 좌표 저장. 실제 경로 계산은 미연결 |
 | 직구 비교/매칭 시간 | 출처 없는 수치를 만들지 않고 ‘확인 필요’로 표시                                           |
-| 인증                | 휴대폰·Apple·Google·Kakao 버튼은 모두 **가상 계정 로그인**                                |
+| 인증                | 체험 계정 + 카카오·Google·네이버 OAuth Authorization Code 로그인                         |
 
 MVP 상품은 캐릭터·게임/애니·팝업·지역 한정·패션 잡화·콘서트 MD로 제한했습니다. 자유텍스트와 사진 속 실제 품목까지 분류하는 심사 기능은 출시 전 추가해야 합니다.
 
@@ -183,7 +205,7 @@ PostgreSQL 테이블은 Entity별 JSONB payload + 타입 있는 generated 컬럼
 | `apps/mobile/src/state/AppContext.tsx`   | 현재 역할·화면·세션·상태 갱신                        |
 | `apps/mobile/src/lib/`                   | API·이미지 선택·명시적 샘플 증빙                     |
 | `apps/mobile/src/theme/`                 | 공유 디자인 토큰                                     |
-| `apps/api/src/auth/`                     | 가상 세션·인증 Guard                                 |
+| `apps/api/src/auth/`                     | 체험 세션·소셜 OAuth·인증 Guard                      |
 | `apps/api/src/catalog/`                  | 공개 카탈로그·권한별 snapshot·메타데이터 fallback    |
 | `apps/api/src/requests/`, `trips/`       | 구매 요청·일정·매칭·묶음                             |
 | `apps/api/src/transactions/`, `chat/`    | 금액·상태 전이·정산·대화                             |
@@ -219,7 +241,8 @@ npx expo export --platform ios --platform android --output-dir dist-native
 
 - **8081/4000 사용 중**: 기존 프로세스를 종료하거나 명시적으로 포트를 맞춰 변경합니다. API 포트를 바꾸면 모바일 API URL도 바꾸세요.
 - **`@moa/domain`을 찾을 수 없음**: `npm run dev` 또는 `npm run build -w @moa/domain`으로 먼저 빌드합니다.
-- **로그인 후 401**: 서버 재시작으로 가상 세션이 만료됐습니다. 체험 계정으로 다시 로그인하세요.
+- **체험 로그인 오류**: 화면만 실행된 이전 Expo 프로세스가 아닌지 확인하고 프로젝트 루트에서 `npm run dev`를 한 번만 실행하세요. 웹은 8081 동일 출처 프록시를 통해 API에 연결합니다.
+- **소셜 로그인 설정 필요**: `apps/api/.env`의 공급자 키와 개발자 콘솔 Redirect URI가 일치해야 합니다. 키 변경 후 서버를 재시작하세요.
 - **409 수락/거래 충돌**: 이미 변경된 상태, 방문 장소·기간 불일치, 처리 수량 초과를 확인합니다.
 - **프로필 변경 후 거래가 안 보임**: 거래 참여자만 보이는 것이 정상입니다. 거래의 구매자 또는 선택된 여행자 계정으로 바꾸세요.
 - **상품 링크가 자동으로 안 채워짐**: 상품 주소 전체를 붙여넣었는지 확인하세요. 삭제된 페이지·비공개 몰·로봇 접근을 차단하는 몰은 즉시 안내하고 사진 인식/직접 입력을 제공합니다.
@@ -231,6 +254,6 @@ npx expo export --platform ios --platform android --output-dir dist-native
 
 ## 10. 실서비스 연결 전에
 
-PG 승인/취소/webhook·대사, 실 OAuth와 휴대폰 인증, 국가별 운송·통관·세금 검증, 실 지도·매장/상품 수집, 일부 수량만 구매했을 때의 가격 변경 승인, 이미지 검증·S3 private 저장, 분쟁 해결 운영도구가 남아 있습니다. 요청 전체 품절·휴무·구매 제한은 방문 증빙과 함께 전액 환불됩니다. S3 presigner와 Redis 캐시 어댑터는 포함되어 있으나 실제 AWS 호출은 검증하지 않았습니다.
+PG 승인/취소/webhook·대사, 소셜 계정 연결·탈퇴 운영정책과 휴대폰 본인인증, 국가별 운송·통관·세금 검증, 실 지도·매장/상품 수집, 일부 수량만 구매했을 때의 가격 변경 승인, 이미지 검증·S3 private 저장, 분쟁 해결 운영도구가 남아 있습니다. 요청 전체 품절·휴무·구매 제한은 방문 증빙과 함께 전액 환불됩니다. S3 presigner와 Redis 캐시 어댑터는 포함되어 있으나 실제 AWS 호출은 검증하지 않았습니다.
 
 현재 프로필의 인증·성공률·방문자 수·거래량은 전부 샘플입니다. 상품 그림은 실제 판매 상품 사진이 아닙니다. 일본 사진은 여행 분위기 이미지이며 특정 매장 사진이라고 표시하지 않았습니다. 이미지 출처와 사용 구분은 [assets-and-sources.md](docs/assets-and-sources.md)에 있습니다.

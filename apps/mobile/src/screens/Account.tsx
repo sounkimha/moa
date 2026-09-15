@@ -330,7 +330,7 @@ export function SettingsScreen() {
             실서비스 연결 현황
           </Txt>
           {[
-            ['휴대폰·Apple·Google·Kakao', '예시 계정 로그인'],
+            ['카카오·Google·네이버', 'OAuth 키 설정 시 실제 계정 로그인'],
             ['안전결제·정산', 'Mock 장부'],
             ['직거래 지도', '지도 이동·좌표 저장'],
             ['장소 이름 검색', '카카오 키 연결 필요'],

@@ -38,14 +38,14 @@ GitHub `origin/main`의 웹 편집 커밋 `ee94fea`를 fetch한 뒤 로컬 `main
 
 - 경로 파서/직렬화는 `state/navigation.ts`, 웹 탭 초안 검증/저장은 `state/draft-session.ts`로 분리했다. 민감한 주소·사진·토큰을 경로 URL에 넣지 않는다.
 - 기존 거래 원장·멱등성·리비전·권한·파일 저장 및 PostgreSQL 테스트를 유지했다. `mobile-state.test.cjs`, `matching-logic.test.cjs`, `flight-proof.test.cjs`에 회귀 테스트를 추가했다.
-- `npm run typecheck` 통과, `npm test` 54개 통과, `npm run test:ui` 및 `git diff --check` 통과. `test:ui`에는 웹 export 빌드와 실제 API에 연결한 DOM 거래 흐름이 포함된다.
+- `npm run typecheck` 통과, `npm test` 55개 통과, `npm run test:ui` 및 `git diff --check` 통과. `test:ui`에는 웹 export 빌드와 실제 API에 연결한 DOM 거래 흐름이 포함된다. OAuth 테스트는 허용 복귀 주소, 일회성 state/code, 서버 토큰 교환, 개인정보 비저장을 모의 공급자 응답으로 검사한다.
 - 별도 실제 Chrome 자동화에서는 320/360/390/430px 화면, 요청 초안 새로고침/뒤로가기, 등록, 합성 왕복 QR 파일 업로드, 인증 대기·수락 차단, MY 넘침, 잘못된 URL과 지연된 이전 계정 응답을 검사한다. 합성 탑승권만 쓰고 임시 API 저장소를 사용한다. 지도 타일은 테스트 응답으로 대체한다.
 - 브라우저 회귀 검사는 `scripts/browser-audit.py`에 보존했다. Python 3의 Playwright·requests와 Chrome이 설치된 환경에서 API 빌드 및 `npm run dev` 후 `python3 scripts/browser-audit.py`로 재현한다. 화면 캡처는 `/tmp/moa-audit-*.png`에 생성된다. 일반 `npm test` 실행에 이 Python 환경은 필요하지 않다.
 - ESLint 설정/명령은 현재 없다. 타입 검사나 `git diff --check`를 lint 통과로 간주하지 않는다. 네이티브 iOS/Android 기기·키보드·스크린리더 동작은 별도 실기기 검증이 필요하다.
 
 ## 남은 사항과 다음 우선순위
 
-1. **실계정·여행 인증과 결제**: 본인확인/항공사 증빙 공급자, 심사·이의제기, 실제 PG/webhook/대사·환불 정책을 연결한다. 현재는 데모 인증/결제이며 운영 모드 시작이 차단된다.
+1. **실계정 운영·여행 인증과 결제**: 카카오·Google·네이버 OAuth 코드 흐름은 구현됐지만 실제 키 검증, 계정 연결 해제·탈퇴 정책이 남아 있다. 본인확인/항공사 증빙 공급자, 심사·이의제기, 실제 PG/webhook/대사·환불 정책도 연결해야 하며 운영 모드 시작은 차단된다.
 2. **실제 장소·동선·재고 데이터**: 카카오 검색 키, 해외 장소 검색, 경로 공급자, 판매처별 재고 갱신을 연결한다. 근처 여행자·방문자 통계·추가 이동 시간은 예시이며 실제 GPS 기반 사람 목록/최적 경로로 오인하면 안 된다. AI 인식/한국어 번역은 키와 외부 품질 검증이 필요하고 전용 모델 학습을 수행한 상태는 아니다.
 3. **운영/모바일 품질**: 작은 iPhone·Android 실기기 접근성/키보드, 네이티브 보안 초안 저장, lint/CI, 페이지네이션·이미지 저장소, 데이터 50건 이상·오프라인·장시간 네트워크 장애 테스트를 강화한다. 여행 등록 초안의 새로고침 복원은 아직 미구현이다.
 

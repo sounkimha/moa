@@ -15,7 +15,7 @@ const permittedOrigin: CustomOrigin = (origin, callback) =>
 export async function bootstrap() {
   if (process.env.NODE_ENV === 'production')
     throw new Error(
-      'This prototype has demo authentication/payment. Production startup is disabled until real providers and policy gates are implemented.',
+      'Production startup is disabled until payment, account lifecycle, provider secrets and policy gates are fully configured.',
     );
   const app = await NestFactory.create(AppModule, {
     bodyParser: false,

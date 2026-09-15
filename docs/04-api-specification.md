@@ -4,7 +4,7 @@ Base URL: `http://localhost:4000/api`. 기계가 읽을 수 있는 상세 규격
 
 ## 공통 규칙
 
-- 인증: `Authorization: Bearer <demo session token>`. 프로토타입 세션 유효기간 24시간, 서버 재시작 시 만료.
+- 인증: `Authorization: Bearer <session token>`. 체험/OAuth 세션 유효기간 24시간, 서버 재시작 시 만료.
 - 생성·수락·거래 명령·후기·채팅은 `Idempotency-Key: <8~100자 고유 키>` 필수.
 - `expectedRevision`은 화면의 최신 Request 또는 Transaction 버전. 버전 충돌을 피하려고 임의로 +1 하지 말고 snapshot을 다시 읽는다.
 - 클라이언트가 totalPrice를 보내도 승인하지 않는다. strict DTO에서 알 수 없는 필드는 400.
@@ -19,6 +19,10 @@ Base URL: `http://localhost:4000/api`. 기계가 읽을 수 있는 상세 규격
 | ------ | ------------------------- | ------------- | ------------------------------------- |
 | GET    | /health (api prefix 밖)   | 공개          | 서버 프로세스 상태                    |
 | POST   | /auth/demo                | 공개          | 가상 사용자 로그인                    |
+| GET    | /auth/oauth/status        | 공개          | 소셜 공급자 설정 여부                  |
+| GET    | /auth/oauth/:provider/start | 공개        | state 생성·공급자 인증 URL 반환        |
+| GET    | /auth/oauth/:provider/callback | 공개     | 공급자 code 교환·앱으로 복귀           |
+| POST   | /auth/oauth/exchange      | 공개          | 일회용 앱 코드로 세션 발급             |
 | POST   | /auth/logout              | 로그인        | 세션 폐기                             |
 | GET    | /snapshot                 | 로그인        | 공개 데이터 + 거래 참여 범위 데이터   |
 | GET    | /places                   | 로그인        | 장소 목록                             |
@@ -45,7 +49,9 @@ Base URL: `http://localhost:4000/api`. 기계가 읽을 수 있는 상세 규격
 { "userId": "u-me", "provider": "DEMO", "reset": true }
 ```
 
-지원 체험 userId: u-me(소운), u-min(민트로드), u-haru(하루), u-joon(준의 여행), u-sora(소라). `provider`는 DEMO/PHONE/APPLE/GOOGLE/KAKAO 중 선택하며 모든 경우 가상 로그인이다. 외부 ID token을 실제 검증하는 API가 아니다. 파일 저장소에서 온보딩으로 새 체험을 시작할 때만 `reset: true`를 보내며, 이후 역할 전환은 이 값을 생략해 현재 거래 상태를 유지한다. 공유 PostgreSQL에서는 공개 로그인 요청으로 데이터를 지우지 못하도록 `reset: true`를 거부한다.
+지원 체험 userId: u-me(소운), u-min(민트로드), u-haru(하루), u-joon(준의 여행), u-sora(소라). `/auth/demo`의 provider 표시는 호환용이며 가상 로그인이다. 파일 저장소에서 온보딩으로 새 체험을 시작할 때만 `reset: true`를 보내며, 이후 역할 전환은 이 값을 생략해 현재 거래 상태를 유지한다. 공유 PostgreSQL 또는 실제 OAuth 키가 설정된 환경에서는 사용자 데이터를 지우지 않고 초기화만 건너뛴 채 체험 로그인을 허용한다.
+
+실제 소셜 로그인은 `GOOGLE`, `KAKAO`, `NAVER`를 지원한다. 클라이언트는 `GET /auth/oauth/:provider/start?returnUrl=<허용된 앱 주소>`에서 인증 URL을 받고 외부 브라우저를 연다. Callback은 공급자 access token을 서버에서만 사용해 사용자 식별자를 확인한 뒤, 앱에 5분짜리 일회용 코드를 돌려준다. 앱은 `{ "code": "..." }`를 `/auth/oauth/exchange`에 한 번 보내 세션을 발급받는다. 공급자 access token·이메일·원본 subject는 저장하지 않는다.
 
 ## 구매 요청
 

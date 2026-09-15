@@ -9,6 +9,7 @@ import { TransactionsController, TransactionsService } from './transactions/tran
 import { ChatController } from './chat/chat';
 import { MeetupController } from './meetup/meetup';
 import { FlightProofController } from './trips/flight-proof';
+import { OAuthController, OAuthService } from './auth/oauth';
 @Global()
 @Module({
   providers: [Store, Sessions, AuthGuard, CatalogCache],
@@ -21,7 +22,7 @@ class MatchingModule {}
 class TradingModule {}
 @Module({
   imports: [InfrastructureModule, MatchingModule, TradingModule],
-  controllers: [AuthController, CatalogController, MeetupController],
-  providers: [CatalogService],
+  controllers: [AuthController, OAuthController, CatalogController, MeetupController],
+  providers: [CatalogService, OAuthService],
 })
 export class AppModule {}

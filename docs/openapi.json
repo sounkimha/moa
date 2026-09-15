@@ -105,6 +105,88 @@
         "security": []
       }
     },
+    "/auth/oauth/status": {
+      "get": {
+        "summary": "소셜 로그인 공급자 설정 여부",
+        "operationId": "get_auth_oauth_status",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Provider availability",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "GOOGLE": { "type": "boolean" },
+                    "KAKAO": { "type": "boolean" },
+                    "NAVER": { "type": "boolean" }
+                  },
+                  "required": ["GOOGLE", "KAKAO", "NAVER"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/oauth/{provider}/start": {
+      "get": {
+        "summary": "소셜 로그인 시작",
+        "operationId": "get_auth_oauth_start",
+        "security": [],
+        "parameters": [
+          { "name": "provider", "in": "path", "required": true, "schema": { "type": "string", "enum": ["google", "kakao", "naver"] } },
+          { "name": "returnUrl", "in": "query", "required": true, "schema": { "type": "string", "format": "uri" } }
+        ],
+        "responses": {
+          "200": { "description": "Authorization URL" },
+          "400": { "description": "Invalid or untrusted return URL" },
+          "503": { "description": "Provider credentials are not configured" }
+        }
+      }
+    },
+    "/auth/oauth/{provider}/callback": {
+      "get": {
+        "summary": "소셜 공급자 콜백",
+        "operationId": "get_auth_oauth_callback",
+        "security": [],
+        "parameters": [
+          { "name": "provider", "in": "path", "required": true, "schema": { "type": "string", "enum": ["google", "kakao", "naver"] } },
+          { "name": "state", "in": "query", "required": true, "schema": { "type": "string" } },
+          { "name": "code", "in": "query", "required": false, "schema": { "type": "string" } },
+          { "name": "error", "in": "query", "required": false, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "302": { "description": "Redirect to the allowlisted app return URL with a one-time login code" },
+          "400": { "description": "Expired or invalid state" }
+        }
+      }
+    },
+    "/auth/oauth/exchange": {
+      "post": {
+        "summary": "일회용 OAuth 앱 코드를 세션으로 교환",
+        "operationId": "post_auth_oauth_exchange",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": { "code": { "type": "string", "minLength": 20, "maxLength": 300 } },
+                "required": ["code"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "OAuth session issued", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DemoSession" } } } },
+          "400": { "description": "Expired or invalid one-time code" }
+        }
+      }
+    },
     "/auth/logout": {
       "post": {
         "summary": "세션 폐기",
@@ -1682,7 +1764,8 @@
               "PHONE",
               "APPLE",
               "GOOGLE",
-              "KAKAO"
+              "KAKAO",
+              "NAVER"
             ]
           },
           "reset": {
@@ -1708,7 +1791,8 @@
           "mode": {
             "type": "string",
             "enum": [
-              "demo"
+              "demo",
+              "oauth"
             ]
           },
           "provider": {

@@ -1,12 +1,15 @@
 import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { AppState, BackHandler, Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
+import * as WebBrowser from 'expo-web-browser';
 import { Art, Category, Country, Role, Snapshot, Transport } from '@moa/domain';
 import { api, ApiError, setToken } from '../lib/api';
 import { parseRoute, routeHash, Route, Screen } from './navigation';
 import { clearDraft, readDraft, writeDraft } from './draft-session';
 export type { Route, Screen } from './navigation';
 const webRoute = (): Route => Platform.OS === 'web' ? parseRoute(window.location.hash) : { name: 'home' };
+WebBrowser.maybeCompleteAuthSession();
+export type OAuthProvider = 'GOOGLE' | 'KAKAO' | 'NAVER';
 export type RequestDraft = {
   sourceRequestId?: string;
   entryPlaceId?: string;
@@ -52,6 +55,8 @@ type AppValue = {
   tab: (name: Screen) => void;
   refresh: () => Promise<void>;
   login: (provider?: string, userId?: string, reset?: boolean) => Promise<boolean>;
+  socialLogin: (provider: OAuthProvider) => Promise<boolean>;
+  oauthProviders: Record<OAuthProvider, boolean>;
   logout: () => Promise<void>;
   switchActor: (id: string) => Promise<boolean>;
   busy: boolean;
@@ -86,6 +91,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
     [toast, setToast] = useState(''),
+    [oauthProviders, setOauthProviders] = useState<Record<OAuthProvider, boolean>>({ GOOGLE: false, KAKAO: false, NAVER: false }),
     [requestDraft, updateRequestDraft] = useState<RequestDraft | null>(null);
   const history = useRef<Route[]>([]),
     mutationLock = useRef(false);
@@ -150,19 +156,48 @@ export function AppProvider({ children }: { children: ReactNode }) {
       throw e;
     }
   };
+  const acceptOAuthCode = async (code: string) => {
+    const result = await api<{ token: string; provider: OAuthProvider }>('/auth/oauth/exchange', { code });
+    await clearSession();
+    setToken(result.token);
+    await storage.set(result.token);
+    await refresh();
+    notify(`${result.provider === 'GOOGLE' ? 'Google' : result.provider === 'KAKAO' ? '카카오' : '네이버'} 계정으로 로그인했어요.`);
+    return true;
+  };
   useEffect(() => {
     (async () => {
       try {
+        if (Platform.OS === 'web') {
+          const url = new URL(window.location.href);
+          const oauthCode = url.searchParams.get('oauth_code');
+          const oauthError = url.searchParams.get('oauth_error');
+          if (oauthCode || oauthError) {
+            url.searchParams.delete('oauth_code');
+            url.searchParams.delete('oauth_provider');
+            url.searchParams.delete('oauth_error');
+            window.history.replaceState({}, '', `${url.pathname}${url.search}#home`);
+          }
+          if (oauthError) throw new Error(oauthError);
+          if (oauthCode) {
+            await acceptOAuthCode(oauthCode);
+            return;
+          }
+        }
         const t = await storage.get();
         if (t) {
           setToken(t);
           await refresh();
         }
-      } catch {
+      } catch (e) {
+        setError((e as Error).message);
       } finally {
         setLoading(false);
       }
     })();
+    api<Record<OAuthProvider, boolean>>('/auth/oauth/status')
+      .then(setOauthProviders)
+      .catch(() => setOauthProviders({ GOOGLE: false, KAKAO: false, NAVER: false }));
   }, []);
   const nav = (name: Screen, params: Omit<Route, 'name'> = {}) => {
     const next = { name, ...params };
@@ -254,6 +289,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setBusy(false);
     }
   };
+  const socialLogin = async (provider: OAuthProvider) => {
+    if (authLock.current || mutationLock.current) return false;
+    authLock.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      const returnUrl = Platform.OS === 'web' ? window.location.origin : 'moa://oauth';
+      const start = await api<{ authorizationUrl: string }>(
+        `/auth/oauth/${provider.toLowerCase()}/start?returnUrl=${encodeURIComponent(returnUrl)}`,
+      );
+      const result = await WebBrowser.openAuthSessionAsync(start.authorizationUrl, returnUrl, {
+        preferEphemeralSession: false,
+      });
+      if (result.type !== 'success') {
+        if (result.type !== 'cancel' && result.type !== 'dismiss') throw new Error('소셜 로그인을 완료하지 못했어요.');
+        return false;
+      }
+      const callback = new URL(result.url);
+      const oauthError = callback.searchParams.get('oauth_error');
+      const oauthCode = callback.searchParams.get('oauth_code');
+      if (oauthError) throw new Error(oauthError);
+      if (!oauthCode) throw new Error('로그인 결과를 확인하지 못했어요. 다시 시도해주세요.');
+      return await acceptOAuthCode(oauthCode);
+    } catch (e) {
+      const message = (e as Error).message;
+      setError(message);
+      notify(message);
+      return false;
+    } finally {
+      authLock.current = false;
+      setBusy(false);
+    }
+  };
   const logout = async () => {
     if (authLock.current) return;
     authLock.current = true;
@@ -316,6 +384,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         tab,
         refresh,
         login,
+        socialLogin,
+        oauthProviders,
         logout,
         switchActor,
         busy,

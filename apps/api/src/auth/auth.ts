@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   CanActivate,
   Controller,
@@ -21,10 +20,10 @@ export interface ActorRequest extends Request {
 @Injectable()
 export class Sessions {
   private sessions = new Map<string, { userId: string; expires: number }>();
-  create(userId: string) {
+  create(userId: string, mode: 'demo' | 'oauth' = 'demo') {
     const token = randomBytes(32).toString('base64url');
     this.sessions.set(token, { userId, expires: Date.now() + 24 * 3600000 });
-    return { token, expiresIn: 86400, mode: 'demo' };
+    return { token, expiresIn: 86400, mode };
   }
   resolve(token: string) {
     const s = this.sessions.get(token);
@@ -61,15 +60,19 @@ export class AuthController {
       z
         .object({
           userId: z.enum(['u-me', 'u-min', 'u-haru', 'u-joon', 'u-sora']).default('u-me'),
-          provider: z.enum(['DEMO', 'PHONE', 'APPLE', 'GOOGLE', 'KAKAO']).default('DEMO'),
+          provider: z.enum(['DEMO', 'PHONE', 'APPLE', 'GOOGLE', 'KAKAO', 'NAVER']).default('DEMO'),
           reset: z.boolean().default(false),
         })
         .strict(),
       body,
     );
-    if (reset) {
-      if (process.env.DATABASE_URL)
-        throw new BadRequestException('공유 데이터베이스에서는 체험 데이터를 초기화할 수 없어요.');
+    const oauthConfigured = Boolean(
+      (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) ||
+      process.env.KAKAO_LOGIN_REST_API_KEY ||
+      (process.env.NAVER_CLIENT_ID && process.env.NAVER_CLIENT_SECRET),
+    );
+    const resetApplied = reset && !process.env.DATABASE_URL && !oauthConfigured;
+    if (resetApplied) {
       await this.store.resetDemo();
       this.sessions.clear();
     }
@@ -77,7 +80,10 @@ export class AuthController {
     return {
       ...this.sessions.create(userId),
       provider,
-      notice: '실제 본인인증·소셜 로그인은 연결되지 않은 체험 계정이에요.',
+      resetApplied,
+      notice: reset && !resetApplied
+        ? '공유 또는 소셜 로그인 환경이라 기존 데이터를 유지하고 체험 계정으로 로그인했어요.'
+        : '개인정보 없이 사용하는 체험 계정이에요.',
     };
   }
   @UseGuards(AuthGuard) @Post('logout') logout(@Req() req: ActorRequest) {

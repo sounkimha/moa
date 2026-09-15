@@ -161,11 +161,11 @@ export function Onboarding() {
             <Txt color={c.secondary}>부탁도 여행도 같은 계정에서 이어집니다.</Txt>
           </Stack>
           <Notice>
-            지금은 예시 계정으로 시작해요. 실제 휴대폰 인증·소셜 로그인·결제는 발생하지 않아요.
+            체험 계정은 개인정보 없이 바로 시작해요. 카카오·Google·네이버는 서버에 OAuth 키가 설정된 경우 실제 계정으로 연결됩니다.
           </Notice>
           {a.error && (
             <Notice tone="error">
-              체험 계정에 연결하지 못했어요. API 서버가 실행 중인지 확인한 뒤 다시 시도해주세요.{`\n`}
+              로그인하지 못했어요. 서버 설정과 네트워크를 확인한 뒤 다시 시도해주세요.{`\n`}
               {a.error}
             </Notice>
           )}
@@ -179,18 +179,21 @@ export function Onboarding() {
             <Divider />
             {[
               ['KAKAO', '카카오로 계속하기'],
-              ['APPLE', 'Apple로 계속하기'],
               ['GOOGLE', 'Google로 계속하기'],
-              ['PHONE', '휴대폰으로 계속하기'],
+              ['NAVER', '네이버로 계속하기'],
             ].map(([provider, label]) => (
               <Button
                 key={provider}
-                label={`${label} 체험`}
+                label={`${label}${a.oauthProviders[provider as 'KAKAO' | 'GOOGLE' | 'NAVER'] ? '' : ' · 설정 필요'}`}
                 kind="secondary"
                 loading={a.busy}
-                onPress={() => a.login(provider, 'u-me', true)}
+                disabled={!a.oauthProviders[provider as 'KAKAO' | 'GOOGLE' | 'NAVER']}
+                onPress={() => a.socialLogin(provider as 'KAKAO' | 'GOOGLE' | 'NAVER')}
               />
             ))}
+            <Txt size={12} color={c.secondary} style={{ textAlign: 'center' }}>
+              소셜 로그인 키는 앱에 넣지 않고 API 서버에서만 관리해요.
+            </Txt>
           </Stack>
           <Button label="처음으로" kind="ghost" onPress={() => setStage('intro')} />
         </>
