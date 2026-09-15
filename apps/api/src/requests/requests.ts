@@ -1,6 +1,6 @@
 import { Body, Controller, Headers, Injectable, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
-import { Database, ProductRequest, TravelerOffer, Transaction, quote, MAX_DEMO_REWARD, currencyForCountry } from '@moa/domain';
+import { Database, ProductRequest, TravelerOffer, Transaction, quote, recommendedReward, currencyForCountry, canAcceptTrip } from '@moa/domain';
 import { Store } from '../infrastructure/store';
 import { ActorRequest, AuthGuard } from '../auth/auth';
 import {
@@ -71,23 +71,15 @@ const createSchema = z.object({
 });
 export const offerSchema = z.object({
   tripId: z.string(),
-  reward: amount.max(MAX_DEMO_REWARD),
+  // Accepted for old clients, but the server always replaces it with the fixed 10% reward.
+  reward: amount.optional().default(0),
   estimatedPurchaseDate: date,
   estimatedDeliveryDate: date,
   message: z.string().trim().min(1).max(500),
   transport,
 });
 export type OfferInput = z.infer<typeof offerSchema>;
-const bundleSchema = offerSchema.extend({
-  requestIds: z.array(z.string()).min(1).max(10),
-  // Older clients can still supply one common reward; new clients price each request.
-  rewards: z.record(offerSchema.shape.reward).optional(),
-}).strict().superRefine((data, ctx) => {
-  if (data.rewards && (Object.keys(data.rewards).length !== data.requestIds.length ||
-      data.requestIds.some((id) => !Object.hasOwn(data.rewards!, id)))) {
-    ctx.addIssue({ code: 'custom', path: ['rewards'], message: '선택한 부탁마다 보상금을 입력해주세요.' });
-  }
-});
+const bundleSchema = offerSchema.extend({ requestIds: z.array(z.string()).min(1).max(10) }).strict();
 @Injectable()
 export class RequestsService {
   constructor(private readonly store: Store) {}
@@ -146,6 +138,7 @@ export class RequestsService {
     const request = get(db.requests, requestId, '요청');
     const trip = get(db.trips, data.tripId, '일정');
     check(trip.travelerId === actor, '본인의 여행 일정을 선택해주세요.');
+    check(canAcceptTrip(trip), '부탁을 수락하려면 왕복 항공권 인증을 먼저 완료해주세요. 항공권 인식만으로는 최종 인증이 완료되지 않아요.');
     check(request.requesterId !== actor, '본인이 등록한 부탁은 수락할 수 없어요.');
     check(
       ['REQUESTED', 'OFFER_RECEIVED'].includes(request.status),
@@ -172,8 +165,9 @@ export class RequestsService {
     );
     check(
       data.estimatedDeliveryDate >= data.estimatedPurchaseDate &&
+        data.estimatedDeliveryDate >= trip.endDate &&
         data.estimatedDeliveryDate <= request.desiredDate,
-      '수령일은 구매 이후이며 요청 기한 안이어야 해요.',
+      '수령일은 구매·귀국 이후이며 요청 기한 안이어야 해요.',
     );
     check(data.transport === request.transport, '구매자가 선택한 전달 방식으로 수락해주세요.');
     check(
@@ -194,6 +188,7 @@ export class RequestsService {
     const offer: TravelerOffer = {
       ...base(),
       ...data,
+      reward: recommendedReward(request),
       requestId,
       travelerId: actor,
       status: 'PENDING',
@@ -245,9 +240,9 @@ export class RequestsService {
       const requests = data.requestIds.map((id) => get(db.requests, id));
       check(requests.every((request) => request.placeId === requests[0].placeId), '같은 장소의 부탁만 한 번에 수락할 수 있어요.');
       const bundleBase = base();
-      const { requestIds, rewards, ...acceptance } = data;
-      const offers = requestIds.map((id) => this.createOffer(db, actor, id,
-        { ...acceptance, reward: rewards?.[id] ?? acceptance.reward }, bundleBase.id));
+      const { requestIds, ...acceptance } = data;
+      const offers = requests.map((request) => this.createOffer(db, actor, request.id,
+        { ...acceptance, transport: request.transport }, bundleBase.id));
       const transactions = offers.map((offer) => this.matchAccepted(db, actor, offer));
       const bundle = { ...bundleBase, tripId: data.tripId, travelerId: actor, placeId: requests[0].placeId, requestIds, offerIds: offers.map((offer) => offer.id), totalReward: offers.reduce((sum, offer) => sum + offer.reward, 0) };
       db.bundles.push(bundle);
@@ -277,9 +272,9 @@ export class RequestsService {
           '같은 장소의 요청만 묶을 수 있어요.',
         );
         const b = base();
-        const { requestIds, rewards, ...offer } = data;
-        const offers = requestIds.map((id) => this.createOffer(db, actor, id,
-          { ...offer, reward: rewards?.[id] ?? offer.reward }, b.id));
+        const { requestIds, ...offer } = data;
+        const offers = requests.map((request) => this.createOffer(db, actor, request.id,
+          { ...offer, transport: request.transport }, b.id));
         const bundle = {
           ...b,
           tripId: data.tripId,

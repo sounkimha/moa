@@ -20,6 +20,7 @@ import { Badge, Button, Row, Stack, Txt } from './src/components/ui';
 import { Logo } from './src/components/visuals';
 import { CreateScreen, Home, Onboarding, PlaceScreen, SearchScreen } from './src/screens/Home';
 import { RequestForm, TripForm } from './src/screens/Forms';
+import { FlightProofScreen } from './src/screens/FlightProof';
 import {
   BundleScreen,
   OfferForm,
@@ -56,6 +57,7 @@ const screens: Record<Screen, React.ComponentType> = {
   request: RequestScreen,
   'request-form': RequestForm,
   'trip-form': TripForm,
+  'flight-proof': FlightProofScreen,
   offers: OffersScreen,
   profile: ProfileScreen,
   'offer-form': OfferForm,

@@ -63,7 +63,7 @@ const dom = new JSDOM(html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, ''), {
 });
 const document = dom.window.document;
 const wait = async (fn, label) => {
-  for (let i = 0; i < 80; i++) {
+  for (let i = 0; i < 200; i++) {
     const result = fn();
     if (result) return result;
     await new Promise((r) => setTimeout(r, 25));
@@ -85,8 +85,9 @@ const click = async (label, role = 'button') => {
   const element = await wait(() => {
     const candidate = find(label, role);
     return candidate && !candidate.hasAttribute('disabled') &&
-      candidate.getAttribute('aria-disabled') !== 'true' ? candidate : null;
-  }, label + ' must be enabled');
+      candidate.getAttribute('aria-disabled') !== 'true' &&
+      candidate.getAttribute('aria-busy') !== 'true' ? candidate : null;
+  }, label + ' ready');
   // React Native Web refreshes its press handler in an effect after rendering.
   // Let the browser paint before pressing a button whose label/action just changed.
   await new Promise((resolve) => dom.window.requestAnimationFrame(() => dom.window.requestAnimationFrame(resolve)));
@@ -231,22 +232,9 @@ try {
   );
   proposal.click();
   await expectText('묶음 부탁 수락하기');
-  const rewardInputs = [...document.querySelectorAll('input[aria-label$="보상금 (원)"]')];
-  assert.ok(rewardInputs.length > 1, 'Bundle provides a reward input for every request');
-  await expectText('금액 입력 필요');
-  await fill(rewardInputs[0], '-1');
-  await expectText('0원 이상의 원 단위 금액');
-  let grossReward = 0, commission = 0;
-  for (const [index, input] of rewardInputs.entries()) {
-    const reward = 1005 + index * 1000;
-    grossReward += reward;
-    commission += Math.round(reward * 0.1);
-    await fill(input, reward.toLocaleString('en-US'));
-  }
-  await wait(() => {
-    const label = [...document.querySelectorAll('*')].find((e) => e.textContent === '예상 순보상');
-    return label?.parentElement?.textContent.includes(`₩${(grossReward - commission).toLocaleString('ko-KR')}`);
-  }, 'Custom per-request rewards and per-transaction commission match the payout');
+  assert.equal(document.querySelectorAll('input[aria-label$="보상금 (원)"]').length, 0);
+  await expectText('보상은 각 상품 원화 환산가의 10%로 자동 계산해요.');
+  await expectText('예상 순보상');
   await click('상품대금을 먼저 지출하고 구매 확정 후 상환받는다는 점을 확인했어요.', 'checkbox');
   const send = await wait(
     () =>

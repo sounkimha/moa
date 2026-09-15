@@ -1,10 +1,10 @@
 import * as ImagePicker from 'expo-image-picker';
-export async function pickImage(): Promise<string | undefined> {
+export async function pickImage(options?: { quality?: number }): Promise<string | undefined> {
   const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (!permission.granted) throw new Error('사진을 선택하려면 사진 접근을 허용해주세요.');
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ['images'],
-    quality: 0.45,
+    quality: options?.quality ?? 0.45,
     base64: true,
     allowsMultipleSelection: false,
   });

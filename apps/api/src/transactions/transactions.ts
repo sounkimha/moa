@@ -10,7 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
-import { Database, Status, Transaction, quote, rewardCommission } from '@moa/domain';
+import { Database, Status, Transaction, quote, travelerEarnings } from '@moa/domain';
 import { ActorRequest, AuthGuard } from '../auth/auth';
 import {
   amount,
@@ -25,6 +25,7 @@ import {
   parse,
 } from '../common/validation';
 import { Store } from '../infrastructure/store';
+import { canAcceptTrip } from '@moa/domain';
 import { MockPaymentGateway } from '../infrastructure/adapters';
 const revision = { expectedRevision: z.number().int().min(0) };
 const actionSchema = z.discriminatedUnion('action', [
@@ -109,6 +110,7 @@ export class TransactionsService {
         const offer = get(db.offers, id, '제안');
         const request = get(db.requests, offer.requestId, '요청');
         owner(actor, request.requesterId);
+        check(canAcceptTrip(get(db.trips, offer.tripId)), '여행자의 왕복 항공권 인증이 완료되지 않았어요. 인증 상태를 확인해주세요.');
         check(
           request.revision === data.expectedRevision,
           '요청이 변경됐어요. 새로고침 후 다시 선택해주세요.',
@@ -332,8 +334,7 @@ export class TransactionsService {
               !db.disputes.some((d) => d.transactionId === id && d.status === 'OPEN'),
               '분쟁이 해결되기 전에는 정산할 수 없어요.',
             );
-            const platformCommission = rewardCommission(t.travelerReward);
-            const netReward = t.travelerReward - platformCommission;
+            const { platformCommission, netReward } = travelerEarnings(t.travelerReward);
             db.payouts.push({
               ...base(),
               transactionId: id,

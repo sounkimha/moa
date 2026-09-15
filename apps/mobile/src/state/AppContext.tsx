@@ -3,54 +3,14 @@ import { AppState, BackHandler, Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { Art, Category, Country, Role, Snapshot, Transport } from '@moa/domain';
 import { api, ApiError, setToken } from '../lib/api';
-export type Screen =
-  | 'home'
-  | 'search'
-  | 'create'
-  | 'trades'
-  | 'my'
-  | 'place'
-  | 'request'
-  | 'request-form'
-  | 'trip-form'
-  | 'offers'
-  | 'profile'
-  | 'offer-form'
-  | 'bundle'
-  | 'payment'
-  | 'transaction'
-  | 'chat'
-  | 'receipt'
-  | 'receive'
-  | 'payouts'
-  | 'notifications'
-  | 'favorites'
-  | 'trips'
-  | 'reviews'
-  | 'settings'
-  | 'addresses'
-  | 'help';
-export interface Route {
-  name: Screen;
-  id?: string;
-  placeId?: string;
-  tripId?: string;
-  requestIds?: string[];
-  method?: 'link' | 'photo';
-}
-const screens: Screen[] = [
-  'home', 'search', 'create', 'trades', 'my', 'place', 'request', 'request-form',
-  'trip-form', 'offers', 'profile', 'offer-form', 'bundle', 'payment', 'transaction',
-  'chat', 'receipt', 'receive', 'payouts', 'notifications', 'favorites', 'trips',
-  'reviews', 'settings', 'addresses', 'help',
-];
-const webRoute = (): Route => {
-  if (Platform.OS !== 'web') return { name: 'home' };
-  const [rawName, rawId] = window.location.hash.replace(/^#\/?/, '').split('/');
-  const name = screens.includes(rawName as Screen) ? rawName as Screen : 'home';
-  return { name, ...(rawId ? { id: decodeURIComponent(rawId) } : {}) };
-};
+import { parseRoute, routeHash, Route, Screen } from './navigation';
+import { clearDraft, readDraft, writeDraft } from './draft-session';
+export type { Route, Screen } from './navigation';
+const webRoute = (): Route => Platform.OS === 'web' ? parseRoute(window.location.hash) : { name: 'home' };
 export type RequestDraft = {
+  sourceRequestId?: string;
+  entryPlaceId?: string;
+  entryMethod?: 'link' | 'photo';
   originalText?: import('@moa/domain').ProductOriginalText;
   step: number;
   method: 'link' | 'photo';
@@ -126,10 +86,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
     [toast, setToast] = useState(''),
-    [requestDraft, setRequestDraft] = useState<RequestDraft | null>(null);
+    [requestDraft, updateRequestDraft] = useState<RequestDraft | null>(null);
   const history = useRef<Route[]>([]),
     mutationLock = useRef(false);
+  const session = useRef(0), actor = useRef<string | null>(null), authLock = useRef(false);
+  const refreshSequence = useRef(0);
+  const draftStorageWarning = useRef(false);
   const notify = (s: string) => setToast(s);
+  const setRequestDraft = (draft: RequestDraft | null) => {
+    // A screen from a previous account must not write into the new account's draft.
+    if (!data?.me.id || actor.current !== data.me.id) return;
+    updateRequestDraft(draft);
+    if (Platform.OS === 'web') {
+      let saved = false;
+      try { saved = writeDraft(window.sessionStorage, data.me.id, draft); } catch {}
+      if (!saved && !draftStorageWarning.current) {
+        draftStorageWarning.current = true;
+        notify('임시 저장 공간을 사용할 수 없어요. 입력은 유지되지만 새로고침하면 사라질 수 있어요.');
+      }
+    }
+  };
   useEffect(() => {
     if (toast) {
       const timer = setTimeout(() => setToast(''), 4500);
@@ -137,16 +113,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [toast]);
   const clearSession = async () => {
+    session.current++;
+    actor.current = null;
     setToken('');
     setData(null);
-    await storage.clear();
+    updateRequestDraft(null);
+    setError('');
+    setToast('');
+    history.current = [];
+    draftStorageWarning.current = false;
+    if (Platform.OS === 'web') {
+      try { clearDraft(window.sessionStorage); } catch {}
+    }
+    await storage.clear().catch(() => {});
   };
   const refresh = async () => {
+    const generation = session.current;
+    const sequence = ++refreshSequence.current;
     try {
       const next = await api<Snapshot>('/snapshot');
+      if (generation !== session.current || sequence !== refreshSequence.current) return;
+      if (actor.current !== next.me.id) {
+        let restored: RequestDraft | null = null;
+        if (Platform.OS === 'web') {
+          try { restored = readDraft(window.sessionStorage, next.me.id); } catch {}
+        }
+        updateRequestDraft(restored);
+        actor.current = next.me.id;
+      }
       setData(next);
       setError('');
     } catch (e) {
+      if (generation !== session.current || sequence !== refreshSequence.current) return;
       setError((e as Error).message);
       if (e instanceof ApiError && e.status === 401) await clearSession();
       throw e;
@@ -174,14 +172,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       window.history.pushState(
         next,
         '',
-        `#${name}${params.id ? '/' + encodeURIComponent(params.id) : ''}`,
+        routeHash(next),
       );
   };
   useEffect(() => {
     if (!data?.me.id) return;
     let running = false;
     const sync = async () => {
-      if (running || (Platform.OS === 'web' ? document.visibilityState !== 'visible' : AppState.currentState !== 'active')) return;
+      if (running || authLock.current || (Platform.OS === 'web' ? document.visibilityState !== 'visible' : AppState.currentState !== 'active')) return;
       running = true;
       try { await refresh(); } catch {} finally { running = false; }
     };
@@ -200,7 +198,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       window.history.replaceState(
         next,
         '',
-        `#${next.name}${next.id ? '/' + encodeURIComponent(next.id) : ''}`,
+        routeHash(next),
       );
   };
   const tab = (name: Screen) => {
@@ -210,8 +208,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
   useEffect(() => {
     if (Platform.OS === 'web') {
-      const pop = (event: PopStateEvent) => {
-        setRoute(event.state?.name ? event.state : webRoute());
+      const pop = () => {
+        setRoute(webRoute());
         history.current.pop();
       };
       const hash = () => setRoute(webRoute());
@@ -232,9 +230,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => subscription.remove();
   }, []);
   const login = async (provider = 'DEMO', userId = 'u-me', reset = false) => {
+    if (authLock.current || mutationLock.current) return false;
+    authLock.current = true;
     setBusy(true);
+    // Invalidate background reads before changing the bearer token.
+    session.current++;
     try {
       const result = await api<{ token: string }>('/auth/demo', { provider, userId, reset });
+      await clearSession();
       setToken(result.token);
       await storage.set(result.token);
       await refresh();
@@ -247,15 +250,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
       notify(message);
       return false;
     } finally {
+      authLock.current = false;
       setBusy(false);
     }
   };
   const logout = async () => {
-    try {
-      await api('/auth/logout', {});
-    } catch {}
+    if (authLock.current) return;
+    authLock.current = true;
+    // Start revoking the old token, then immediately remove private client state.
+    const revocation = api('/auth/logout', {}).catch(() => {});
     await clearSession();
+    setRole('buyer');
     tab('home');
+    try {
+      await revocation;
+    } finally { authLock.current = false; }
   };
   const switchActor = async (id: string) => {
     const ok = await login('DEMO', id);
@@ -270,19 +279,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     body: unknown,
     success?: string,
   ): Promise<T | undefined> => {
-    if (mutationLock.current) return;
+    if (mutationLock.current || authLock.current || !actor.current) return;
+    const generation = session.current;
     mutationLock.current = true;
     setBusy(true);
     try {
       const result = await api<T>(path, body);
+      if (generation !== session.current) return;
       try {
         await refresh();
+        if (generation !== session.current) return;
         if (success) notify(success);
       } catch {
         notify('처리는 완료됐어요. 새로고침하면 최신 상태를 볼 수 있어요.');
       }
       return result;
     } catch (e) {
+      if (generation !== session.current) return;
       notify((e as Error).message);
       if (e instanceof ApiError && e.status === 409) await refresh().catch(() => {});
       return undefined;

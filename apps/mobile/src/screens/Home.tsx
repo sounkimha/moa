@@ -141,7 +141,7 @@ export function Onboarding() {
                 </View>
                 <Stack gap={2} style={{ flex: 1 }}>
                   <Txt size={16} weight="700">가져올게요</Txt>
-                  <Txt size={12} color={c.secondary}>내 여행 동선의 부탁을 고르고 원하는 보상을 제안해요.</Txt>
+                  <Txt size={12} color={c.secondary}>내 여행 동선의 부탁을 고르고 상품가 10%의 보상을 받아요.</Txt>
                 </Stack>
               </Row>
             </Card>
@@ -500,7 +500,7 @@ export function Home() {
                     {nearby.place.name} 근처를 지나가요
                   </Txt>
                   <Txt size={15} color="#EAF2FF">
-                    여기서 심부름 {nearby.requests.length}건을 할 수 있어요. 원하는 보상금을 제안해보세요.
+                    여기서 심부름 {nearby.requests.length}건을 할 수 있어요. 상품가 10%의 보상을 확인해보세요.
                   </Txt>
                 </View>
               </Row>

@@ -26,8 +26,10 @@ import {
   Transport,
   TRANSPORT_LABEL,
   countryName,
-  MAX_DEMO_REWARD,
-  rewardCommission,
+  recommendedReward,
+  travelerEarnings,
+  canAcceptTrip,
+  TRIP_VERIFICATION_LABEL,
 } from '@moa/domain';
 import { useApp } from '../state/AppContext';
 import { MeetupSummary } from '../components/MeetupSummary';
@@ -440,7 +442,12 @@ export function BundleScreen() {
       </Page>
     );
   const requests = bundle.requests.filter((r) => selected.includes(r.id));
+  const reserved = d.offers.filter((o) => o.tripId === trip.id && ['PENDING', 'ACCEPTED'].includes(o.status) &&
+    !d.transactions.some((t) => t.offerId === o.id && t.status === 'CANCELLED'))
+    .reduce((sum, offer) => sum + (d.requests.find((r) => r.id === offer.requestId)?.quantity || 0), 0);
+  const remaining = Math.max(0, trip.maxItems - reserved);
   const items = requests.reduce((s, r) => s + r.quantity, 0),
+    reward = requests.reduce((sum, request) => sum + recommendedReward(request), 0),
     advance = requests.reduce((s, r) => s + quote(r, 0, r.transport).productPrice, 0);
   return (
     <Page
@@ -449,9 +456,9 @@ export function BundleScreen() {
         <Button
           label={`${requests.length}건 한 번에 수락하기`}
           icon={Layers}
-          disabled={!requests.length || items > trip.maxItems}
+          disabled={!requests.length || requests.length > 10 || items > remaining}
           onPress={() =>
-            a.nav('offer-form', { tripId: trip.id, requestIds: selected, placeId: bundle.place.id })
+            a.nav('offer-form', { tripId: trip.id, requestIds: requests.map((r) => r.id), placeId: bundle.place.id })
           }
         />
       }
@@ -471,13 +478,13 @@ export function BundleScreen() {
       <Card style={{ backgroundColor: c.lime, borderWidth: 0 }}>
         <Stack gap={10}>
           <Row style={{ justifyContent: 'space-between' }}>
-            <Txt size={14}>선택한 {requests.length}건의 보상금</Txt>
+            <Txt size={14}>선택한 {requests.length}건의 예상 보상</Txt>
             <Layers size={22} />
           </Row>
           <Txt size={35} weight="800">
-            직접 제안해요
+            {money(reward)}
           </Txt>
-          <Txt size={12}>다음 화면에서 부탁별로 원하는 금액을 입력해요. 정산 시 보상의 10%가 운영 수수료로 공제돼요.</Txt>
+          <Txt size={12}>상품 환산가의 10% 보상 기준 · 정산 시 보상의 10%가 운영 수수료로 공제돼요.</Txt>
           <Divider />
           <Txt size={14}>
             상품 {items}개 · 선지출 {money(advance)}
@@ -533,7 +540,7 @@ export function BundleScreen() {
                   {r.quantity}개 · {shortDate(r.desiredDate)}까지
                 </Txt>
                 <Txt size={13} color={c.green}>
-                  상품·전달비 {money(quote(r, 0, r.transport).totalPrice)} · 보상 별도
+                  예상 결제 {money(quote(r, recommendedReward(r), r.transport).totalPrice)}
                 </Txt>
               </Stack>
               {selected.includes(r.id) ? (
@@ -553,8 +560,8 @@ export function BundleScreen() {
           </Pressable>
         ))}
       </View>
-      {items > trip.maxItems && (
-        <Notice tone="error">선택 수량이 여행 최대 수량 {trip.maxItems}개를 넘었어요.</Notice>
+      {(items > remaining || requests.length > 10) && (
+        <Notice tone="error">이 여행은 {remaining}개를 더 가져올 수 있어요. 한 번에 10건 이하로 선택해주세요.</Notice>
       )}
       <Notice>
         수락하면 각 구매자와 거래방이 바로 열려요. 결제가 완료된 부탁만 구매해주세요.
@@ -574,10 +581,14 @@ export function OfferForm() {
   );
   const [tripId, setTripId] = useState(a.route.tripId || trips.at(-1)?.id || '');
   const trip = trips.find((t) => t.id === tripId);
+  const suggestedDelivery = (endDate: string) => {
+    const candidate = new Date(new Date(endDate).getTime() + 5 * 86400000).toISOString().slice(0, 10);
+    return requests.reduce((date, request) => request.desiredDate < date ? request.desiredDate : date, candidate);
+  };
   const [purchase, setPurchase] = useState(trip?.startDate || ''),
     [delivery, setDelivery] = useState(
       trip
-        ? new Date(new Date(trip.endDate).getTime() + 5 * 86400000).toISOString().slice(0, 10)
+        ? suggestedDelivery(trip.endDate)
         : '',
     ),
     [message, setMessage] = useState(
@@ -585,13 +596,6 @@ export function OfferForm() {
     ),
     [transport] = useState<Transport>(first?.transport || 'DOMESTIC_PARCEL');
   const [agree, setAgree] = useState(false);
-  const [rewards, setRewards] = useState<Record<string, string>>({});
-  const rewardFor = (id: string) => {
-    const input = (rewards[id] || '').replace(/,/g, '').trim();
-    const value = Number(input);
-    return /^\d+$/.test(input) && Number.isSafeInteger(value) && value <= MAX_DEMO_REWARD
-      ? value : undefined;
-  };
   if (!first)
     return (
       <Page title="부탁 수락하기">
@@ -609,15 +613,14 @@ export function OfferForm() {
         />
       </Page>
     );
-  const total = requests.reduce((s, r) => s + quote(r, 0, transport).productPrice, 0);
-  const validRewards = requests.every((r) => rewardFor(r.id) !== undefined);
-  const grossReward = requests.reduce((s, r) => s + (rewardFor(r.id) ?? 0), 0);
-  const commission = requests.reduce((s, r) => s + rewardCommission(rewardFor(r.id) ?? 0), 0);
+  const total = requests.reduce((s, r) => s + quote(r, 0, r.transport).productPrice, 0);
+  const grossReward = requests.reduce((s, r) => s + recommendedReward(r), 0);
+  const commission = requests.reduce((s, r) => s + travelerEarnings(recommendedReward(r)).platformCommission, 0);
+  const methods = [...new Set(requests.map((r) => TRANSPORT_LABEL[r.transport]))].join(' · ');
   const submit = async () => {
-    if (!validRewards) return;
     const body = {
       tripId,
-      reward: rewardFor(first.id)!,
+      reward: recommendedReward(first),
       estimatedPurchaseDate: purchase,
       estimatedDeliveryDate: delivery,
       message,
@@ -625,7 +628,7 @@ export function OfferForm() {
     };
     const result = await a.mutate(
       ids.length > 1 ? '/bundles/claim' : `/requests/${first.id}/claim`,
-      ids.length > 1 ? { ...body, requestIds: ids, rewards: Object.fromEntries(requests.map((r) => [r.id, rewardFor(r.id)!])) } : body,
+      ids.length > 1 ? { ...body, requestIds: ids } : body,
       '부탁을 수락했어요. 바로 대화를 시작할 수 있어요.',
     );
     if (result) ids.length === 1 ? a.nav('transaction', { id: (result as Transaction).id }) : a.tab('trades');
@@ -635,10 +638,10 @@ export function OfferForm() {
       title={ids.length > 1 ? '묶음 부탁 수락하기' : '가는 김에 수락하기'}
       footer={
         <Button
-          label={`${ids.length}건 부탁 수락하기`}
-          disabled={!agree || !validRewards}
+          label={canAcceptTrip(trip) ? `${ids.length}건 부탁 수락하기` : '먼저 왕복 항공권 인증하기'}
+          disabled={canAcceptTrip(trip) ? !agree : !trip}
           loading={a.busy}
-          onPress={submit}
+          onPress={() => canAcceptTrip(trip) ? submit() : trip && a.nav('flight-proof', { id: trip.id })}
         />
       }
     >
@@ -658,65 +661,52 @@ export function OfferForm() {
               setTripId(t.id);
               setPurchase(t.startDate);
               setDelivery(
-                new Date(new Date(t.endDate).getTime() + 5 * 86400000).toISOString().slice(0, 10),
+                suggestedDelivery(t.endDate),
               );
             }}
           />
         ))}
       </Row>
-      <Stack gap={12}>
-        <Txt size={20} weight="700">보상금은 직접 정하세요</Txt>
-        <Txt size={13} color={c.secondary}>구매자가 이 금액을 포함한 총액을 확인하고 결제해요. 수량과 구매에 드는 시간을 고려해 부탁별로 입력해주세요.</Txt>
-        {requests.map((r, index) => (
-          <Field
-            key={r.id}
-            label={`${index + 1}. ${r.productName} 보상금 (원)`}
-            value={rewards[r.id] || ''}
-            onChange={(value) => { setRewards((current) => ({ ...current, [r.id]: value })); setAgree(false); }}
-            keyboard="numeric"
-            required
-            placeholder="원하는 금액 입력"
-            hint={`수량 ${r.quantity}개를 포함한 이 부탁 전체의 보상 · 0~${MAX_DEMO_REWARD.toLocaleString('ko-KR')}원 (체험 한도)`}
-            error={rewards[r.id] && rewardFor(r.id) === undefined ? '0원 이상의 원 단위 금액을 체험 한도 안에서 입력해주세요.' : undefined}
-          />
-        ))}
-      </Stack>
+      <Notice>보상은 각 상품 원화 환산가의 10%로 자동 계산해요. 여행자가 임의로 올리지 않아요.</Notice>
       <Card style={{ backgroundColor: c.mint }}>
         <Stack gap={8}>
           <Row style={{ justifyContent: 'space-between' }}>
-            <Txt weight="600">제안 보상 합계</Txt>
-            <Txt size={20} weight="800">{validRewards ? money(grossReward) : '금액 입력 필요'}</Txt>
+            <Txt weight="600">자동 책정 보상</Txt>
+            <Txt size={20} weight="800">{money(grossReward)}</Txt>
           </Row>
           <Row style={{ justifyContent: 'space-between' }}>
             <Txt size={13} color={c.secondary}>운영 수수료 10%</Txt>
-            <Txt size={13} color={c.secondary}>{validRewards ? `-${money(commission)}` : '—'}</Txt>
+            <Txt size={13} color={c.secondary}>-{money(commission)}</Txt>
           </Row>
           <Row style={{ justifyContent: 'space-between' }}>
             <Txt weight="700">예상 순보상</Txt>
-            <Txt size={24} weight="800" color={c.green}>{validRewards ? money(grossReward - commission) : '—'}</Txt>
+            <Txt size={24} weight="800" color={c.green}>{money(grossReward - commission)}</Txt>
           </Row>
         </Stack>
         <Txt size={13} color={c.secondary} style={{ marginTop: 12 }}>
-          상품 선지출 {money(total)} · {TRANSPORT_LABEL[transport]}{'\n'}상품가격은 수익이 아니라 구매 확정 뒤
+          상품 선지출 {money(total)} · {methods}{'\n'}상품가격은 수익이 아니라 구매 확정 뒤
           상환받을 금액이에요.
         </Txt>
       </Card>
       <DateField label="예상 구매일" value={purchase} onChange={setPurchase} min={trip?.startDate} />
-      <DateField label="예상 수령일" value={delivery} onChange={setDelivery} min={purchase} />
+      <DateField label="예상 수령일" value={delivery} onChange={setDelivery} min={trip && trip.endDate > purchase ? trip.endDate : purchase} />
       <Stack>
         <Txt size={14} weight="600">
           전달 방식
         </Txt>
         <Notice>
-          구매자가 {TRANSPORT_LABEL[transport]}을 선택했어요. 해외에서는 여행자의 원래 이동 동선으로 가져와요.
+          구매자가 선택한 {methods} 방식으로 각각 전달해요. 해외에서는 여행자의 원래 이동 동선으로 가져와요.
         </Notice>
       </Stack>
+      {trip && <Badge>{TRIP_VERIFICATION_LABEL[trip.verificationStatus]}</Badge>}
+      {!canAcceptTrip(trip) && <Notice>인증이 완료된 여행 일정에서만 부탁을 수락할 수 있어요. 항공권 사진·QR 인식 후에도 실제 발권 확인이 필요해요.</Notice>}
       <Field label="구매자에게 한마디" value={message} onChange={setMessage} multiline />
       {requests.map((r) => (
         <Card key={r.id}>
           <Stack>
             <Txt weight="700">{r.productName}</Txt>
-            <MoneyBreakdown compact price={quote(r, rewardFor(r.id) ?? 0, transport)} rewardPending={rewardFor(r.id) === undefined} />
+            <Badge>{TRANSPORT_LABEL[r.transport]}</Badge>
+            <MoneyBreakdown compact price={quote(r, recommendedReward(r), r.transport)} />
           </Stack>
         </Card>
       ))}

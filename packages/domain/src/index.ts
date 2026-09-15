@@ -16,7 +16,6 @@ export type Status =
   | 'DISPUTED';
 export type Transport = 'DOMESTIC_PARCEL' | 'MEETUP';
 export const DOMESTIC_PARCEL_FEE = 3500;
-export const MAX_DEMO_REWARD = 2_000_000;
 export const rewardCommission = (reward: number) => Math.round(reward * 0.1);
 /** Compatibility for old saved requests; never exposes a cross-border shipping option. */
 export const normalizeTransport = (value: unknown): Transport =>
@@ -77,8 +76,32 @@ export interface Trip extends Entity {
   endDate: string;
   placeIds: string[];
   maxItems: number;
-  verificationStatus: 'DEMO_VERIFIED' | 'UNVERIFIED';
+  verificationStatus: 'DEMO_VERIFIED' | 'UNVERIFIED' | 'PENDING_REVIEW' | 'NEEDS_REVIEW';
+  flightProof?: FlightProof;
 }
+export interface FlightLeg {
+  from: string;
+  to: string;
+  flightNumber: string;
+  date: string | null;
+  dayOfYear: number | null;
+}
+export interface FlightProof {
+  checkedAt: string;
+  outbound: FlightLeg[];
+  inbound: FlightLeg[];
+  source: 'BARCODE' | 'OCR' | 'MIXED';
+  issues: string[];
+  itineraryMatches: boolean;
+}
+// Only the pre-existing, explicitly labelled synthetic fixtures may bypass the
+// unconnected airline/identity verification provider in this prototype.
+export const canAcceptTrip = (trip?: Trip) => Boolean(trip && trip.verificationStatus === 'DEMO_VERIFIED' &&
+  trip.id === `trip-${trip.travelerId}` && trip.endDate >= new Date().toISOString().slice(0, 10));
+export const TRIP_VERIFICATION_LABEL: Record<Trip['verificationStatus'], string> = {
+  DEMO_VERIFIED: '여행 일정 예시 인증', UNVERIFIED: '왕복 항공권 인증 필요',
+  PENDING_REVIEW: '일정 대조 완료 · 발권 확인 대기', NEEDS_REVIEW: '항공권 정보 재확인 필요',
+};
 export interface TripDestination extends Entity {
   tripId: string;
   placeId: string;
@@ -387,10 +410,24 @@ export function quote(
     priceSource: 'DEMO_FIXED',
   };
 }
+export function recommendedReward(
+  request: Pick<ProductRequest, 'localPrice' | 'quantity' | 'currency'>,
+) {
+  const productPrice = Math.round(
+    request.localPrice * request.quantity * DEMO_FX_RATES[request.currency],
+  );
+  return Math.round(productPrice * 0.1);
+}
+/** Round the commission per transaction, then subtract; never round both sides independently. */
+export function travelerEarnings(reward: number) {
+  const platformCommission = rewardCommission(reward);
+  return { platformCommission, netReward: reward - platformCommission };
+}
 export function groupForTrip(
   db: Pick<Database, 'places' | 'requests' | 'offers'>,
   trip: Trip,
 ): BundleSuggestion[] {
+  if (trip.endDate < new Date().toISOString().slice(0, 10)) return [];
   return db.places
     .filter(
       (p) =>
@@ -402,6 +439,8 @@ export function groupForTrip(
         (r) =>
           r.placeId === place.id &&
           r.requesterId !== trip.travelerId &&
+          r.deliveryCountry === trip.departureCountry &&
+          (r.transport !== 'MEETUP' || r.deliveryCity === trip.departureCity) &&
           ['REQUESTED', 'OFFER_RECEIVED'].includes(r.status) &&
           r.desiredDate >= trip.endDate &&
           !db.offers.some(

@@ -1,4 +1,4 @@
-import React, { ReactNode, useState } from 'react';
+import React, { ReactNode, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -12,6 +12,7 @@ import {
   ViewStyle,
   KeyboardAvoidingView,
   Platform,
+  BackHandler,
 } from 'react-native';
 import {
   ArrowLeft,
@@ -114,11 +115,13 @@ export function Button({
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={{ disabled: disabled || loading, busy: loading }}
       disabled={disabled || loading}
       onPress={onPress}
       style={({ pressed }) => [
         {
           minHeight: small ? 44 : 54,
+          paddingVertical: 12,
           borderRadius: 16,
           paddingHorizontal: small ? 16 : 20,
           alignItems: 'center',
@@ -150,7 +153,7 @@ export function Button({
       ) : Icon ? (
         <Icon size={19} color={fg} strokeWidth={1.8} />
       ) : null}
-      <Txt size={small ? 14 : 16} weight="700" color={fg}>
+      <Txt size={small ? 14 : 16} weight="700" color={fg} style={{ flexShrink: 1, textAlign: 'center' }}>
         {label}
       </Txt>
     </Pressable>
@@ -207,8 +210,9 @@ export function Chip({
       style={({ pressed }) => ({
         paddingHorizontal: 16,
         paddingVertical: 10,
-        minHeight: 42,
-        borderRadius: 999,
+        minHeight: 44,
+        maxWidth: '100%',
+        borderRadius: 14,
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
@@ -219,7 +223,7 @@ export function Chip({
       })}
     >
       {Icon && <Icon size={15} color={selected ? '#fff' : c.ink} />}
-      <Txt size={14} color={selected ? '#fff' : c.ink} weight={selected ? '700' : '500'}>
+      <Txt size={14} color={selected ? '#fff' : c.ink} weight={selected ? '700' : '500'} style={{ flexShrink: 1 }}>
         {label}
       </Txt>
     </Pressable>
@@ -320,9 +324,16 @@ export function Field({
 export function DateField({
   label, value, onChange, min,
 }: { label: string; value: string; onChange: (value: string) => void; min?: string }) {
-  const selected = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00`) : new Date();
+  const anchor = min && value < min ? min : value;
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(anchor) ? new Date(`${anchor}T00:00:00`) : new Date();
+  const selected = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
   const [open, setOpen] = useState(false);
   const [month, setMonth] = useState(new Date(selected.getFullYear(), selected.getMonth(), 1));
+  useEffect(() => {
+    if (!open || Platform.OS !== 'android') return;
+    const handler = BackHandler.addEventListener('hardwareBackPress', () => { setOpen(false); return true; });
+    return () => handler.remove();
+  }, [open]);
   const year = month.getFullYear(), monthIndex = month.getMonth();
   const blanks = new Date(year, monthIndex, 1).getDay();
   const count = new Date(year, monthIndex + 1, 0).getDate();
@@ -331,7 +342,7 @@ export function DateField({
   return (
     <View style={{ gap: 8 }}>
       <Txt size={14} weight="600">{label} *</Txt>
-      <Pressable accessibilityRole="button" accessibilityLabel={`${label} 달력 열기`} onPress={() => setOpen(!open)} style={{ minHeight: 52, borderWidth: 1, borderColor: c.border, backgroundColor: c.paper, borderRadius: 14, paddingHorizontal: 15, alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`${label} 달력 열기`} accessibilityState={{ expanded: open }} onPress={() => { if (!open) setMonth(new Date(selected.getFullYear(), selected.getMonth(), 1)); setOpen(!open); }} style={{ minHeight: 52, borderWidth: 1, borderColor: c.border, backgroundColor: c.paper, borderRadius: 14, paddingHorizontal: 15, alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
         <Txt size={16}>{value}</Txt><CalendarDays size={20} color={c.green} />
       </Pressable>
       {open && <View style={{ borderWidth: 1, borderColor: c.border, backgroundColor: c.paper, borderRadius: 18, padding: 14, gap: 12 }}>
@@ -343,9 +354,9 @@ export function DateField({
         <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
           {['일','월','화','수','목','금','토'].map((day) => <View key={day} style={{ width: '14.285%', alignItems: 'center', paddingVertical: 5 }}><Txt size={11} color={c.secondary}>{day}</Txt></View>)}
           {cells.map((day, index) => {
-            if (!day) return <View key={`blank-${index}`} style={{ width: '14.285%', height: 42 }} />;
+            if (!day) return <View key={`blank-${index}`} style={{ width: '14.285%', height: 44 }} />;
             const date = format(day), disabled = Boolean(min && date < min), active = date === value;
-            return <Pressable key={date} accessibilityRole="button" accessibilityLabel={`${date} 선택`} disabled={disabled} onPress={() => { onChange(date); setOpen(false); }} style={{ width: '14.285%', height: 42, alignItems: 'center', justifyContent: 'center' }}><View style={{ width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: active ? c.green : 'transparent' }}><Txt size={13} weight={active ? '700' : '400'} color={disabled ? c.muted : active ? 'white' : c.ink}>{day}</Txt></View></Pressable>;
+            return <Pressable key={date} accessibilityRole="button" accessibilityLabel={`${date} 선택`} accessibilityState={{ disabled, selected: active }} disabled={disabled} onPress={() => { onChange(date); setOpen(false); }} style={{ width: '14.285%', height: 44, alignItems: 'center', justifyContent: 'center' }}><View style={{ width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: active ? c.green : 'transparent' }}><Txt size={13} weight={active ? '700' : '400'} color={disabled ? c.muted : active ? 'white' : c.ink}>{day}</Txt></View></Pressable>;
           })}
         </View>
       </View>}
@@ -419,13 +430,8 @@ export function Card({ children, style }: { children: ReactNode; style?: StylePr
           backgroundColor: c.paper,
           borderWidth: 1,
           borderColor: c.border,
-          borderRadius: 22,
+          borderRadius: 20,
           padding: 20,
-          shadowColor: '#244B84',
-          shadowOpacity: 0.08,
-          shadowRadius: 14,
-          shadowOffset: { width: 0, height: 5 },
-          elevation: 1,
         },
         style,
       ]}
@@ -439,7 +445,7 @@ export function Divider() {
 }
 export function Empty({
   title = '아직 아무것도 없어요',
-  body = '새로운 요청을 등록해보세요.',
+  body = '조건을 바꾸거나 다른 장소를 둘러보세요.',
   action,
   onPress,
 }: {
@@ -448,6 +454,7 @@ export function Empty({
   action?: string;
   onPress?: () => void;
 }) {
+  const app = useApp();
   return (
     <Stack style={{ alignItems: 'center', paddingVertical: 44, paddingHorizontal: 20 }}>
       <View style={{ padding: 22, borderRadius: 28, backgroundColor: c.mint }}>
@@ -459,7 +466,7 @@ export function Empty({
       <Txt color={c.secondary} style={{ textAlign: 'center' }}>
         {body}
       </Txt>
-      {!!action && onPress && <Button small label={action} onPress={onPress} />}
+      <Button small kind="secondary" label={action || '홈으로 돌아가기'} onPress={onPress || (() => app.tab('home'))} />
     </Stack>
   );
 }
@@ -471,6 +478,7 @@ export function Page({
   back = true,
   onBack,
   backLabel,
+  resetScrollKey,
 }: {
   title: string;
   children: ReactNode;
@@ -479,8 +487,15 @@ export function Page({
   back?: boolean;
   onBack?: () => void;
   backLabel?: string;
+  resetScrollKey?: string | number;
 }) {
   const app = useApp();
+  const scrollRef = useRef<ScrollView>(null);
+  useEffect(() => {
+    if (resetScrollKey === undefined) return;
+    const frame = requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 0, animated: false }));
+    return () => cancelAnimationFrame(frame);
+  }, [resetScrollKey]);
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -520,8 +535,9 @@ export function Page({
       </Row>
       {scroll ? (
         <ScrollView
+          ref={scrollRef}
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ padding: 24, paddingBottom: 28, gap: 24 }}
+          contentContainerStyle={{ padding: 20, paddingBottom: 28, gap: 24 }}
         >
           {children}
         </ScrollView>

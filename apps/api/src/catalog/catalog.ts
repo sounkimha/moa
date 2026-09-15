@@ -208,6 +208,7 @@ export class CatalogService {
         recognition: { image: Boolean(process.env.OPENAI_API_KEY), sample: true, link: true },
         serverDate: new Date().toISOString(),
         transactions,
+        trips: db.trips.map((trip) => trip.travelerId === actor ? trip : ({ ...trip, flightProof: undefined })),
         requests: db.requests.filter(
           (r) =>
             ['REQUESTED', 'OFFER_RECEIVED'].includes(r.status) ||

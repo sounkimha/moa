@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { BackHandler, Platform, Pressable, ScrollView, View } from 'react-native';
 import {
   ArrowRight,
   Check,
@@ -45,6 +45,7 @@ import {
   Chip,
   Divider,
   DateField,
+  Empty,
   Field,
   IconButton,
   Notice,
@@ -84,14 +85,22 @@ type RecognitionResult = {
   notice: string;
 };
 export function RequestForm() {
+  const a = useApp();
+  if (!a.data?.places.length) return <Page title="이거 부탁하기"><Empty title="구매 장소를 불러오지 못했어요" body="연결 상태를 확인한 뒤 다시 시도해주세요." action="다시 불러오기" onPress={() => a.refresh().catch((error) => a.notify(error.message))} /></Page>;
+  return <RequestFormContent />;
+}
+function RequestFormContent() {
   const a = useApp(),
     d = a.data!;
-  const preset = d.requests.find((request) => request.id === a.route.id);
-  const draft = preset ? null : a.requestDraft;
+  const sourceRequest = d.requests.find((request) => request.id === a.route.id);
+  const draft = a.requestDraft?.sourceRequestId === a.route.id &&
+    a.requestDraft?.entryPlaceId === a.route.placeId ? a.requestDraft : null;
+  const preset = draft ? undefined : sourceRequest;
   const defaultAddress = (d.addresses || []).find((item) => item.userId === d.me.id && item.isDefault);
   const [step, setStep] = useState(draft?.step || 1),
     [originalText, setOriginalText] = useState<ProductOriginalText | undefined>(preset?.originalText || draft?.originalText),
-    [method, setMethod] = useState<'link' | 'photo'>(a.route.method || draft?.method || 'link'),
+    [method, setMethod] = useState<'link' | 'photo'>(
+      (a.route.method && a.route.method !== draft?.entryMethod ? a.route.method : draft?.method) || a.route.method || 'link'),
     [url, setUrl] = useState(preset?.productUrl || draft?.url || ''),
     [name, setName] = useState(preset?.productName || draft?.name || ''),
     [image, setImage] = useState(preset?.productImage || draft?.image || ''),
@@ -103,9 +112,10 @@ export function RequestForm() {
         ? preset.desiredDate
         : draft?.desired || future(18),
     ),
-    [placeId, setPlaceId] = useState(
-      a.route.placeId || preset?.placeId || draft?.placeId || 'p-station',
-    ),
+    [placeId, setPlaceId] = useState(() => {
+      const selected = draft?.placeId || a.route.placeId || preset?.placeId || 'p-station';
+      return d.places.some((p) => p.id === selected) ? selected : d.places[0].id;
+    }),
     [category, setCategory] = useState<Category>(preset?.category || draft?.category || 'CHARACTER'),
     [storeName, setStoreName] = useState(preset?.storeName || draft?.storeName || ''),
     [option, setOption] = useState(preset?.option || draft?.option || '기본 옵션'),
@@ -119,12 +129,12 @@ export function RequestForm() {
     [transport, setTransport] = useState<Transport>(preset?.transport || draft?.transport || 'DOMESTIC_PARCEL'),
     [deliveryCountry, setDeliveryCountry] = useState<Country>(preset?.deliveryCountry || draft?.deliveryCountry || 'KR'),
     [deliveryCity, setDeliveryCity] = useState(preset?.deliveryCity || draft?.deliveryCity || '서울'),
-    [deliveryAddressId, setDeliveryAddressId] = useState(preset?.deliveryAddressId || draft?.deliveryAddressId || defaultAddress?.id || ''),
-    [deliveryRecipient, setDeliveryRecipient] = useState(preset?.deliveryRecipient || draft?.deliveryRecipient || defaultAddress?.recipient || ''),
-    [deliveryPhone, setDeliveryPhone] = useState(preset?.deliveryPhone || draft?.deliveryPhone || defaultAddress?.phone || ''),
-    [deliveryPostalCode, setDeliveryPostalCode] = useState(preset?.deliveryPostalCode || draft?.deliveryPostalCode || defaultAddress?.postalCode || ''),
-    [deliveryAddress1, setDeliveryAddress1] = useState(preset?.deliveryAddress1 || draft?.deliveryAddress1 || defaultAddress?.address1 || ''),
-    [deliveryAddress2, setDeliveryAddress2] = useState(preset?.deliveryAddress2 || draft?.deliveryAddress2 || defaultAddress?.address2 || ''),
+    [deliveryAddressId, setDeliveryAddressId] = useState(preset?.deliveryAddressId ?? draft?.deliveryAddressId ?? defaultAddress?.id ?? ''),
+    [deliveryRecipient, setDeliveryRecipient] = useState(preset?.deliveryRecipient ?? draft?.deliveryRecipient ?? defaultAddress?.recipient ?? ''),
+    [deliveryPhone, setDeliveryPhone] = useState(preset?.deliveryPhone ?? draft?.deliveryPhone ?? defaultAddress?.phone ?? ''),
+    [deliveryPostalCode, setDeliveryPostalCode] = useState(preset?.deliveryPostalCode ?? draft?.deliveryPostalCode ?? defaultAddress?.postalCode ?? ''),
+    [deliveryAddress1, setDeliveryAddress1] = useState(preset?.deliveryAddress1 ?? draft?.deliveryAddress1 ?? defaultAddress?.address1 ?? ''),
+    [deliveryAddress2, setDeliveryAddress2] = useState(preset?.deliveryAddress2 ?? draft?.deliveryAddress2 ?? defaultAddress?.address2 ?? ''),
     [meetupLocation, setMeetupLocation] = useState(preset?.meetupLocation || draft?.meetupLocation || ''),
     [meetupPoint, setMeetupPoint] = useState<MeetupPoint | undefined>(preset?.meetupPoint || draft?.meetupPoint),
     [inventoryStatus, setInventoryStatus] = useState(
@@ -133,10 +143,15 @@ export function RequestForm() {
         : preset?.inventoryStatus || draft?.inventoryStatus || 'CHECK_REQUIRED',
     );
   // A retry already has confirmed product details; only recognize a newly edited URL.
-  const lastResolvedUrl = useRef(preset?.productUrl?.trim() || '');
+  const lastResolvedUrl = useRef(preset?.productUrl?.trim() || (draft?.aiFilled ? draft.url.trim() : ''));
   const currentUrl = useRef(url);
   currentUrl.current = url;
   const recognitionRun = useRef(0);
+  useEffect(() => {
+    if (Platform.OS !== 'android' || step !== 2) return;
+    const handler = BackHandler.addEventListener('hardwareBackPress', () => { setStep(1); return true; });
+    return () => handler.remove();
+  }, [step]);
   useEffect(() => () => { recognitionRun.current++; }, []);
   const clearProduct = () => {
     setOriginalText(undefined);
@@ -160,7 +175,7 @@ export function RequestForm() {
     clearFeedback(); clearProduct(); setResolving(true);
     return run;
   };
-  const place = d.places.find((p) => p.id === placeId)!;
+  const place = d.places.find((p) => p.id === placeId) || d.places[0];
   const mode = normalizeTransport(transport);
   const pricingInput = { localPrice: Number(price) || 0, quantity, currency: currencyForCountry(place.country) };
   const q = quote(pricingInput, 0, mode);
@@ -174,6 +189,9 @@ export function RequestForm() {
     .filter((p, index, all) => all.findIndex((other) => other.latitude === p.latitude && other.longitude === p.longitude) === index).slice(0, 3);
   useEffect(() => {
     a.setRequestDraft({
+      sourceRequestId: a.route.id,
+      entryPlaceId: a.route.placeId,
+      entryMethod: a.route.method,
       originalText,
       step,
       method,
@@ -243,7 +261,7 @@ export function RequestForm() {
     setArt(p.art);
     setCategory(p.category);
     setStoreName(d.places.find((place) => place.id === p.placeId)?.name || '');
-    if (!a.route.placeId) setPlaceId(p.placeId);
+    setPlaceId(p.placeId);
     setOption('기본 옵션');
   };
   const applyRecognition = (result: RecognitionResult, uploadedImage?: string) => {
@@ -397,7 +415,7 @@ export function RequestForm() {
         option,
         transport: mode,
         inventoryStatus,
-        ...(preset?.requesterId === d.me.id && preset.status === 'CANCELLED' ? { retryOfRequestId: preset.id } : {}),
+        ...(sourceRequest?.requesterId === d.me.id && sourceRequest.status === 'CANCELLED' ? { retryOfRequestId: sourceRequest.id } : {}),
         ...(mode === 'DOMESTIC_PARCEL' ? {
           deliveryAddressId: deliveryAddressId || undefined,
           deliveryRecipient: deliveryRecipient.trim(),
@@ -417,6 +435,7 @@ export function RequestForm() {
   return (
     <Page
       title="이거 부탁하기"
+      resetScrollKey={`${step}:${error}`}
       onBack={step === 2 ? () => setStep(1) : undefined}
       footer={
         <Stack gap={6}>
@@ -855,6 +874,14 @@ export function TripForm() {
     [error, setError] = useState('');
   const available = d.places.filter((p) => p.country === country && cities.includes(p.city));
   const submit = async () => {
+    if (!departure.trim() || !Number.isInteger(Number(capacity)) || Number(capacity) < 1) {
+      setError('출발 도시와 1개 이상의 처리 가능 수량을 입력해주세요.');
+      return;
+    }
+    if (start < future(0) || end < start) {
+      setError('오늘 이후의 시작일과 그 이후의 종료일을 선택해주세요.');
+      return;
+    }
     if (!cities.length || cities.some((city) => !places.some((id) => d.places.find((p) => p.id === id)?.city === city))) {
       setError('선택한 도시마다 방문할 장소를 하나 이상 골라주세요.');
       return;
@@ -875,19 +902,20 @@ export function TripForm() {
         placeIds: places,
         maxItems: Number(capacity),
       },
-      '여행을 등록했어요. 동선에 맞는 부탁을 찾아볼게요.',
+      '여행을 등록했어요. 왕복 항공권을 확인해주세요.',
     );
     if (t) {
       a.setRole('traveler');
-      a.tab('home');
+      a.nav('flight-proof', { id: t.id });
     }
   };
   return (
     <Page
       title="어디로 떠나세요?"
+      resetScrollKey={error}
       footer={
         <Button
-          label="내 동선의 부탁 찾아보기"
+          label="일정 저장하고 항공권 인증하기"
           icon={ArrowRight}
           loading={a.busy}
           onPress={submit}
@@ -928,7 +956,7 @@ export function TripForm() {
         }} />
         <Txt size={12} color={c.secondary}>한 여행에서는 선택한 국가·지역 안의 여러 도시를 묶어요.</Txt>
       </Stack>
-      <DateField label="여행 시작일" value={start} onChange={setStart} min={future(0)} />
+      <DateField label="여행 시작일" value={start} onChange={(value) => { setStart(value); if (end < value) setEnd(value); setError(''); }} min={future(0)} />
       <DateField label="여행 종료일" value={end} onChange={setEnd} min={start} />
       <View>
         <Section title="들를 곳을 골라주세요" subtitle="예정된 장소에 있는 부탁만 추천해요." />
@@ -986,8 +1014,8 @@ export function TripForm() {
         hint="여유 시간을 생각해 1~20개 사이로 정해주세요."
       />
       <Notice>
-        일정 등록만으로 여행 일정 인증이 완료되지는 않아요. 실제 인증은 검증 사업자 연결 후 제공할
-        예정이에요.
+        다음 화면에서 왕복 항공권을 인식하고 일정과 대조해요. 항공권 인식은 발권 진위 확인과 다르며,
+        실제 항공사·본인확인 연동 전에는 새 일정으로 부탁을 수락할 수 없어요.
       </Notice>
     </Page>
   );

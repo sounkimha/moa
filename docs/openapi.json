@@ -1881,7 +1881,8 @@
           "reward": {
             "type": "integer",
             "minimum": 0,
-            "maximum": 2000000
+            "maximum": 2000000,
+            "description": "Legacy compatibility field. The server ignores this value and calculates 10% of the quantity-adjusted KRW product price."
           },
           "estimatedPurchaseDate": {
             "type": "string",
@@ -1906,7 +1907,6 @@
         },
         "required": [
           "tripId",
-          "reward",
           "estimatedPurchaseDate",
           "estimatedDeliveryDate",
           "message",
@@ -2018,7 +2018,8 @@
           "reward": {
             "type": "integer",
             "minimum": 0,
-            "maximum": 2000000
+            "maximum": 2000000,
+            "description": "Legacy compatibility field. The server ignores this value and calculates each request reward at 10%."
           },
           "estimatedPurchaseDate": {
             "type": "string",
@@ -2048,20 +2049,10 @@
             "minItems": 1,
             "maxItems": 10,
             "uniqueItems": true
-          },
-          "rewards": {
-            "type": "object",
-            "description": "Request ID to traveler-proposed reward in KRW. Must contain every requestId and no unrelated keys.",
-            "additionalProperties": {
-              "type": "integer",
-              "minimum": 0,
-              "maximum": 2000000
-            }
           }
         },
         "required": [
           "tripId",
-          "reward",
           "estimatedPurchaseDate",
           "estimatedDeliveryDate",
           "message",

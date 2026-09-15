@@ -16,7 +16,7 @@ import {
   Star,
   Wallet,
 } from 'lucide-react-native';
-import { money, shortDate, UserAddress } from '@moa/domain';
+import { money, shortDate, UserAddress, TRIP_VERIFICATION_LABEL } from '@moa/domain';
 import { useApp } from '../state/AppContext';
 import { colors as c } from '../theme/tokens';
 import {
@@ -197,9 +197,7 @@ export function TripsScreen() {
             <Stack gap={14}>
               <Row style={{ justifyContent: 'space-between' }}>
                 <Badge>
-                  {t.verificationStatus === 'DEMO_VERIFIED'
-                    ? '여행 일정 예시 인증'
-                    : '일정 인증 전'}
+                  {TRIP_VERIFICATION_LABEL[t.verificationStatus]}
                 </Badge>
                 <Txt size={12} color={c.secondary}>
                   최대 {t.maxItems}개
@@ -211,6 +209,7 @@ export function TripsScreen() {
               <Txt color={c.secondary}>
                 {t.startDate} — {t.endDate}
               </Txt>
+              <Button label={t.flightProof ? '항공권 확인 결과 보기' : '왕복 항공권 인증하기'} kind="secondary" icon={ShieldCheck} onPress={() => a.nav('flight-proof', { id: t.id })} />
               <View>
                 {t.placeIds.map((id) => {
                   const p = d.places.find((x) => x.id === id)!;
@@ -236,7 +235,7 @@ export function TripsScreen() {
           </Card>
         ))}
       {!trips.length && (
-        <Empty title="첫 여행을 알려주세요" body="방문할 곳의 요청을 모아 보여드릴게요." />
+        <Empty title="첫 여행을 알려주세요" body="방문할 곳의 요청을 모아 보여드릴게요." action="여행 등록하기" onPress={() => a.nav('trip-form')} />
       )}
     </Page>
   );
@@ -333,15 +332,18 @@ export function SettingsScreen() {
           {[
             ['휴대폰·Apple·Google·Kakao', '예시 계정 로그인'],
             ['안전결제·정산', 'Mock 장부'],
-            ['국내·해외 지도', '위치 미리보기'],
-            ['상품 자동 입력', '내장 예시 카탈로그'],
-            ['채팅·알림', '로컬 서버 저장'],
+            ['직거래 지도', '지도 이동·좌표 저장'],
+            ['장소 이름 검색', '카카오 키 연결 필요'],
+            ['상품 링크 입력', '판매 페이지 정보 추출'],
+            ['사진 AI 인식', d.recognition?.image ? '연결됨 · 결과 확인 필요' : '키 미설정 · 샘플만 가능'],
+            ['왕복 항공권', 'QR 인식 · 발권 확인 미연결'],
+            ['채팅·알림', '서버 저장 · 주기적 갱신'],
           ].map(([k, v]) => (
             <Row key={k} style={{ justifyContent: 'space-between' }}>
-              <Txt size={13} color={c.secondary}>
+              <Txt size={13} color={c.secondary} style={{ flex: 1 }}>
                 {k}
               </Txt>
-              <Txt size={13} weight="600">
+              <Txt size={13} weight="600" style={{ flex: 1, textAlign: 'right' }}>
                 {v}
               </Txt>
             </Row>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Image, Pressable, View } from 'react-native';
 import Svg, { Circle, Ellipse, Path, Rect, Line, G, Text as SvgText } from 'react-native-svg';
 import {
@@ -56,12 +56,19 @@ export function ProductArt({
   image?: string;
   featured?: boolean;
 }) {
+  const [failedImage, setFailedImage] = useState<string>();
   const bg =
     art === 'plush' ? c.butter : art === 'pouch' ? c.lilac : art === 'tshirt' ? c.blue : c.mint;
+  if (image && failedImage === image) return (
+    <View accessibilityLabel="상품 사진을 불러오지 못했어요" style={{ width: size, height: size, borderRadius: 16, backgroundColor: bg, padding: 8, justifyContent: 'center' }}>
+      <Txt size={11} color={c.secondary} style={{ textAlign: 'center' }}>사진을 불러오지 못했어요</Txt>
+    </View>
+  );
   if (image)
     return (
       <Image
         source={{ uri: image }}
+        onError={() => setFailedImage(image)}
         accessibilityLabel="등록된 상품 이미지"
         style={{ width: size, height: size, borderRadius: 18, backgroundColor: bg }}
         resizeMode="cover"
