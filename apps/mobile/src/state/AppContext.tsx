@@ -91,7 +91,7 @@ type AppValue = {
   back: () => void;
   tab: (name: Screen) => void;
   refresh: () => Promise<void>;
-  login: (provider?: string, userId?: string) => Promise<boolean>;
+  login: (provider?: string, userId?: string, reset?: boolean) => Promise<boolean>;
   logout: () => Promise<void>;
   switchActor: (id: string) => Promise<boolean>;
   busy: boolean;
@@ -231,16 +231,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
     return () => subscription.remove();
   }, []);
-  const login = async (provider = 'DEMO', userId = 'u-me') => {
+  const login = async (provider = 'DEMO', userId = 'u-me', reset = false) => {
     setBusy(true);
     try {
-      const result = await api<{ token: string }>('/auth/demo', { provider, userId });
+      const result = await api<{ token: string }>('/auth/demo', { provider, userId, reset });
       setToken(result.token);
       await storage.set(result.token);
       await refresh();
       return true;
     } catch (e) {
-      notify((e as Error).message);
+      const message = (e as Error).message;
+      // Onboarding has no authenticated shell, so a toast alone can make a
+      // failed demo login look like an unresponsive button.
+      setError(message);
+      notify(message);
       return false;
     } finally {
       setBusy(false);

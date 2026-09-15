@@ -1,27 +1,27 @@
-import { Database, quote, recommendedReward } from '@moa/domain';
+import { Database, quote } from '@moa/domain';
 import { base } from '../common/validation';
 
 /** Upgrade saved prototype data without rewriting already-paid financial history. */
 export function migrateLegacyDelivery(db: Database): boolean {
   let changed = false;
+  for (const receipt of db.receipts) {
+    if (!receipt.outcome) {
+      receipt.outcome = 'PURCHASED';
+      changed = true;
+    }
+  }
   for (const row of [...db.requests, ...db.offers, ...db.transactions, ...db.shipments]) {
     if (String(row.transport) !== 'INTERNATIONAL_SHIPPING') continue;
     row.transport = 'DOMESTIC_PARCEL';
     if ('revision' in row) row.revision++;
     changed = true;
-    if ('reward' in row && row.status === 'PENDING') {
-      const request = db.requests.find((r) => r.id === row.requestId);
-      if (request) row.reward = recommendedReward(request);
-    }
     if ('totalPrice' in row) {
       const request = db.requests.find((r) => r.id === row.requestId);
       const unpaid = row.status === 'MATCHED' &&
         !db.payments.some((p) => p.transactionId === row.id) &&
         !db.escrows.some((e) => e.transactionId === row.id);
       if (unpaid && request) {
-        Object.assign(row, quote(request, recommendedReward(request), 'DOMESTIC_PARCEL'));
-        const offer = db.offers.find((o) => o.id === row.offerId);
-        if (offer) offer.reward = row.travelerReward;
+        Object.assign(row, quote(request, row.travelerReward, 'DOMESTIC_PARCEL'));
       }
       db.events.push({
         ...base(), actorId: row.buyerId, transactionId: row.id,

@@ -44,13 +44,14 @@ flowchart TD
 | PAYMENT_HELD         | PURCHASE + 증빙         | PURCHASED      | 여행자            |
 | PURCHASED            | TRAVEL                  | TRAVELING      | 여행자            |
 | TRAVELING            | SHIP + 운송장/전달 약속 | SHIPPED        | 여행자            |
+| SHIPPED              | RECEIVE_AND_CONFIRM     | CONFIRMED      | 구매자            |
 | SHIPPED              | RECEIVE                 | DELIVERED      | 구매자            |
 | DELIVERED            | CONFIRM                 | CONFIRMED      | 구매자            |
 | CONFIRMED            | SETTLE                  | SETTLED        | 여행자, Mock 전용 |
 | MATCHED/PAYMENT_HELD | CANCEL                  | CANCELLED      | 구매자            |
 | 결제 후~구매 확정    | DISPUTE                 | DISPUTED       | 거래 참여자       |
 
-TRAVELING은 여행자가 구매를 마치고 자신의 원래 복귀 동선으로 이동 중인 단계다. 도착 후에는 구매자가 선택한 국내 택배 또는 직접 전달로 이어진다. 실제 PG 정산은 사용자 버튼이 아니라 검증된 작업자/PG webhook 중심으로 바꿔야 한다.
+TRAVELING은 여행자가 구매를 마치고 자신의 원래 복귀 동선으로 이동 중인 단계다. 도착 후에는 구매자가 선택한 국내 택배 또는 직접 전달로 이어진다. 새 클라이언트는 수령과 구매 확정을 `RECEIVE_AND_CONFIRM` 한 번으로 원자적으로 처리한다. 기존 `RECEIVE`와 `CONFIRM`은 중간 상태 복구와 이전 클라이언트 호환을 위해 유지한다. 실제 PG 정산은 사용자 버튼이 아니라 검증된 작업자/PG webhook 중심으로 바꿔야 한다.
 
 ## 원장과 중복 요청
 

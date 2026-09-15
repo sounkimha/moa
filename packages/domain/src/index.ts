@@ -16,6 +16,8 @@ export type Status =
   | 'DISPUTED';
 export type Transport = 'DOMESTIC_PARCEL' | 'MEETUP';
 export const DOMESTIC_PARCEL_FEE = 3500;
+export const MAX_DEMO_REWARD = 2_000_000;
+export const rewardCommission = (reward: number) => Math.round(reward * 0.1);
 /** Compatibility for old saved requests; never exposes a cross-border shipping option. */
 export const normalizeTransport = (value: unknown): Transport =>
   value === 'MEETUP' ? 'MEETUP' : 'DOMESTIC_PARCEL';
@@ -207,6 +209,7 @@ export interface Escrow extends Entity {
 export interface Receipt extends Entity {
   transactionId: string;
   travelerId: string;
+  outcome: 'PURCHASED' | 'OUT_OF_STOCK';
   productImage: string;
   receiptImage: string;
   storeName: string;
@@ -214,6 +217,8 @@ export interface Receipt extends Entity {
   localAmount: number;
   currency: Currency;
   locationNote: string;
+  unavailableReason?: 'OUT_OF_STOCK' | 'STORE_CLOSED' | 'PRODUCT_NOT_FOUND' | 'PURCHASE_LIMIT';
+  unavailableNote?: string;
 }
 export interface Shipment extends Entity {
   transactionId: string;
@@ -325,7 +330,6 @@ export type Snapshot = Omit<Database, 'commands' | 'verifications'> & {
 export interface BundleSuggestion {
   place: Place;
   requests: ProductRequest[];
-  reward: number;
   advance: number;
   items: number;
   extraMinutes: number;
@@ -383,14 +387,6 @@ export function quote(
     priceSource: 'DEMO_FIXED',
   };
 }
-export function recommendedReward(
-  request: Pick<ProductRequest, 'localPrice' | 'quantity' | 'currency'>,
-) {
-  const productPrice = Math.round(
-    request.localPrice * request.quantity * DEMO_FX_RATES[request.currency],
-  );
-  return Math.round(productPrice * 0.1);
-}
 export function groupForTrip(
   db: Pick<Database, 'places' | 'requests' | 'offers'>,
   trip: Trip,
@@ -416,7 +412,6 @@ export function groupForTrip(
       return {
         place,
         requests,
-        reward: requests.reduce((s, r) => s + recommendedReward(r), 0),
         advance: requests.reduce((s, r) => s + quote(r, 0, r.transport).productPrice, 0),
         items: requests.reduce((s, r) => s + r.quantity, 0),
         extraMinutes: place.extraMinutes,

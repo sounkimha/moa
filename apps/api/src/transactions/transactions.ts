@@ -10,7 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
-import { Database, Status, Transaction, quote } from '@moa/domain';
+import { Database, Status, Transaction, quote, rewardCommission } from '@moa/domain';
 import { ActorRequest, AuthGuard } from '../auth/auth';
 import {
   amount,
@@ -35,12 +35,24 @@ const actionSchema = z.discriminatedUnion('action', [
     .object({
       ...revision,
       action: z.literal('PURCHASE'),
-      productImage: imageData,
-      receiptImage: imageData,
+      productImage: z.union([z.literal(''), imageData]),
+      receiptImage: z.union([z.literal(''), imageData]),
       storeName: z.string().trim().min(2).max(100),
       purchasedAt: date,
       localAmount: localAmount.positive(),
       locationNote: z.string().trim().min(2).max(150),
+    })
+    .strict(),
+  z
+    .object({
+      ...revision,
+      action: z.literal('OUT_OF_STOCK'),
+      evidenceImage: imageData,
+      storeName: z.string().trim().min(2).max(100),
+      checkedAt: date,
+      locationNote: z.string().trim().min(2).max(150),
+      reason: z.enum(['OUT_OF_STOCK', 'STORE_CLOSED', 'PRODUCT_NOT_FOUND', 'PURCHASE_LIMIT']),
+      note: z.string().trim().max(500).default(''),
     })
     .strict(),
   z.object({ ...revision, action: z.literal('TRAVEL') }).strict(),
@@ -52,6 +64,7 @@ const actionSchema = z.discriminatedUnion('action', [
       trackingNumber: z.string().trim().min(3).max(100),
     })
     .strict(),
+  z.object({ ...revision, action: z.literal('RECEIVE_AND_CONFIRM') }).strict(),
   z.object({ ...revision, action: z.literal('RECEIVE') }).strict(),
   z.object({ ...revision, action: z.literal('CONFIRM') }).strict(),
   z.object({ ...revision, action: z.literal('SETTLE') }).strict(),
@@ -190,6 +203,10 @@ export class TransactionsService {
           case 'PURCHASE': {
             traveler();
             at('PAYMENT_HELD');
+            check(
+              Boolean(data.productImage || data.receiptImage),
+              '상품 사진 또는 영수증 중 하나 이상을 첨부해주세요.',
+            );
             const offer = get(db.offers, t.offerId);
             const trip = get(db.trips, offer.tripId);
             check(
@@ -204,6 +221,7 @@ export class TransactionsService {
               ...base(),
               transactionId: id,
               travelerId: actor,
+              outcome: 'PURCHASED',
               productImage: data.productImage,
               receiptImage: data.receiptImage,
               storeName: data.storeName,
@@ -213,7 +231,48 @@ export class TransactionsService {
               locationNote: data.locationNote,
             });
             t.status = 'PURCHASED';
-            note = '상품 구매를 마쳤어요. 사진과 영수증을 확인해주세요.';
+            note = '상품 구매를 마쳤어요. 상품 또는 영수증 증빙을 확인해주세요.';
+            break;
+          }
+          case 'OUT_OF_STOCK': {
+            traveler();
+            at('PAYMENT_HELD');
+            const offer = get(db.offers, t.offerId);
+            const trip = get(db.trips, offer.tripId);
+            check(
+              data.checkedAt >= trip.startDate && data.checkedAt <= trip.endDate,
+              '방문 확인일을 여행 기간 안에서 선택해주세요.',
+            );
+            db.receipts.push({
+              ...base(),
+              transactionId: id,
+              travelerId: actor,
+              outcome: 'OUT_OF_STOCK',
+              productImage: data.evidenceImage,
+              receiptImage: '',
+              storeName: data.storeName,
+              purchasedAt: data.checkedAt,
+              localAmount: 0,
+              currency: request.currency,
+              locationNote: data.locationNote,
+              unavailableReason: data.reason,
+              unavailableNote: data.note,
+            });
+            db.payments
+              .filter((payment) => payment.transactionId === id)
+              .forEach((payment) => {
+                this.gateway.refund(payment.providerRef);
+                payment.status = 'REFUNDED';
+              });
+            db.escrows
+              .filter((escrow) => escrow.transactionId === id)
+              .forEach((escrow) => (escrow.status = 'REFUNDED'));
+            offer.status = 'CANCELLED';
+            request.inventoryStatus = data.reason === 'OUT_OF_STOCK' ? 'OUT_OF_STOCK' : 'CHECK_REQUIRED';
+            t.status = 'CANCELLED';
+            note = data.reason === 'OUT_OF_STOCK'
+              ? '매장에서 품절을 확인했어요. 증빙을 남기고 결제금을 전액 환불했어요.'
+              : '매장에서 구매하지 못했어요. 방문 기록을 남기고 결제금을 전액 환불했어요.';
             break;
           }
           case 'TRAVEL':
@@ -240,6 +299,15 @@ export class TransactionsService {
                 : '운송장 정보가 등록됐어요. 배송을 시작해요.';
             break;
           }
+          case 'RECEIVE_AND_CONFIRM':
+            buyer();
+            at('SHIPPED');
+            t.status = 'CONFIRMED';
+            db.shipments
+              .filter((s) => s.transactionId === id)
+              .forEach((s) => (s.status = 'DELIVERED'));
+            note = '구매자가 상품을 수령하고 구매를 확정했어요.';
+            break;
           case 'RECEIVE':
             buyer();
             at('SHIPPED');
@@ -264,7 +332,7 @@ export class TransactionsService {
               !db.disputes.some((d) => d.transactionId === id && d.status === 'OPEN'),
               '분쟁이 해결되기 전에는 정산할 수 없어요.',
             );
-            const platformCommission = Math.round(t.travelerReward * 0.1);
+            const platformCommission = rewardCommission(t.travelerReward);
             const netReward = t.travelerReward - platformCommission;
             db.payouts.push({
               ...base(),

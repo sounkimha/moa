@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, Image, Linking, Pressable, View } from 'react-native';
+import { Image, Pressable, View } from 'react-native';
 import Svg, { Circle, Ellipse, Path, Rect, Line, G, Text as SvgText } from 'react-native-svg';
 import {
   ArrowUpRight,
@@ -29,6 +29,7 @@ import {
 import { colors as c } from '../theme/tokens';
 import { Badge, Card, Divider, Row, Stack, Txt } from './ui';
 import { getPlacePhoto } from '../lib/place-photos';
+import { PhotoCredit } from './PhotoCredit';
 export function Logo({ size = 38 }: { size?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 40 40">
@@ -209,15 +210,16 @@ export function AvatarStack({ users }: { users: User[] }) {
     </Row>
   );
 }
-export function PlaceCover({ place, height = 170 }: { place: Place; height?: number }) {
+export function PlaceCover({ place, thumbnail = false }: { place: Place; thumbnail?: boolean }) {
   const photo = getPlacePhoto(place);
   return (
     <View
       style={{
-        height,
         backgroundColor:
           place.theme === 'lilac' ? c.lilac : place.theme === 'butter' ? c.butter : c.mint,
         overflow: 'hidden',
+        width: '100%',
+        aspectRatio: 8 / 5,
       }}
     >
       {photo ? (
@@ -225,34 +227,14 @@ export function PlaceCover({ place, height = 170 }: { place: Place; height?: num
           <Image
             source={photo.source}
             accessibilityLabel={`${photo.label} 대표 풍경 사진`}
-            style={{ width: '100%', height: '100%' }}
+            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
             resizeMode="cover"
           />
-          <Pressable
-            accessibilityRole="link"
-            accessibilityLabel={`사진 출처: ${photo.author}, ${photo.license}. 원본 보기`}
-            onPress={(event) => {
-              event.stopPropagation();
-              Linking.openURL(photo.url).catch(() => Alert.alert('사진 출처', photo.url));
-            }}
-            style={{
-              position: 'absolute',
-              left: 12,
-              right: 12,
-              bottom: 10,
-              backgroundColor: '#172033B8',
-              paddingHorizontal: 8,
-              paddingVertical: 6,
-              borderRadius: 6,
-            }}
-          >
-            <Txt size={11} color="#fff" weight="600">
-              {photo.label} · 대표 풍경
-            </Txt>
-            <Txt size={10} color="#fff">
-              {photo.author} · {photo.license} ↗
-            </Txt>
-          </Pressable>
+          {!thumbnail && (
+            <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#14213DB8', paddingHorizontal: 14, paddingVertical: 6 }}>
+              <Txt size={11} color="white" lines={1}>{photo.label}</Txt>
+            </View>
+          )}
         </>
       ) : (
         <Svg width="100%" height="100%" viewBox="0 0 420 170" preserveAspectRatio="xMidYMid slice">
@@ -278,20 +260,23 @@ export function PlaceCard({
   onPress,
   favorite = false,
   onFavorite,
-  compact = false,
+  variant = 'card',
 }: {
   place: Place;
   onPress: () => void;
   favorite?: boolean;
   onFavorite?: () => void;
-  compact?: boolean;
+  variant?: 'card' | 'list';
 }) {
+  const list = variant === 'list';
   return (
     <View
+      testID={list ? 'place-list-item' : 'place-card'}
       style={{
-        flex: 1,
-        minWidth: compact ? 220 : 260,
-        borderRadius: 22,
+        width: '100%',
+        maxWidth: list ? undefined : 420,
+        minWidth: 0,
+        borderRadius: list ? 18 : 20,
         backgroundColor: c.paper,
         borderWidth: 1,
         borderColor: c.border,
@@ -302,56 +287,58 @@ export function PlaceCard({
         accessibilityRole="button"
         accessibilityLabel={`${place.name} 장소 보기`}
         onPress={onPress}
+        style={({ pressed }) => ({
+          flexDirection: list ? 'row' : 'column',
+          padding: list ? 12 : 0,
+          gap: list ? 12 : 0,
+          opacity: pressed ? 0.78 : 1,
+        })}
       >
-        <PlaceCover place={place} height={compact ? 148 : 172} />
-        <View style={{ padding: 17, gap: 8 }}>
-          <Row style={{ justifyContent: 'space-between' }}>
-            <Badge>
-                {countryName(place.country)} · {place.city}
-            </Badge>
-            <ArrowUpRight size={18} color={c.secondary} />
+        <View style={list ? { width: 112, paddingBottom: 44, alignSelf: 'flex-start' } : undefined}>
+          <View style={{ overflow: 'hidden', borderRadius: list ? 10 : 0 }}>
+            <PlaceCover place={place} thumbnail={list} />
+          </View>
+        </View>
+        <View style={{ padding: list ? 0 : 14, gap: list ? 4 : 6, flex: list ? 1 : undefined, minWidth: 0 }}>
+          <Row style={{ justifyContent: 'space-between', gap: 4, paddingRight: list && onFavorite ? 32 : 0 }}>
+            <Txt size={12} color={c.secondary} lines={1} style={{ flex: 1 }}>
+              {countryName(place.country)} · {place.city}
+            </Txt>
+            {!list && <ArrowUpRight size={16} color={c.muted} />}
           </Row>
-          <Txt size={19} weight="700" lines={1}>
+          <Txt size={list ? 16 : 18} weight="700" lines={2}>
             {place.name}
           </Txt>
-          <Row>
-            <Users size={14} color={c.green} />
-            <Txt size={13} color={c.secondary}>
-              <Txt size={13} color={c.green} weight="700">
-                {place.visitors}명
-              </Txt>{' '}
-              방문 예정 · 요청 {place.requestCount}건
-            </Txt>
-          </Row>
-          <Divider />
-          <Row style={{ justifyContent: 'space-between' }}>
-            <Txt size={12} color={c.secondary}>
-              {place.requestCount ? '평균 보상' : '아직 등록된 부탁이 없어요'}
-            </Txt>
-            <Txt size={15} weight="700">
-              {place.requestCount ? money(place.averageReward) : '첫 부탁 남기기'}
-            </Txt>
-          </Row>
+          <Txt size={12} color={c.secondary}>
+            방문 예정 {place.visitors}명 · 요청 {place.requestCount}건
+          </Txt>
+          <Txt size={list ? 13 : 14} color={c.green} weight="700">
+            {place.requestCount ? `평균 보상 ${money(place.averageReward)}` : '첫 부탁 남기기'}
+          </Txt>
         </View>
       </Pressable>
+      <PhotoCredit place={place} list={list} />
       {onFavorite && (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`${place.name} 관심 장소 ${favorite ? '해제' : '저장'}`}
+          accessibilityState={{ selected: favorite }}
           onPress={onFavorite}
           style={{
             position: 'absolute',
-            right: 12,
-            top: 12,
-            width: 36,
-            height: 36,
-            borderRadius: 18,
-            backgroundColor: c.paper,
+            right: 6,
+            top: 6,
+            width: 44,
+            height: 44,
+            borderRadius: 22,
+            backgroundColor: 'transparent',
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
-          <Heart size={18} color={favorite ? c.green : c.ink} fill={favorite ? c.green : 'none'} />
+          <View style={{ padding: 7, borderRadius: 18, backgroundColor: '#FFFFFFF2' }}>
+            <Heart size={18} color={favorite ? c.green : c.ink} fill={favorite ? c.green : 'none'} />
+          </View>
         </Pressable>
       )}
     </View>
@@ -409,11 +396,13 @@ export function ProductRow({
     </Pressable>
   );
 }
-export function MoneyBreakdown({ price, compact = false }: { price: Price; compact?: boolean }) {
+export function MoneyBreakdown({ price, compact = false, rewardPending = false }: {
+  price: Price; compact?: boolean; rewardPending?: boolean;
+}) {
   const legacyFee = price.shippingFee !== 0 && price.shippingFee !== DOMESTIC_PARCEL_FEE;
   const rows = [
     ['상품가격', price.productPrice],
-    ['여행자 보상 · 상품가 10%', price.travelerReward],
+    ['여행자 보상', rewardPending ? '직접 제안' : price.travelerReward],
     [legacyFee ? '이전 체험 운송비 (기록)' : '국내 전달비', price.shippingFee],
     ['세금 예치액 (데모)', price.taxReserve],
   ] as const;
@@ -425,17 +414,18 @@ export function MoneyBreakdown({ price, compact = false }: { price: Price; compa
             {label}
           </Txt>
           <Txt size={14} weight="500">
-            {money(value)}
+            {typeof value === 'number' ? money(value) : value}
           </Txt>
         </Row>
       ))}
       <Divider />
       <Row style={{ justifyContent: 'space-between' }}>
-        <Txt weight="700">총 결제금액</Txt>
+        <Txt weight="700">{rewardPending ? '보상 제외 금액' : '총 결제금액'}</Txt>
         <Txt size={26} weight="800" color={c.green}>
           {money(price.totalPrice)}
         </Txt>
       </Row>
+      {rewardPending && <Txt size={12} color={c.secondary}>여행자가 제안한 보상금은 결제 전에 확인해요.</Txt>}
       <Txt size={12} color={c.secondary}>
         {legacyFee
           ? '이전 체험 거래의 결제 기록이에요. 현재 국내 택배 예상비는 3,500원, 직거래는 0원이에요.'

@@ -1,10 +1,16 @@
 import { Platform } from 'react-native';
+function defaultApiUrl() {
+  if (Platform.OS === 'android') return 'http://10.0.2.2:4000';
+  if (Platform.OS !== 'web') return 'http://localhost:4000';
+  const { protocol, hostname } = window.location;
+  // Codespaces exposes the web port but can require separate authentication for
+  // the API port. The development proxy keeps demo requests on the web origin.
+  const codespaces = hostname.match(/^(.*)-\d+\.app\.github\.dev$/i);
+  if (codespaces) return `${protocol}//${hostname}`;
+  return `${protocol}//${hostname}:4000`;
+}
 const fallback =
-  Platform.OS === 'android'
-    ? 'http://10.0.2.2:4000'
-    : Platform.OS === 'web'
-      ? `${window.location.protocol}//${window.location.hostname}:4000`
-      : 'http://localhost:4000';
+  defaultApiUrl();
 export const API_URL = (process.env.EXPO_PUBLIC_API_URL || fallback).replace(/\/$/, '');
 export class ApiError extends Error {
   constructor(

@@ -3,7 +3,6 @@ import * as Location from 'expo-location';
 import { Image, Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
 import {
   ArrowRight,
-  ArrowUpRight,
   Bell,
   Check,
   ChevronRight,
@@ -57,13 +56,17 @@ const kmBetween = (a: { latitude: number; longitude: number }, b: { latitude: nu
 export function Onboarding() {
   const a = useApp();
   const [stage, setStage] = useState<'intro' | 'login'>('intro');
+  const compact = useWindowDimensions().width < 360;
   return (
     <ScrollView
       contentContainerStyle={{
         flexGrow: 1,
-        padding: 28,
-        paddingTop: 44,
-        gap: 30,
+        width: '100%',
+        maxWidth: 760,
+        alignSelf: 'center',
+        padding: compact ? 20 : 28,
+        paddingTop: compact ? 32 : 44,
+        gap: compact ? 20 : 24,
         justifyContent: 'center',
       }}
     >
@@ -77,7 +80,7 @@ export function Onboarding() {
       {stage === 'intro' ? (
         <>
           <View
-            style={{ height: 238, borderRadius: 30, overflow: 'hidden', backgroundColor: c.mint }}
+            style={{ height: compact ? 205 : 220, borderRadius: 28, overflow: 'hidden', backgroundColor: c.mint }}
           >
             <Image
               source={require('../../assets/japan.jpg')}
@@ -87,12 +90,12 @@ export function Onboarding() {
             <View
               style={{
                 position: 'absolute',
-                left: 20,
-                bottom: 20,
-                right: 20,
-                padding: 15,
-                borderRadius: 18,
-                backgroundColor: c.paper,
+                left: 16,
+                bottom: 16,
+                right: 16,
+                padding: 14,
+                borderRadius: 16,
+                backgroundColor: '#FFFFFFF2',
               }}
             >
               <Row>
@@ -101,68 +104,77 @@ export function Onboarding() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Txt size={12} color={c.secondary}>
-                    내 여행과 누군가의 위시리스트
+                    서울에서 여행지로 가는 길
                   </Txt>
-                  <Row style={{ gap: 4 }}>
-                    <Txt size={18} weight="700">
-                      서울에서, 도쿄로
-                    </Txt>
-                    <ArrowUpRight size={15} color={c.ink} />
-                  </Row>
+                  <Txt size={compact ? 15 : 17} weight="700">
+                    부탁을 싣고 떠나요
+                  </Txt>
                 </View>
-                <ShoppingBag size={24} color={c.green} />
+                {!compact && <ShoppingBag size={24} color={c.green} />}
               </Row>
             </View>
           </View>
           <Stack gap={8}>
-            <Txt size={39} weight="800" style={{ lineHeight: 49 }}>
-              가는 김에,{'\n'}하나 더.
+            <Txt size={compact ? 32 : 36} weight="800" style={{ lineHeight: compact ? 40 : 45 }}>
+              여행과 부탁이{'\n'}만나는 가장 쉬운 방법
             </Txt>
-            <Txt size={16} color={c.secondary}>
-              이미 그곳에 가는 사람과{'\n'}꼭 갖고 싶은 마음을 연결해요.
+            <Txt size={15} color={c.secondary}>
+              갖고 싶은 물건을 부탁하고, 원래 가던 여행에서 보상을 받아요.
             </Txt>
           </Stack>
-          <Stack gap={12}>
-            <Button
-              label="사고 싶어요"
-              icon={ShoppingBag}
-              onPress={() => {
-                a.setRole('buyer');
-                setStage('login');
-              }}
-            />
-            <Button
-              label="가져올게요"
-              kind="secondary"
-              icon={Plane}
-              onPress={() => {
-                a.setRole('traveler');
-                setStage('login');
-              }}
-            />
+          <Stack gap={10}>
+            <Card style={{ padding: 16 }}>
+              <Row style={{ alignItems: 'flex-start' }}>
+                <View style={{ padding: 9, borderRadius: 13, backgroundColor: c.mint }}>
+                  <ShoppingBag size={20} color={c.green} />
+                </View>
+                <Stack gap={2} style={{ flex: 1 }}>
+                  <Txt size={16} weight="700">부탁할게요</Txt>
+                  <Txt size={12} color={c.secondary}>상품을 올리고 여행자의 일정과 보상 제안을 비교해요.</Txt>
+                </Stack>
+              </Row>
+            </Card>
+            <Card style={{ padding: 16 }}>
+              <Row style={{ alignItems: 'flex-start' }}>
+                <View style={{ padding: 9, borderRadius: 13, backgroundColor: c.lilac }}>
+                  <Plane size={20} color={c.darkGreen} />
+                </View>
+                <Stack gap={2} style={{ flex: 1 }}>
+                  <Txt size={16} weight="700">가져올게요</Txt>
+                  <Txt size={12} color={c.secondary}>내 여행 동선의 부탁을 고르고 원하는 보상을 제안해요.</Txt>
+                </Stack>
+              </Row>
+            </Card>
+            <Button label="모아 시작하기" icon={ArrowRight} onPress={() => setStage('login')} />
             <Txt size={12} color={c.secondary} style={{ textAlign: 'center' }}>
-              한 계정으로 언제든 자유롭게 바꿀 수 있어요.
+              역할을 고정하지 않아요. 로그인 후 언제든 바꿀 수 있어요.
             </Txt>
           </Stack>
         </>
       ) : (
         <>
           <Stack gap={10}>
-            <Badge>반가워요, 모아예요</Badge>
+            <Badge>한 계정으로 두 가지 모두</Badge>
             <Txt size={31} weight="800">
-              작은 부탁이{'\n'}여행을 만나는 곳.
+              어디서 시작할지는{'\n'}로그인 후 골라요.
             </Txt>
-            <Txt color={c.secondary}>원하는 방식으로 로그인 흐름을 체험해보세요.</Txt>
+            <Txt color={c.secondary}>부탁도 여행도 같은 계정에서 이어집니다.</Txt>
           </Stack>
           <Notice>
             지금은 예시 계정으로 시작해요. 실제 휴대폰 인증·소셜 로그인·결제는 발생하지 않아요.
           </Notice>
+          {a.error && (
+            <Notice tone="error">
+              체험 계정에 연결하지 못했어요. API 서버가 실행 중인지 확인한 뒤 다시 시도해주세요.{`\n`}
+              {a.error}
+            </Notice>
+          )}
           <Stack gap={12}>
             <Button
               testID="start-demo"
-              label="가입 없이 체험 시작"
+              label="체험 계정으로 로그인"
               loading={a.busy}
-              onPress={() => a.login()}
+              onPress={() => a.login('DEMO', 'u-me', true)}
             />
             <Divider />
             {[
@@ -173,14 +185,14 @@ export function Onboarding() {
             ].map(([provider, label]) => (
               <Button
                 key={provider}
-                label={label}
+                label={`${label} 체험`}
                 kind="secondary"
                 loading={a.busy}
-                onPress={() => a.login(provider)}
+                onPress={() => a.login(provider, 'u-me', true)}
               />
             ))}
           </Stack>
-          <Button label="이전으로" kind="ghost" onPress={() => setStage('intro')} />
+          <Button label="처음으로" kind="ghost" onPress={() => setStage('intro')} />
         </>
       )}
     </ScrollView>
@@ -199,7 +211,7 @@ export function Home() {
   const trips = d.trips.filter((t) => t.travelerId === d.me.id),
     trip = trips.find((t) => t.id === a.route.tripId) || trips.at(-1);
   const bundles = trip ? groupForTrip(d, trip) : [];
-  const reward = bundles.reduce((s, b) => s + b.reward, 0);
+  const availableRequests = bundles.reduce((s, b) => s + b.requests.length, 0);
   const featured =
     d.requests.find((request) => request.productName.includes('치이카와')) || d.requests[0];
   const featuredKrw = featured
@@ -257,7 +269,7 @@ export function Home() {
       </Row>
       <Row style={{ backgroundColor: c.mint, padding: 5, borderRadius: 18, gap: 5 }}>
         {[
-          ['buyer', '사고 싶어요', ShoppingBag],
+          ['buyer', '부탁할게요', ShoppingBag],
           ['traveler', '가져올게요', Plane],
         ].map(([role, label, Icon]) => {
           const I = Icon as typeof Plane;
@@ -488,8 +500,7 @@ export function Home() {
                     {nearby.place.name} 근처를 지나가요
                   </Txt>
                   <Txt size={15} color="#EAF2FF">
-                    여기서 심부름 {nearby.requests.length}건을 하면 {money(nearby.reward)}을 받을 수
-                    있어요. 수락하시겠어요?
+                    여기서 심부름 {nearby.requests.length}건을 할 수 있어요. 원하는 보상금을 제안해보세요.
                   </Txt>
                 </View>
               </Row>
@@ -542,13 +553,13 @@ export function Home() {
                 <View style={{ height: 1, backgroundColor: '#31558D' }} />
                 <Stack gap={5}>
                   <Txt size={13} color="#D7E4FF">
-                    동선에서 찾은 예상 보상
+                    동선에서 찾은 부탁
                   </Txt>
                   <Txt size={40} weight="800" color={c.lime}>
-                    {money(reward)}
+                    {availableRequests}건
                   </Txt>
                   <Txt size={12} color="#C9D9F7">
-                    후보 요청 합계 · 수락·구매 확정 전 수익은 미확정
+                    보상금은 부탁별로 직접 정해요
                   </Txt>
                 </Stack>
               </View>
@@ -597,7 +608,7 @@ export function Home() {
                             </Txt>
                           </Row>
                           <Txt size={21} weight="800" color={c.green}>
-                            {money(b.reward)}
+                            보상 직접 제안
                           </Txt>
                         </Row>
                         <Txt size={12} color={c.secondary}>
@@ -647,6 +658,7 @@ export function SearchScreen() {
     [country, setCountry] = useState<DestinationCountry>('ALL'),
     [cities, setCities] = useState<string[]>([]),
     [view, setView] = useState('목록'),
+    [resultsWidth, setResultsWidth] = useState(0),
     [selected, setSelected] = useState<Place | null>(null);
   const q = query.trim().toLowerCase();
   const match = (text: string) => text.toLowerCase().includes(q);
@@ -707,12 +719,17 @@ export function SearchScreen() {
       {view === '지도' ? (
         <>
           <RouteMap places={places} selected={selected?.id} onSelect={setSelected} />
-          {selected && <PlaceCard place={selected} onPress={() => select(selected)} />}
+          {selected && <PlaceCard variant="list" place={selected} onPress={() => select(selected)} />}
         </>
       ) : (
-        <View style={{ gap: 16 }}>
+        <View
+          onLayout={(event) => setResultsWidth(event.nativeEvent.layout.width)}
+          style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}
+        >
           {places.map((p) => (
-            <PlaceCard key={p.id} place={p} onPress={() => select(p)} />
+            <View key={p.id} style={{ width: resultsWidth >= 720 ? (resultsWidth - 12) / 2 : '100%' }}>
+              <PlaceCard variant="list" place={p} onPress={() => select(p)} />
+            </View>
           ))}
         </View>
       )}

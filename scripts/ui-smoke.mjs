@@ -58,6 +58,7 @@ const dom = new JSDOM(html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, ''), {
       });
     w.TextEncoder = TextEncoder;
     w.TextDecoder = TextDecoder;
+    w.AnimationEvent = w.Event;
   },
 });
 const document = dom.window.document;
@@ -81,16 +82,30 @@ const find = (label, role = 'button') =>
     (e) => (e.getAttribute('aria-label') || e.textContent).trim() === label,
   );
 const click = async (label, role = 'button') => {
-  const element = await wait(() => find(label, role), label);
-  assert.notEqual(element.getAttribute('aria-disabled'), 'true', label + ' must be enabled');
+  const element = await wait(() => {
+    const candidate = find(label, role);
+    return candidate && !candidate.hasAttribute('disabled') &&
+      candidate.getAttribute('aria-disabled') !== 'true' ? candidate : null;
+  }, label + ' must be enabled');
+  // React Native Web refreshes its press handler in an effect after rendering.
+  // Let the browser paint before pressing a button whose label/action just changed.
+  await new Promise((resolve) => dom.window.requestAnimationFrame(() => dom.window.requestAnimationFrame(resolve)));
+  assert.ok(element.isConnected, label + ' must remain on the current screen');
   element.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
   await new Promise((r) => setTimeout(r, 70));
 };
 const expectText = async (text) => wait(() => document.body.textContent.includes(text), text);
+const fill = async (element, value) => {
+  Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value').set.call(element, value);
+  element.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+  await new Promise((resolve) => setTimeout(resolve, 30));
+};
 try {
   dom.window.eval(bundle);
-  await click('사고 싶어요');
-  await click('가입 없이 체험 시작');
+  await expectText('부탁할게요');
+  await expectText('가져올게요');
+  await click('모아 시작하기');
+  await click('체험 계정으로 로그인');
   await expectText('찾으시는 물건을');
   await click('찾아보기', 'tab');
   await expectText('어디로 가볼까요?');
@@ -101,9 +116,50 @@ try {
     '오사카 · 도톤보리',
     '후쿠오카 · 하카타역',
     '삿포로 · 오도리공원',
+    '서울 · 경복궁 경회루',
+    '제주 · 성산일출봉',
+    '타이베이 · 타이베이 101',
+    '가오슝 · 용호탑',
+    '홍콩 · 빅토리아 하버',
+    '상하이 · 와이탄에서 본 푸둥',
+    '베이징 · 천단 기년전',
+    '방콕 · 왓 아룬',
+    '치앙마이 · 도이수텝',
+    '다낭 · 용다리',
+    '하노이 · 호안끼엠 호수',
+    '호찌민 · 중앙우체국',
+    '싱가포르 · 마리나 베이 샌즈',
+    '쿠알라룸푸르 · 페트로나스 트윈타워',
+    '발리 · 울룬 다누 브라탄 사원',
+    '자카르타 · 모나스',
   ]) {
     assert.ok(document.querySelector(`[aria-label="${label} 대표 풍경 사진"]`), label + ' photo');
   }
+  assert.ok(!document.body.textContent.includes('AI 생성'), 'All destination covers use real photos');
+  assert.equal(document.querySelectorAll('[aria-label^="사진 출처:"]').length, 23, 'Every place includes photo attribution');
+  const credit = document.querySelector('[aria-label^="사진 출처:"]');
+  await click(credit.getAttribute('aria-label'));
+  await expectText('David Kernan');
+  await expectText('원본 및 라이선스 보기');
+  assert.equal(dom.window.location.hash, '#search', 'Photo information must not open the place');
+  let sourceUrl;
+  dom.window.open = (url) => { sourceUrl = url; return null; };
+  await click('원본 및 라이선스 보기');
+  assert.equal(sourceUrl, 'https://commons.wikimedia.org/wiki/File:Shibuya_Crossing,_Aerial.jpg');
+  await click('닫기');
+  // jsdom does not run CSS animations. Deliver the completion event a browser emits.
+  for (const element of document.querySelectorAll('div')) {
+    const animation = dom.window.getComputedStyle(element).animationName;
+    if (animation && animation !== 'none') {
+      element.dispatchEvent(new dom.window.Event('animationend', { bubbles: true }));
+    }
+  }
+  await wait(() => !find('원본 및 라이선스 보기'), 'Photo information closes without leaving the list');
+  await click('시부야 PARCO 장소 보기');
+  await expectText('여기에서 부탁하기');
+  await click('뒤로');
+  await expectText('어디로 가볼까요?');
+  console.log('PASS: photo information → original source → close → place navigation');
   await click('이전으로');
   await expectText('찾으시는 물건을');
   assert.equal(dom.window.location.hash, '#home', 'Back without history must sync the URL');
@@ -139,7 +195,8 @@ try {
   }));
   await click('이 위치에서 만날게요');
   await expectText('국내 전달비');
-  await expectText('여행자 보상 · 상품가 10%');
+  await expectText('여행자 보상');
+  await expectText('보상 제외 금액');
   await expectText('받는 방법별 금액 비교');
   await click('뒤로');
   await expectText('예시 상품을 채웠어요');
@@ -174,6 +231,22 @@ try {
   );
   proposal.click();
   await expectText('묶음 부탁 수락하기');
+  const rewardInputs = [...document.querySelectorAll('input[aria-label$="보상금 (원)"]')];
+  assert.ok(rewardInputs.length > 1, 'Bundle provides a reward input for every request');
+  await expectText('금액 입력 필요');
+  await fill(rewardInputs[0], '-1');
+  await expectText('0원 이상의 원 단위 금액');
+  let grossReward = 0, commission = 0;
+  for (const [index, input] of rewardInputs.entries()) {
+    const reward = 1005 + index * 1000;
+    grossReward += reward;
+    commission += Math.round(reward * 0.1);
+    await fill(input, reward.toLocaleString('en-US'));
+  }
+  await wait(() => {
+    const label = [...document.querySelectorAll('*')].find((e) => e.textContent === '예상 순보상');
+    return label?.parentElement?.textContent.includes(`₩${(grossReward - commission).toLocaleString('ko-KR')}`);
+  }, 'Custom per-request rewards and per-transaction commission match the payout');
   await click('상품대금을 먼저 지출하고 구매 확정 후 상환받는다는 점을 확인했어요.', 'checkbox');
   const send = await wait(
     () =>
@@ -186,7 +259,7 @@ try {
   await expectText('나의 거래');
   console.log('PASS: traveler home → bundle selection → bulk offer submission');
   await click('홈', 'tab');
-  await click('사고 싶어요');
+  await click('부탁할게요');
   await click('거래', 'tab');
   await click('내 요청');
   await click('치이카와 도쿄역 한정 키링');
@@ -212,30 +285,30 @@ try {
   await expectText('안전결제 모의 보관 중');
   await click('민트로드님 계정으로 바꾸기');
   await click('상품 구매 인증하기');
+  await expectText('매장에서는 어땠나요?');
+  await click('구매하지 못했어요', 'radio');
+  await expectText('결제금 전액이 구매자에게 환불');
+  await expectText('환불 전 구매자와 상의하기');
+  await expectText('구매 불가 알리고 환불하기');
+  await click('구매했어요', 'radio');
   await click('체험용 샘플 사진 채우기');
   await click('구매 인증 보내기');
   await expectText('구매를 마쳤어요');
   await click('전달 준비 시작하기');
   await click('운송장 등록하기');
+  await expectText('배송 정보를');
+  await expectText('운송장 번호는 거래 참여자에게만 보여요.');
   await click('등록하고 알리기');
   await expectText('배송 중이에요');
   await click('소운님 계정으로 바꾸기');
-  await click('상품을 받았어요');
+  await click('수령하고 구매 확정하기');
   for (const label of [
     '요청한 상품과 옵션이 맞아요.',
     '수량과 상품 상태를 확인했어요.',
     '실제로 상품을 전달받았어요.',
   ])
     await click(label, 'checkbox');
-  await click('받았어요 · 수령 기록');
-  await click('상품 확인하고 구매 확정');
-  for (const label of [
-    '요청한 상품과 옵션이 맞아요.',
-    '수량과 상품 상태를 확인했어요.',
-    '실제로 상품을 전달받았어요.',
-  ])
-    await click(label, 'checkbox');
-  await click('확인했어요 · 구매 확정');
+  await click('받았어요 · 구매 확정');
   await click('민트로드님 계정으로 바꾸기');
   await click('보상 정산 체험하기');
   await expectText('모의 정산 완료');

@@ -24,7 +24,6 @@ import {
   Transport,
   quote,
   money,
-  recommendedReward,
   normalizeTransport,
   Country,
   Currency,
@@ -128,7 +127,11 @@ export function RequestForm() {
     [deliveryAddress2, setDeliveryAddress2] = useState(preset?.deliveryAddress2 || draft?.deliveryAddress2 || defaultAddress?.address2 || ''),
     [meetupLocation, setMeetupLocation] = useState(preset?.meetupLocation || draft?.meetupLocation || ''),
     [meetupPoint, setMeetupPoint] = useState<MeetupPoint | undefined>(preset?.meetupPoint || draft?.meetupPoint),
-    [inventoryStatus, setInventoryStatus] = useState(preset?.inventoryStatus || draft?.inventoryStatus || 'CHECK_REQUIRED');
+    [inventoryStatus, setInventoryStatus] = useState(
+      preset?.inventoryStatus === 'OUT_OF_STOCK'
+        ? 'CHECK_REQUIRED'
+        : preset?.inventoryStatus || draft?.inventoryStatus || 'CHECK_REQUIRED',
+    );
   // A retry already has confirmed product details; only recognize a newly edited URL.
   const lastResolvedUrl = useRef(preset?.productUrl?.trim() || '');
   const currentUrl = useRef(url);
@@ -160,10 +163,11 @@ export function RequestForm() {
   const place = d.places.find((p) => p.id === placeId)!;
   const mode = normalizeTransport(transport);
   const pricingInput = { localPrice: Number(price) || 0, quantity, currency: currencyForCountry(place.country) };
-  const q = quote(pricingInput, recommendedReward(pricingInput), mode);
-  const parcelQuote = quote(pricingInput, recommendedReward(pricingInput), 'DOMESTIC_PARCEL');
-  const meetupQuote = quote(pricingInput, recommendedReward(pricingInput), 'MEETUP');
-  const completedMeetups = d.transactions.filter((t) => (t.buyerId === d.me.id || t.travelerId === d.me.id) &&
+  const q = quote(pricingInput, 0, mode);
+  const parcelQuote = quote(pricingInput, 0, 'DOMESTIC_PARCEL');
+  const meetupQuote = quote(pricingInput, 0, 'MEETUP');
+  const completedMeetups = d.transactions.filter((t) =>
+    (t.buyerId === d.me.id || t.travelerId === d.me.id) &&
     ['CONFIRMED', 'SETTLED'].includes(t.status)).map((t) => d.requests.find((r) => r.id === t.requestId))
     .filter((r) => r?.transport === 'MEETUP' && r.deliveryCountry === deliveryCountry && r.meetupPoint)
     .map((r) => r!.meetupPoint!).reverse()
@@ -810,12 +814,13 @@ export function RequestForm() {
               <Txt size={17} weight="700">
                 예상 비용을 미리 확인해요
               </Txt>
-              <MoneyBreakdown price={q} />
+              <MoneyBreakdown price={q} rewardPending />
             </Stack>
           </Card>
           <Card style={{ backgroundColor: c.mint }}>
             <Stack gap={12}>
               <Txt size={17} weight="700">받는 방법별 금액 비교</Txt>
+              <Txt size={12} color={c.secondary}>상품가격과 전달비 비교예요. 여행자 보상은 별도로 정해요.</Txt>
               <Row style={{ justifyContent: 'space-between' }}><Txt color={c.secondary}>국내 택배</Txt><Txt weight="700">{money(parcelQuote.totalPrice)}</Txt></Row>
               <Row style={{ justifyContent: 'space-between' }}><Txt color={c.secondary}>직거래</Txt><Txt weight="700" color={c.green}>{money(meetupQuote.totalPrice)}</Txt></Row>
               <Txt size={12} color={c.secondary}>직거래는 국내 배송비 {money(parcelQuote.totalPrice - meetupQuote.totalPrice)}을 아낄 수 있어요.</Txt>

@@ -42,10 +42,10 @@ Base URL: `http://localhost:4000/api`. 기계가 읽을 수 있는 상세 규격
 ## 로그인
 
 ```json
-{ "userId": "u-me", "provider": "DEMO" }
+{ "userId": "u-me", "provider": "DEMO", "reset": true }
 ```
 
-지원 체험 userId: u-me(소운), u-min(민트로드), u-haru(하루), u-joon(준의 여행), u-sora(소라). `provider`는 DEMO/PHONE/APPLE/GOOGLE/KAKAO 중 선택하며 모든 경우 가상 로그인이다. 외부 ID token을 실제 검증하는 API가 아니다.
+지원 체험 userId: u-me(소운), u-min(민트로드), u-haru(하루), u-joon(준의 여행), u-sora(소라). `provider`는 DEMO/PHONE/APPLE/GOOGLE/KAKAO 중 선택하며 모든 경우 가상 로그인이다. 외부 ID token을 실제 검증하는 API가 아니다. 파일 저장소에서 온보딩으로 새 체험을 시작할 때만 `reset: true`를 보내며, 이후 역할 전환은 이 값을 생략해 현재 거래 상태를 유지한다. 공유 PostgreSQL에서는 공개 로그인 요청으로 데이터를 지우지 못하도록 `reset: true`를 거부한다.
 
 ## 구매 요청
 
@@ -67,7 +67,7 @@ Base URL: `http://localhost:4000/api`. 기계가 읽을 수 있는 상세 규격
   "deliveryCity": "서울",
   "category": "CHARACTER",
   "option": "기본 옵션",
-  "transport": "INTERNATIONAL_SHIPPING"
+  "transport": "DOMESTIC_PARCEL"
 }
 ```
 
@@ -82,11 +82,11 @@ Base URL: `http://localhost:4000/api`. 기계가 읽을 수 있는 상세 규격
   "estimatedPurchaseDate": "2026-09-19",
   "estimatedDeliveryDate": "2026-09-28",
   "message": "방문 예정이에요. 사진과 영수증을 보내드릴게요.",
-  "transport": "INTERNATIONAL_SHIPPING"
+  "transport": "DOMESTIC_PARCEL"
 }
 ```
 
-`/bundles/offers`에서는 위 내용에 `requestIds: ["...", "..."]`를 추가한다. 보상은 **요청 한 건당 보상**이다. 하나라도 예산·상태·일정·장소·수량 검증에 실패하면 전체가 rollback된다. 여러 구매자의 결제를 합치지 않는다.
+`/bundles/offers`와 `/bundles/claim`에서는 위 내용에 `requestIds: ["r-1", "r-2"]`와 `rewards: { "r-1": 7000, "r-2": 9500 }`를 추가한다. `rewards`는 선택한 모든 요청 ID를 정확히 한 번씩 포함해야 한다. `reward`는 구버전 클라이언트를 위한 공통 금액 fallback이며, 새 클라이언트는 요청별 `rewards`를 보낸다. 보상은 원 단위 0~200만원이다. 하나라도 상태·일정·장소·수량·금액 검증에 실패하면 전체가 rollback된다. 여러 구매자의 결제를 합치지 않는다.
 
 ## 제안 선택
 
@@ -102,15 +102,17 @@ Base URL: `http://localhost:4000/api`. 기계가 읽을 수 있는 상세 규격
 | -------- | ----------------------------------------------------------------------------- | ------ | --------------------------------- |
 | PAY      | simulateFailure?: boolean                                                     | 구매자 | MATCHED                           |
 | PURCHASE | productImage, receiptImage, storeName, purchasedAt, localAmount, locationNote | 여행자 | PAYMENT_HELD                      |
+| OUT_OF_STOCK | evidenceImage, storeName, checkedAt, locationNote, reason, note?       | 여행자 | PAYMENT_HELD                      |
 | TRAVEL   | 없음                                                                          | 여행자 | PURCHASED                         |
 | SHIP     | carrier, trackingNumber                                                       | 여행자 | TRAVELING                         |
+| RECEIVE_AND_CONFIRM | 없음                                                               | 구매자 | SHIPPED                           |
 | RECEIVE  | 없음                                                                          | 구매자 | SHIPPED                           |
 | CONFIRM  | 없음                                                                          | 구매자 | DELIVERED                         |
 | SETTLE   | 없음                                                                          | 여행자 | CONFIRMED, 보관금 HELD, 분쟁 없음 |
 | CANCEL   | 없음                                                                          | 구매자 | MATCHED 또는 PAYMENT_HELD         |
 | DISPUTE  | reason: 5~1000자                                                              | 참여자 | 결제 이후~확정                    |
 
-모든 명령은 `expectedRevision` 필수. PURCHASE 사진/영수증은 JPG·PNG·WebP data URL 각각 최대 약 2MB. 총 body 6MB 제한. `localAmount`는 합의한 현지 가격×수량과 같아야 한다. 가격이 달라졌을 때 자동 추가 청구하지 않고 거절한다.
+모든 명령은 `expectedRevision` 필수. PURCHASE는 `productImage`와 `receiptImage` 중 하나 이상을 JPG·PNG·WebP data URL로 보내며, 각 이미지는 최대 약 2MB다. `localAmount`는 합의한 현지 가격×수량과 같아야 한다. 가격이 달라졌을 때 자동 추가 청구하지 않고 거절한다. OUT_OF_STOCK은 품절 안내·빈 매대 등 방문 증빙이 필수이며 `reason`은 `OUT_OF_STOCK`, `STORE_CLOSED`, `PRODUCT_NOT_FOUND`, `PURCHASE_LIMIT` 중 하나다. 성공하면 거래와 제안을 취소하고 보관된 결제금을 전액 환불하며 구매자는 이전 요청을 다시 등록할 수 있다. `RECEIVE_AND_CONFIRM`은 배송 완료 기록과 구매 확정을 한 트랜잭션으로 저장한다. 기존 RECEIVE·CONFIRM은 호환 및 중간 상태 복구용이다.
 
 ```json
 { "action": "PAY", "expectedRevision": 0, "simulateFailure": false }

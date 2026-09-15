@@ -1684,6 +1684,11 @@
               "GOOGLE",
               "KAKAO"
             ]
+          },
+          "reset": {
+            "type": "boolean",
+            "default": false,
+            "description": "파일 저장소에서 새 체험을 시작할 때만 seed 상태로 초기화합니다. 역할 전환에서는 false를 사용합니다."
           }
         },
         "required": []
@@ -1736,7 +1741,7 @@
           "productImage": {
             "type": "string",
             "maxLength": 2800000,
-            "description": "image/jpeg, image/png or image/webp base64 data URL; no remote fetch"
+            "description": "Image data URL or empty string when receiptImage is provided"
           },
           "art": {
             "type": "string",
@@ -1875,8 +1880,8 @@
           },
           "reward": {
             "type": "integer",
-            "minimum": 1000,
-            "maximum": 100000
+            "minimum": 0,
+            "maximum": 2000000
           },
           "estimatedPurchaseDate": {
             "type": "string",
@@ -1894,7 +1899,6 @@
           "transport": {
             "type": "string",
             "enum": [
-              "INTERNATIONAL_SHIPPING",
               "DOMESTIC_PARCEL",
               "MEETUP"
             ]
@@ -2013,8 +2017,8 @@
           },
           "reward": {
             "type": "integer",
-            "minimum": 1000,
-            "maximum": 100000
+            "minimum": 0,
+            "maximum": 2000000
           },
           "estimatedPurchaseDate": {
             "type": "string",
@@ -2032,7 +2036,6 @@
           "transport": {
             "type": "string",
             "enum": [
-              "INTERNATIONAL_SHIPPING",
               "DOMESTIC_PARCEL",
               "MEETUP"
             ]
@@ -2045,6 +2048,15 @@
             "minItems": 1,
             "maxItems": 10,
             "uniqueItems": true
+          },
+          "rewards": {
+            "type": "object",
+            "description": "Request ID to traveler-proposed reward in KRW. Must contain every requestId and no unrelated keys.",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2000000
+            }
           }
         },
         "required": [
@@ -2617,7 +2629,7 @@
           "receiptImage": {
             "type": "string",
             "maxLength": 2800000,
-            "description": "image/jpeg, image/png or image/webp base64 data URL; no remote fetch"
+            "description": "Image data URL or empty string when productImage is provided"
           },
           "storeName": {
             "type": "string"
@@ -2645,6 +2657,35 @@
           "localAmount",
           "locationNote"
         ]
+      },
+      "ActionOUTOFSTOCK": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["OUT_OF_STOCK"]
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2000000
+          },
+          "evidenceImage": {
+            "type": "string",
+            "maxLength": 2800000,
+            "description": "Required store-visit evidence as image/jpeg, image/png or image/webp base64 data URL"
+          },
+          "storeName": { "type": "string", "minLength": 2, "maxLength": 100 },
+          "checkedAt": { "type": "string", "format": "date" },
+          "locationNote": { "type": "string", "minLength": 2, "maxLength": 150 },
+          "reason": {
+            "type": "string",
+            "enum": ["OUT_OF_STOCK", "STORE_CLOSED", "PRODUCT_NOT_FOUND", "PURCHASE_LIMIT"]
+          },
+          "note": { "type": "string", "maxLength": 500, "default": "" }
+        },
+        "required": ["action", "expectedRevision", "evidenceImage", "storeName", "checkedAt", "locationNote", "reason"]
       },
       "ActionTRAVEL": {
         "type": "object",
@@ -2704,6 +2745,27 @@
             "type": "string",
             "enum": [
               "RECEIVE"
+            ]
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2000000
+          }
+        },
+        "required": [
+          "action",
+          "expectedRevision"
+        ]
+      },
+      "ActionRECEIVEANDCONFIRM": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "RECEIVE_AND_CONFIRM"
             ]
           },
           "expectedRevision": {
@@ -2816,6 +2878,9 @@
             "$ref": "#/components/schemas/ActionPURCHASE"
           },
           {
+            "$ref": "#/components/schemas/ActionOUTOFSTOCK"
+          },
+          {
             "$ref": "#/components/schemas/ActionTRAVEL"
           },
           {
@@ -2823,6 +2888,9 @@
           },
           {
             "$ref": "#/components/schemas/ActionRECEIVE"
+          },
+          {
+            "$ref": "#/components/schemas/ActionRECEIVEANDCONFIRM"
           },
           {
             "$ref": "#/components/schemas/ActionCONFIRM"
@@ -2842,9 +2910,11 @@
           "mapping": {
             "PAY": "#/components/schemas/ActionPAY",
             "PURCHASE": "#/components/schemas/ActionPURCHASE",
+            "OUT_OF_STOCK": "#/components/schemas/ActionOUTOFSTOCK",
             "TRAVEL": "#/components/schemas/ActionTRAVEL",
             "SHIP": "#/components/schemas/ActionSHIP",
             "RECEIVE": "#/components/schemas/ActionRECEIVE",
+            "RECEIVE_AND_CONFIRM": "#/components/schemas/ActionRECEIVEANDCONFIRM",
             "CONFIRM": "#/components/schemas/ActionCONFIRM",
             "SETTLE": "#/components/schemas/ActionSETTLE",
             "CANCEL": "#/components/schemas/ActionCANCEL",

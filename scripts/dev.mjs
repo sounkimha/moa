@@ -6,6 +6,9 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const windows = process.platform === 'win32';
 const children = [];
 let stopping = false;
+const apiPort = Number(process.env.PORT || 4000);
+const webPort = 8081;
+const metroPort = 8082;
 function stop() {
   if (stopping) return;
   stopping = true;
@@ -32,16 +35,31 @@ const start = (args) => {
   child.on('error', (error) => { console.error(error.message); process.exitCode = 1; stop(); });
   return child;
 };
-try {
-  for (const port of [Number(process.env.PORT || 4000), 8081]) {
-    await new Promise((resolve, reject) => {
+const isPortFree = (port) =>
+  new Promise((resolve) => {
       const probe = net.createServer();
-      probe.once('error', () => reject(new Error(
-        `${port} 포트를 이미 사용 중입니다. 기존 MOA 개발 서버를 종료한 뒤 npm run dev를 다시 실행해주세요. 이전 API와 새 화면을 혼합해서 실행하지 않습니다.`,
-      )));
-      probe.listen(port, '0.0.0.0', () => probe.close(resolve));
+      probe.once('error', () => resolve(false));
+      probe.listen(port, '0.0.0.0', () => probe.close(() => resolve(true)));
+  });
+const hasMoaApi = async () => {
+  try {
+    const response = await fetch(`http://127.0.0.1:${apiPort}/health`, {
+      signal: AbortSignal.timeout(1000),
     });
+    const health = await response.json();
+    return response.ok && health.status === 'ok' && health.mode === 'demo';
+  } catch {
+    return false;
   }
+};
+const [apiFree, webFree, metroFree] = await Promise.all([apiPort, webPort, metroPort].map(isPortFree));
+if (!apiFree && !webFree && await hasMoaApi()) {
+  console.log(`MOA가 이미 실행 중입니다: http://localhost:${webPort} | API: http://localhost:${apiPort}/health`);
+} else try {
+  for (const [port, free] of [[apiPort, apiFree], [webPort, webFree], [metroPort, metroFree]])
+    if (!free) throw new Error(
+      `${port} 포트를 이미 사용 중입니다. 기존 MOA 개발 서버를 종료한 뒤 npm run dev를 다시 실행해주세요. 이전 API와 새 화면을 혼합해서 실행하지 않습니다.`,
+    );
   const build = start(['run', 'build', '-w', '@moa/domain']);
   const code = await new Promise((resolve) => build.once('exit', resolve));
   children.splice(children.indexOf(build), 1);
@@ -52,7 +70,8 @@ try {
     for (const args of [
       ['exec', '-w', '@moa/domain', '--', 'tsc', '--watch', '--preserveWatchOutput'],
       ['run', 'dev', '-w', '@moa/api'],
-      ['run', 'web', '-w', '@moa/mobile'],
+      ['exec', '--', 'node', 'scripts/dev-proxy.mjs'],
+      ['run', 'web', '-w', '@moa/mobile', '--', '--port', String(metroPort)],
     ]) {
       start(args).on('exit', (status) => {
         if (!stopping) {
@@ -61,7 +80,7 @@ try {
         }
       });
     }
-    console.log('\nMOA: http://localhost:8081 | API: http://localhost:4000/health\n');
+    console.log(`\nMOA: http://localhost:${webPort} | API: http://localhost:${apiPort}/health\n`);
   }
 } catch (error) {
   console.error(error.message);

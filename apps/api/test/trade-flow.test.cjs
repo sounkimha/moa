@@ -50,10 +50,10 @@ const offerBody = (overrides = {}) => ({
   transport: 'DOMESTIC_PARCEL',
   ...overrides,
 });
-async function createMatch() {
+async function createMatch(reward = 7000) {
   const r = await call('/requests', requestBody());
   assert.equal(r.status, 201);
-  const o = await call(`/requests/${r.data.id}/offers`, offerBody(), 'u-min');
+  const o = await call(`/requests/${r.data.id}/offers`, offerBody({ reward }), 'u-min');
   assert.equal(o.status, 201);
   const t = await call(`/offers/${o.data.id}/accept`, { expectedRevision: 1 });
   assert.equal(t.status, 201);
@@ -95,6 +95,19 @@ after(async () => {
 });
 test('unauthenticated clients cannot read private snapshots', async () => {
   assert.equal((await call('/snapshot', undefined, 'anonymous')).status, 401);
+});
+test('Codespaces web origin can preflight the demo login endpoint', async () => {
+  const origin = 'https://glowing-space-garbanzo-g4q9g5qqvwrgfv6w6-8081.app.github.dev';
+  const response = await fetch(url + '/api/auth/demo', {
+    method: 'OPTIONS',
+    headers: {
+      Origin: origin,
+      'Access-Control-Request-Method': 'POST',
+      'Access-Control-Request-Headers': 'Content-Type, Idempotency-Key',
+    },
+  });
+  assert.equal(response.status, 204);
+  assert.equal(response.headers.get('access-control-allow-origin'), origin);
 });
 test('cancelled request retry notifies previous other travelers once, without reusing old offers', async () => {
   const r = (await call('/requests', requestBody())).data;
@@ -141,13 +154,13 @@ test('place search never returns fake results when the provider is not configure
   } finally { if (original) process.env.KAKAO_REST_API_KEY = original; }
 });
 test('Asian cities, local currencies, decimal prices and multiple Japanese cities work', async () => {
-  const { DESTINATIONS, quote, recommendedReward } = require('@moa/domain');
+  const { DESTINATIONS, quote } = require('@moa/domain');
   const state = (await call('/snapshot')).data;
   for (const [country, entry] of Object.entries(DESTINATIONS)) for (const city of entry.cities)
     assert.ok(state.places.some((p) => p.country === country && p.city === city), country + city);
   const r = await call('/requests', requestBody({ placeId: 'p-singapore-haji', localPrice: 12.75 }));
   assert.equal(r.status, 201); assert.equal(r.data.currency, 'SGD');
-  assert.equal(quote(r.data, recommendedReward(r.data), 'MEETUP').productPrice, 12750);
+  assert.equal(quote(r.data, 0, 'MEETUP').productPrice, 12750);
   const tripBody = { departureCountry: 'KR', departureCity: '서울', destinationCountry: 'TW', destinationCity: '타이베이', startDate: future(2), endDate: future(8), placeIds: ['p-taipei-ximen'], maxItems: 5 };
   assert.equal((await call('/trips', tripBody, 'u-joon')).status, 201);
   assert.notEqual((await call('/trips', { ...tripBody, destinationCity: '도쿄' }, 'u-joon')).status, 201);
@@ -312,14 +325,14 @@ test('valid bundle produces individual offers and rejects duplicate IDs', async 
   );
   assert.equal(result.status, 201);
   assert.equal(result.data.offerIds.length, 2);
-  assert.equal(result.data.totalReward, 4550);
+  assert.equal(result.data.totalReward, 14000);
 });
 test('traveler acceptance immediately opens a matched transaction and chat', async () => {
   const request = (await call('/requests', requestBody())).data;
   const result = await call(`/requests/${request.id}/claim`, offerBody(), 'u-min');
   assert.equal(result.status, 201);
   assert.equal(result.data.status, 'MATCHED');
-  assert.equal(result.data.travelerReward, 2275);
+  assert.equal(result.data.travelerReward, 7000);
   const snapshot = (await call('/snapshot', undefined, 'u-min')).data;
   assert.ok(snapshot.rooms.some((room) => room.transactionId === result.data.id));
 });
@@ -336,6 +349,103 @@ test('concurrent offer selection creates exactly one transaction', async () => {
   assert.deepEqual(results.map((x) => x.status).sort(), [201, 409]);
   const snapshot = (await call('/snapshot')).data;
   assert.equal(snapshot.transactions.filter((t) => t.requestId === r.id).length, 1);
+});
+test('custom rewards survive offer acceptance, payment and file reload without a product-price formula', async () => {
+  const r = (await call('/requests', requestBody({ quantity: 2 }))).data;
+  const key = randomUUID();
+  const body = offerBody({ reward: 150005, tripId: 'trip-u-haru' });
+  const offer = await call(`/requests/${r.id}/offers`, body, 'u-haru', key);
+  assert.equal(offer.status, 201);
+  assert.equal(offer.data.reward, 150005);
+  assert.equal((await call(`/requests/${r.id}/offers`, body, 'u-haru', key)).data.id, offer.data.id);
+  let t = (await call(`/offers/${offer.data.id}/accept`, { expectedRevision: 1 })).data;
+  assert.equal(t.travelerReward, 150005);
+  assert.equal(t.totalPrice, 199001);
+  t = await act(t, 'PAY', 'u-me');
+  assert.equal(t.status, 'PAYMENT_HELD');
+  const reloaded = new Store();
+  assert.equal(await reloaded.read((db) => db.offers.find((o) => o.id === offer.data.id).reward), 150005);
+  assert.equal(await reloaded.read((db) => db.payments.find((p) => p.transactionId === t.id).amount), 199001);
+});
+test('purchase proof accepts either a product photo or receipt while preserving the missing attachment', async () => {
+  let t = await createMatch();
+  t = await act(t, 'PAY', 'u-me');
+  t = await act(t, 'PURCHASE', 'u-min', {
+    productImage: '', receiptImage: png, storeName: '예시 매장', purchasedAt: future(5),
+    localAmount: 2420, locationNote: '도쿄역 매장',
+  });
+  assert.equal(t.status, 'PURCHASED');
+  const receipt = await app.get(Store).read((db) => db.receipts.find((item) => item.transactionId === t.id));
+  assert.equal(receipt.outcome, 'PURCHASED');
+  assert.equal(receipt.productImage, '');
+  assert.equal(receipt.receiptImage, png);
+
+  let missing = await createMatch();
+  missing = await act(missing, 'PAY', 'u-me');
+  assert.equal((await act(missing, 'PURCHASE', 'u-min', {
+    productImage: '', receiptImage: '', storeName: '예시 매장', purchasedAt: future(5),
+    localAmount: 2420, locationNote: '도쿄역 매장',
+  })).status, 409);
+});
+test('out-of-stock evidence cancels the trade, refunds escrow and keeps a retryable visit record', async () => {
+  let t = await createMatch(8500);
+  t = await act(t, 'PAY', 'u-me');
+  const key = randomUUID();
+  const evidence = {
+    evidenceImage: png, storeName: '도쿄역 예시 매장', checkedAt: future(5),
+    locationNote: '도쿄역 지하 1층', reason: 'OUT_OF_STOCK', note: '직원이 재입고 일정을 모른다고 안내했어요.',
+  };
+  const cancelled = await act(t, 'OUT_OF_STOCK', 'u-min', evidence, key);
+  assert.equal(cancelled.status, 'CANCELLED');
+  assert.equal((await act(t, 'OUT_OF_STOCK', 'u-min', evidence, key)).status, 'CANCELLED');
+  const snapshot = (await call('/snapshot')).data;
+  const request = snapshot.requests.find((item) => item.id === t.requestId);
+  const report = snapshot.receipts.find((item) => item.transactionId === t.id);
+  assert.equal(request.status, 'CANCELLED');
+  assert.equal(request.inventoryStatus, 'OUT_OF_STOCK');
+  assert.equal(report.outcome, 'OUT_OF_STOCK');
+  assert.equal(report.unavailableReason, 'OUT_OF_STOCK');
+  assert.equal(snapshot.payments.find((item) => item.transactionId === t.id).status, 'REFUNDED');
+  assert.equal(snapshot.escrows.find((item) => item.transactionId === t.id).status, 'REFUNDED');
+  assert.equal(snapshot.offers.find((item) => item.id === t.offerId).status, 'CANCELLED');
+  assert.ok(snapshot.notifications.some((item) => item.transactionId === t.id && item.title.includes('품절')));
+  assert.equal((await call('/requests', requestBody({ retryOfRequestId: t.requestId }))).status, 201);
+});
+test('both bundle paths retain different per-request rewards including zero and reject incomplete maps atomically', async () => {
+  const trip = (await call('/trips', {
+    departureCountry: 'KR', departureCity: '서울', destinationCountry: 'JP', destinationCity: '도쿄',
+    startDate: future(4), endDate: future(7), placeIds: ['p-station'], maxItems: 8,
+  }, 'u-haru')).data;
+  for (const endpoint of ['/bundles/offers', '/bundles/claim']) {
+    const a = (await call('/requests', requestBody())).data;
+    const b = (await call('/requests', requestBody({ quantity: 2 }))).data;
+    const common = { ...offerBody({ tripId: trip.id }), requestIds: [b.id, a.id] };
+    for (const rewards of [{ [a.id]: 1005 }, { [a.id]: 1005, [b.id]: 0, unrelated: 5000 }]) {
+      assert.equal((await call(endpoint, { ...common, rewards }, 'u-haru')).status, 400);
+    }
+    assert.equal(await app.get(Store).read((db) => db.offers.filter((o) => [a.id, b.id].includes(o.requestId)).length), 0);
+    const body = { ...common, rewards: { [a.id]: 1005, [b.id]: 0 } };
+    const key = randomUUID();
+    const result = await call(endpoint, body, 'u-haru', key);
+    assert.equal(result.status, 201);
+    assert.equal(result.data.totalReward, 1005);
+    const snapshot = (await call('/snapshot', undefined, 'u-haru')).data;
+    assert.equal(snapshot.offers.find((o) => o.requestId === a.id).reward, 1005);
+    assert.equal(snapshot.offers.find((o) => o.requestId === b.id).reward, 0);
+    if (endpoint.endsWith('/claim')) {
+      assert.equal(result.data.transactions.find((t) => t.requestId === a.id).travelerReward, 1005);
+      assert.equal(result.data.transactions.find((t) => t.requestId === b.id).travelerReward, 0);
+    }
+    assert.equal((await call(endpoint, body, 'u-haru', key)).data.id, result.data.id);
+    assert.equal((await call(endpoint, { ...body, rewards: { [a.id]: 1006, [b.id]: 0 } }, 'u-haru', key)).status, 409);
+  }
+});
+test('rewards require explicit whole-won values within the demo amount range', async () => {
+  const r = (await call('/requests', requestBody())).data;
+  for (const reward of [-1, 12.5, '5000', null, undefined, 2000001]) {
+    assert.equal((await call(`/requests/${r.id}/offers`, offerBody({ reward }), 'u-min')).status, 400);
+  }
+  assert.equal(await app.get(Store).read((db) => db.offers.filter((o) => o.requestId === r.id).length), 0);
 });
 test('mock payment failure has no ledger write, duplicate success is idempotent', async () => {
   let t = await createMatch();
@@ -357,7 +467,9 @@ test('mock payment failure has no ledger write, duplicate success is idempotent'
   assert.equal(mismatch.status, 409);
 });
 test('full buyer/traveler flow settles once and separates reimbursement from reward', async () => {
-  let t = await createMatch();
+  let t = await createMatch(7005);
+  assert.equal(t.travelerReward, 7005);
+  assert.equal(t.totalPrice, 33253);
   t = await act(t, 'PAY', 'u-me');
   assert.equal((await act(t, 'SETTLE', 'u-min')).status, 409);
   assert.equal(
@@ -384,8 +496,12 @@ test('full buyer/traveler flow settles once and separates reimbursement from rew
   assert.equal(t.status, 'PURCHASED');
   t = await act(t, 'TRAVEL', 'u-min');
   t = await act(t, 'SHIP', 'u-min', { carrier: '테스트 배송사', trackingNumber: 'DEMO-123' });
-  t = await act(t, 'RECEIVE', 'u-me');
-  t = await act(t, 'CONFIRM', 'u-me');
+  t = await act(t, 'RECEIVE_AND_CONFIRM', 'u-me');
+  assert.equal(t.status, 'CONFIRMED');
+  assert.equal(
+    await app.get(Store).read((db) => db.shipments.find((s) => s.transactionId === t.id).status),
+    'DELIVERED',
+  );
   const key = randomUUID(),
     before = t;
   t = await act(t, 'SETTLE', 'u-min', {}, key);
@@ -393,11 +509,11 @@ test('full buyer/traveler flow settles once and separates reimbursement from rew
   assert.equal((await act(before, 'SETTLE', 'u-min', {}, key)).status, 'SETTLED');
   const snap = (await call('/snapshot', undefined, 'u-min')).data,
     p = snap.payouts.find((p) => p.transactionId === t.id);
-  assert.equal(p.reward, 2275);
-  assert.equal(p.platformCommission, 228);
-  assert.equal(p.netReward, 2047);
+  assert.equal(p.reward, 7005);
+  assert.equal(p.platformCommission, 701);
+  assert.equal(p.netReward, 6304);
   assert.equal(p.reimbursement, 22748);
-  assert.equal(p.amount, 28295);
+  assert.equal(p.amount, 32552);
   assert.equal(snap.payouts.filter((p) => p.transactionId === t.id).length, 1);
   assert.equal(
     (await call(`/transactions/${t.id}/reviews`, { rating: 5, text: '꼼꼼하게 전달해주셨어요.' }))
@@ -466,6 +582,8 @@ test('international shipping is rejected for new requests and direct acceptance'
 test('file repository survives a new instance and failed mutations roll back', async () => {
   const store = app.get(Store);
   const before = await store.read((db) => db.requests.length);
+  await store.read((db) => { db.requests = []; });
+  assert.equal(await store.read((db) => db.requests.length), before);
   await assert.rejects(
     store.transaction((db) => {
       db.requests = [];
@@ -527,4 +645,20 @@ test('PostgreSQL schema loads seed and rejects invalid totals and foreign keys',
   } finally {
     await db.close();
   }
+});
+test('an explicit fresh demo login resets completed prototype data without affecting role switches', async () => {
+  const before = await app.get(Store).read((db) => db.transactions.length);
+  assert.ok(before > 0);
+  const reset = await call('/auth/demo', { userId: 'u-me', provider: 'DEMO', reset: true }, 'anonymous');
+  assert.equal(reset.status, 201);
+  tokens['u-me'] = reset.data.token;
+  const snapshot = (await call('/snapshot')).data;
+  assert.equal(snapshot.transactions.length, 0);
+  assert.equal(snapshot.requests[0].status, seedDatabase().requests[0].status);
+  const created = await call('/requests', requestBody({ productName: '역할 전환 유지 확인' }));
+  assert.equal(created.status, 201);
+  const switched = await call('/auth/demo', { userId: 'u-min', provider: 'DEMO' }, 'anonymous');
+  assert.equal(switched.status, 201);
+  tokens['u-min'] = switched.data.token;
+  assert.ok((await call('/snapshot', undefined, 'u-min')).data.requests.some((item) => item.id === created.data.id));
 });

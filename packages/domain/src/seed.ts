@@ -1,4 +1,4 @@
-import { Database, Place, ProductRequest, Product, User, recommendedReward, currencyForCountry } from './index';
+import { Database, Place, ProductRequest, Product, User, currencyForCountry } from './index';
 import { asiaPlaces } from './asia-places';
 
 export function seedDatabase(now = new Date()): Database {
@@ -295,7 +295,7 @@ export function seedDatabase(now = new Date()): Database {
       requestId: 'r-1',
       travelerId: u.id,
       tripId: `trip-${u.id}`,
-      reward: recommendedReward(requests[0]),
+      reward: [7000, 5500, 9000][i],
       estimatedPurchaseDate: day(5),
       estimatedDeliveryDate: day(13 - i),
       message: [

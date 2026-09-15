@@ -26,7 +26,8 @@ import {
   Transport,
   TRANSPORT_LABEL,
   countryName,
-  recommendedReward,
+  MAX_DEMO_REWARD,
+  rewardCommission,
 } from '@moa/domain';
 import { useApp } from '../state/AppContext';
 import { MeetupSummary } from '../components/MeetupSummary';
@@ -158,7 +159,7 @@ export function RequestScreen() {
           {[
             ['수량', `${r.quantity}개`],
             ['옵션', r.option || '기본 옵션'],
-            ['현재 예상 금액', money(quote(r, recommendedReward(r), r.transport).totalPrice)],
+            [transaction ? '총 결제금액' : '보상 제외 금액', money(transaction?.totalPrice ?? quote(r, 0, r.transport).totalPrice)],
             ['희망 수령일', r.desiredDate],
             ['수령지', `${countryName(r.deliveryCountry)} · ${r.deliveryCity}`],
             ['귀국 후 수령 방법', TRANSPORT_LABEL[r.transport]],
@@ -185,8 +186,8 @@ export function RequestScreen() {
       <Stack gap={14}>
         {r.transport === 'MEETUP' && <MeetupSummary point={r.meetupPoint} />}
         <ProductOriginal text={r.originalText} />
-        <Section title="예상 금액, 한눈에" subtitle="여행자 보상은 상품 환산가의 10%로 계산해요." />
-        <MoneyBreakdown price={quote(r, recommendedReward(r), r.transport)} />
+        <Section title="예상 금액, 한눈에" subtitle="여행자가 보상금을 직접 제안하고, 구매자는 총액을 확인한 뒤 결제해요." />
+        <MoneyBreakdown price={transaction || quote(r, 0, r.transport)} rewardPending={!transaction} />
         <Notice>
           여행자가 돌아오는 길에 직접 가져와요. 귀국 후 국내 택배 예상 3,500원 또는 직거래 0원으로 전달해요.
         </Notice>
@@ -440,7 +441,6 @@ export function BundleScreen() {
     );
   const requests = bundle.requests.filter((r) => selected.includes(r.id));
   const items = requests.reduce((s, r) => s + r.quantity, 0),
-    reward = requests.reduce((sum, request) => sum + recommendedReward(request), 0),
     advance = requests.reduce((s, r) => s + quote(r, 0, r.transport).productPrice, 0);
   return (
     <Page
@@ -471,13 +471,13 @@ export function BundleScreen() {
       <Card style={{ backgroundColor: c.lime, borderWidth: 0 }}>
         <Stack gap={10}>
           <Row style={{ justifyContent: 'space-between' }}>
-            <Txt size={14}>선택한 {requests.length}건의 예상 보상</Txt>
+            <Txt size={14}>선택한 {requests.length}건의 보상금</Txt>
             <Layers size={22} />
           </Row>
           <Txt size={35} weight="800">
-            {money(reward)}
+            직접 제안해요
           </Txt>
-          <Txt size={12}>상품 환산가의 10% 보상 기준 · 정산 시 보상의 10%가 운영 수수료로 공제돼요.</Txt>
+          <Txt size={12}>다음 화면에서 부탁별로 원하는 금액을 입력해요. 정산 시 보상의 10%가 운영 수수료로 공제돼요.</Txt>
           <Divider />
           <Txt size={14}>
             상품 {items}개 · 선지출 {money(advance)}
@@ -533,7 +533,7 @@ export function BundleScreen() {
                   {r.quantity}개 · {shortDate(r.desiredDate)}까지
                 </Txt>
                 <Txt size={13} color={c.green}>
-                  예상 결제 {money(quote(r, recommendedReward(r), r.transport).totalPrice)}
+                  상품·전달비 {money(quote(r, 0, r.transport).totalPrice)} · 보상 별도
                 </Txt>
               </Stack>
               {selected.includes(r.id) ? (
@@ -585,6 +585,13 @@ export function OfferForm() {
     ),
     [transport] = useState<Transport>(first?.transport || 'DOMESTIC_PARCEL');
   const [agree, setAgree] = useState(false);
+  const [rewards, setRewards] = useState<Record<string, string>>({});
+  const rewardFor = (id: string) => {
+    const input = (rewards[id] || '').replace(/,/g, '').trim();
+    const value = Number(input);
+    return /^\d+$/.test(input) && Number.isSafeInteger(value) && value <= MAX_DEMO_REWARD
+      ? value : undefined;
+  };
   if (!first)
     return (
       <Page title="부탁 수락하기">
@@ -603,11 +610,14 @@ export function OfferForm() {
       </Page>
     );
   const total = requests.reduce((s, r) => s + quote(r, 0, transport).productPrice, 0);
-  const grossReward = requests.reduce((s, r) => s + recommendedReward(r), 0);
+  const validRewards = requests.every((r) => rewardFor(r.id) !== undefined);
+  const grossReward = requests.reduce((s, r) => s + (rewardFor(r.id) ?? 0), 0);
+  const commission = requests.reduce((s, r) => s + rewardCommission(rewardFor(r.id) ?? 0), 0);
   const submit = async () => {
+    if (!validRewards) return;
     const body = {
       tripId,
-      reward: recommendedReward(first),
+      reward: rewardFor(first.id)!,
       estimatedPurchaseDate: purchase,
       estimatedDeliveryDate: delivery,
       message,
@@ -615,7 +625,7 @@ export function OfferForm() {
     };
     const result = await a.mutate(
       ids.length > 1 ? '/bundles/claim' : `/requests/${first.id}/claim`,
-      ids.length > 1 ? { ...body, requestIds: ids } : body,
+      ids.length > 1 ? { ...body, requestIds: ids, rewards: Object.fromEntries(requests.map((r) => [r.id, rewardFor(r.id)!])) } : body,
       '부탁을 수락했어요. 바로 대화를 시작할 수 있어요.',
     );
     if (result) ids.length === 1 ? a.nav('transaction', { id: (result as Transaction).id }) : a.tab('trades');
@@ -626,7 +636,7 @@ export function OfferForm() {
       footer={
         <Button
           label={`${ids.length}건 부탁 수락하기`}
-          disabled={!agree}
+          disabled={!agree || !validRewards}
           loading={a.busy}
           onPress={submit}
         />
@@ -654,19 +664,36 @@ export function OfferForm() {
           />
         ))}
       </Row>
+      <Stack gap={12}>
+        <Txt size={20} weight="700">보상금은 직접 정하세요</Txt>
+        <Txt size={13} color={c.secondary}>구매자가 이 금액을 포함한 총액을 확인하고 결제해요. 수량과 구매에 드는 시간을 고려해 부탁별로 입력해주세요.</Txt>
+        {requests.map((r, index) => (
+          <Field
+            key={r.id}
+            label={`${index + 1}. ${r.productName} 보상금 (원)`}
+            value={rewards[r.id] || ''}
+            onChange={(value) => { setRewards((current) => ({ ...current, [r.id]: value })); setAgree(false); }}
+            keyboard="numeric"
+            required
+            placeholder="원하는 금액 입력"
+            hint={`수량 ${r.quantity}개를 포함한 이 부탁 전체의 보상 · 0~${MAX_DEMO_REWARD.toLocaleString('ko-KR')}원 (체험 한도)`}
+            error={rewards[r.id] && rewardFor(r.id) === undefined ? '0원 이상의 원 단위 금액을 체험 한도 안에서 입력해주세요.' : undefined}
+          />
+        ))}
+      </Stack>
       <Card style={{ backgroundColor: c.mint }}>
         <Stack gap={8}>
           <Row style={{ justifyContent: 'space-between' }}>
-            <Txt weight="600">자동 책정 보상</Txt>
-            <Txt size={20} weight="800">{money(grossReward)}</Txt>
+            <Txt weight="600">제안 보상 합계</Txt>
+            <Txt size={20} weight="800">{validRewards ? money(grossReward) : '금액 입력 필요'}</Txt>
           </Row>
           <Row style={{ justifyContent: 'space-between' }}>
             <Txt size={13} color={c.secondary}>운영 수수료 10%</Txt>
-            <Txt size={13} color={c.secondary}>-{money(Math.round(grossReward * 0.1))}</Txt>
+            <Txt size={13} color={c.secondary}>{validRewards ? `-${money(commission)}` : '—'}</Txt>
           </Row>
           <Row style={{ justifyContent: 'space-between' }}>
             <Txt weight="700">예상 순보상</Txt>
-            <Txt size={24} weight="800" color={c.green}>{money(Math.round(grossReward * 0.9))}</Txt>
+            <Txt size={24} weight="800" color={c.green}>{validRewards ? money(grossReward - commission) : '—'}</Txt>
           </Row>
         </Stack>
         <Txt size={13} color={c.secondary} style={{ marginTop: 12 }}>
@@ -689,7 +716,7 @@ export function OfferForm() {
         <Card key={r.id}>
           <Stack>
             <Txt weight="700">{r.productName}</Txt>
-            <MoneyBreakdown compact price={quote(r, recommendedReward(r), transport)} />
+            <MoneyBreakdown compact price={quote(r, rewardFor(r.id) ?? 0, transport)} rewardPending={rewardFor(r.id) === undefined} />
           </Stack>
         </Card>
       ))}

@@ -2,9 +2,16 @@ import 'reflect-metadata';
 import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { json, Request, Response, NextFunction } from 'express';
+import type { CustomOrigin } from '@nestjs/common/interfaces/external/cors-options.interface';
 import { randomUUID } from 'node:crypto';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+const localOrigins = ['http://localhost:8081', 'http://127.0.0.1:8081'];
+const allowedOrigins = (process.env.CORS_ORIGINS || localOrigins.join(',')).split(',');
+const isCodespacesWebOrigin = (origin: string) =>
+  /^https:\/\/[a-z0-9-]+-8081\.app\.github\.dev$/i.test(origin);
+const permittedOrigin: CustomOrigin = (origin, callback) =>
+  callback(null, !origin || allowedOrigins.includes(origin) || isCodespacesWebOrigin(origin));
 export async function bootstrap() {
   if (process.env.NODE_ENV === 'production')
     throw new Error(
@@ -17,7 +24,7 @@ export async function bootstrap() {
   app.use(helmet());
   app.use(json({ limit: '6mb' }));
   app.enableCors({
-    origin: (process.env.CORS_ORIGINS || 'http://localhost:8081,http://127.0.0.1:8081').split(','),
+    origin: permittedOrigin,
     methods: ['GET', 'POST'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key'],
   });

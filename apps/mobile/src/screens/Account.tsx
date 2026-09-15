@@ -162,6 +162,7 @@ export function FavoritesScreen() {
       {places.map((p) => (
         <PlaceCard
           key={p.id}
+          variant="list"
           place={p}
           favorite
           onFavorite={() => a.mutate(`/favorites/${p.id}`, {})}

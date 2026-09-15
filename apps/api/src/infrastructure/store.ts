@@ -110,7 +110,23 @@ export class Store implements OnModuleDestroy {
   async read<T>(fn: (db: Database) => T): Promise<T> {
     if (this.pool) return this.transaction(fn);
     await this.tail;
-    return structuredClone(fn(await this.loadFile()));
+    // `read` callers must not be able to mutate the in-memory file-store state.
+    // Unlike transaction(), the previous implementation passed the live object to
+    // the callback, so an accidental write survived for the lifetime of the API.
+    return structuredClone(fn(structuredClone(await this.loadFile())));
+  }
+  async resetDemo() {
+    if (this.pool) throw new Error('공유 데이터베이스에서는 체험 데이터를 초기화할 수 없어요.');
+    const job = this.tail.then(async () => {
+      const draft = seedDatabase();
+      await fs.mkdir(path.dirname(this.filename), { recursive: true });
+      const tmp = `${this.filename}.${process.pid}.tmp`;
+      await fs.writeFile(tmp, JSON.stringify(draft, null, 2), { mode: 0o600 });
+      await fs.rename(tmp, this.filename);
+      this.db = draft;
+    });
+    this.tail = job.catch(() => undefined);
+    await job;
   }
   async transaction<T>(fn: (db: Database) => T): Promise<T> {
     if (this.pool) {

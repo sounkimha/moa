@@ -358,6 +358,61 @@ export function TransactionScreen() {
       { action: code, expectedRevision: t.revision, ...extra },
       code === 'CANCEL' ? undefined : '거래 상태를 업데이트했어요.',
     );
+  if (shipping)
+    return (
+      <Page
+        title={t.transport === 'MEETUP' ? '전달 약속 등록' : '운송장 등록'}
+        backLabel="거래로"
+        onBack={() => setShipping(false)}
+        footer={
+          <Button
+            label="등록하고 알리기"
+            disabled={carrier.trim().length < 2 || tracking.trim().length < 3}
+            loading={a.busy}
+            onPress={async () => {
+              const value = await action('SHIP', { carrier, trackingNumber: tracking });
+              if (value) setShipping(false);
+            }}
+          />
+        }
+      >
+        <Stack gap={8}>
+          <Badge>전달 마지막 단계</Badge>
+          <Txt size={28} weight="800">
+            {t.transport === 'MEETUP'
+              ? '만날 장소와 시간을\n입력해요.'
+              : '구매자에게 보낼\n배송 정보를 입력해요.'}
+          </Txt>
+          <Txt color={c.secondary}>
+            {t.transport === 'MEETUP'
+              ? '합의한 전달 약속을 등록하면 구매자가 수령을 확인할 수 있어요.'
+              : '운송장을 등록하면 거래가 배송 중으로 바뀌고 구매자에게 알림이 가요.'}
+          </Txt>
+        </Stack>
+        <ProductRow request={r} onPress={() => a.nav('request', { id: r.id })} />
+        <Card>
+          <Stack gap={16}>
+            <Field
+              label={t.transport === 'MEETUP' ? '전달 장소' : '배송사'}
+              value={carrier}
+              onChange={setCarrier}
+              required
+            />
+            <Field
+              label={t.transport === 'MEETUP' ? '약속 일시' : '운송장 번호'}
+              value={tracking}
+              onChange={setTracking}
+              required
+            />
+          </Stack>
+        </Card>
+        <Notice>
+          {t.transport === 'MEETUP'
+            ? '등록한 약속은 거래 참여자에게만 보여요. 변경이 필요하면 채팅으로 먼저 알려주세요.'
+            : '운송장 번호는 거래 참여자에게만 보여요. 실제 택배사 배송 조회는 아직 연결되지 않았어요.'}
+        </Notice>
+      </Page>
+    );
   let next: { label: string; run: () => void } | null = null;
   if (buyer && t.status === 'MATCHED')
     next = { label: '안전결제 이어가기', run: () => a.nav('payment', { id: t.id }) };
@@ -372,7 +427,7 @@ export function TransactionScreen() {
     };
   if (buyer && ['SHIPPED', 'DELIVERED'].includes(t.status))
     next = {
-      label: t.status === 'SHIPPED' ? '상품을 받았어요' : '상품 확인하고 구매 확정',
+      label: t.status === 'SHIPPED' ? '수령하고 구매 확정하기' : '구매 확정 마치기',
       run: () => a.nav('receive', { id: t.id }),
     };
   if (!buyer && t.status === 'CONFIRMED')
@@ -384,16 +439,17 @@ export function TransactionScreen() {
       },
     };
   const held = escrow?.status === 'HELD',
-    frozen = escrow?.status === 'FROZEN';
+    frozen = escrow?.status === 'FROZEN',
+    unavailable = receipt?.outcome === 'OUT_OF_STOCK';
   if (buyer && t.status === 'CANCELLED')
     return (
       <Page
         key={`cancelled-${t.id}`}
-        title="거래 취소"
+        title={unavailable ? '구매하지 못했어요' : '거래 취소'}
         footer={
           <Stack gap={8}>
             <Button
-              label="다른 사람에게 부탁하기"
+              label={unavailable ? '다시 부탁하기' : '다른 사람에게 부탁하기'}
               icon={RefreshCw}
               onPress={() => a.nav('request-form', { id: r.id, placeId: r.placeId })}
             />
@@ -406,15 +462,27 @@ export function TransactionScreen() {
         }
       >
         <Stack gap={12}>
-          <Badge>거래가 취소됐어요</Badge>
+          <Badge>{unavailable ? unavailableLabel(receipt.unavailableReason) : '거래가 취소됐어요'}</Badge>
           <Txt size={28} weight="800">
-            다른 사람에게{'\n'}부탁해보실래요?
+            {unavailable ? '이번 방문에서는\n구매하지 못했어요.' : '다른 사람에게\n부탁해보실래요?'}
           </Txt>
           <Txt color={c.secondary}>
-            같은 장소에 가는 다른 여행자를 기다려볼 수 있어요.
-            기존 상품과 수령 정보를 확인한 뒤 다시 등록해주세요.
+            {unavailable
+              ? '여행자가 매장에서 확인한 내용이에요. 결제금은 환불됐고, 원하면 재입고 뒤 다시 부탁할 수 있어요.'
+              : '같은 장소에 가는 다른 여행자를 기다려볼 수 있어요. 기존 상품과 수령 정보를 확인한 뒤 다시 등록해주세요.'}
           </Txt>
         </Stack>
+        {unavailable && (
+          <Card style={{ backgroundColor: c.butter }}>
+            <Stack gap={12}>
+              <Row><AlertCircle size={21} color={c.ink} /><Txt weight="700">매장 방문 기록</Txt></Row>
+              {!!receipt.productImage && <Image source={{ uri: receipt.productImage }} style={{ width: '100%', height: 190, borderRadius: 14 }} resizeMode="cover" />}
+              <Txt size={13}>{receipt.storeName} · {receipt.purchasedAt}</Txt>
+              <Txt size={13} color={c.secondary}>{receipt.locationNote}</Txt>
+              {!!receipt.unavailableNote && <Txt size={13}>{receipt.unavailableNote}</Txt>}
+            </Stack>
+          </Card>
+        )}
         <Card>
           <ProductRow request={r} onPress={() => a.nav('request', { id: r.id })} />
         </Card>
@@ -515,49 +583,23 @@ export function TransactionScreen() {
           <Button small kind="secondary" icon={MessageCircle} label="일정 이야기하기" onPress={() => a.nav('chat', { id: t.id })} />
         </Stack>
       </Card>}
-      {shipping && (
-        <Card>
-          <Stack>
-            <Txt size={19} weight="700">
-              {t.transport === 'MEETUP' ? '직접 전달 약속' : '배송 정보'}
-            </Txt>
-            <Field
-              label={t.transport === 'MEETUP' ? '전달 장소' : '배송사'}
-              value={carrier}
-              onChange={setCarrier}
-            />
-            <Field
-              label={t.transport === 'MEETUP' ? '약속 일시' : '운송장 번호'}
-              value={tracking}
-              onChange={setTracking}
-            />
-            <Button
-              label="등록하고 알리기"
-              loading={a.busy}
-              onPress={async () => {
-                const v = await action('SHIP', { carrier, trackingNumber: tracking });
-                if (v) setShipping(false);
-              }}
-            />
-          </Stack>
-        </Card>
-      )}
       {receipt && (
         <Stack gap={12}>
-          <Section title="매장에서 보내온 소식" />
-          <Row>
-            <Image
-              source={{ uri: receipt.productImage }}
-              style={{ width: 130, height: 150, borderRadius: 15, backgroundColor: c.mint }}
-            />
-            <Image
-              source={{ uri: receipt.receiptImage }}
-              style={{ width: 130, height: 150, borderRadius: 15, backgroundColor: c.mint }}
-            />
+          <Section title={receipt.outcome === 'OUT_OF_STOCK' ? '구매하지 못한 이유' : '구매 인증'} />
+          {receipt.outcome === 'OUT_OF_STOCK' && <Badge>{unavailableLabel(receipt.unavailableReason)}</Badge>}
+          <Row style={{ flexWrap: 'wrap' }}>
+            {!!receipt.productImage && (
+              <Image source={{ uri: receipt.productImage }} accessibilityLabel={receipt.outcome === 'OUT_OF_STOCK' ? '방문 증빙 사진' : '구매한 상품 사진'} style={{ width: 130, height: 150, borderRadius: 15, backgroundColor: c.mint }} resizeMode="cover" />
+            )}
+            {!!receipt.receiptImage && (
+              <Image source={{ uri: receipt.receiptImage }} accessibilityLabel="구매 영수증 사진" style={{ width: 130, height: 150, borderRadius: 15, backgroundColor: c.mint }} resizeMode="cover" />
+            )}
           </Row>
           <Txt size={13} color={c.secondary}>
             {receipt.storeName} · {receipt.purchasedAt}
-            {'\n'}사진과 영수증은 거래 참여자에게만 보여요.
+            {'\n'}{receipt.locationNote}
+            {!!receipt.unavailableNote && `\n${receipt.unavailableNote}`}
+            {'\n'}첨부 사진은 거래 참여자에게만 보여요.
           </Txt>
         </Stack>
       )}
@@ -699,135 +741,209 @@ export function TransactionScreen() {
     </Page>
   );
 }
+const unavailableReasons = [
+  ['OUT_OF_STOCK', '품절'],
+  ['PRODUCT_NOT_FOUND', '상품을 찾지 못함'],
+  ['PURCHASE_LIMIT', '구매 제한'],
+  ['STORE_CLOSED', '매장 휴무·폐점'],
+] as const;
+const unavailableLabel = (value?: string) =>
+  unavailableReasons.find(([key]) => key === value)?.[1] || '구매 불가';
+
 export function ReceiptScreen() {
   const a = useApp(),
     d = a.data!,
-    t = d.transactions.find((x) => x.id === a.route.id);
-  const r = d.requests.find((x) => x.id === t?.requestId);
-  const offer = d.offers.find((o) => o.id === t?.offerId);
-  const [productImage, setProductImage] = useState(''),
+    t = d.transactions.find((x) => x.id === a.route.id),
+    r = d.requests.find((x) => x.id === t?.requestId),
+    offer = d.offers.find((o) => o.id === t?.offerId);
+  const [outcome, setOutcome] = useState<'PURCHASED' | 'OUT_OF_STOCK'>('PURCHASED'),
+    [productImage, setProductImage] = useState(''),
     [receiptImage, setReceiptImage] = useState(''),
+    [stockEvidence, setStockEvidence] = useState(''),
+    [reason, setReason] = useState<(typeof unavailableReasons)[number][0]>('OUT_OF_STOCK'),
+    [note, setNote] = useState(''),
     [storeName, setStoreName] = useState(r?.storeName || ''),
     [date, setDate] = useState(offer?.estimatedPurchaseDate || ''),
     [amount, setAmount] = useState(String((r?.localPrice || 0) * (r?.quantity || 1))),
     [location, setLocation] = useState(r ? `${r.city} ${r.storeName}` : '');
   if (!t || !r)
     return (
-      <Page title="구매 인증">
+      <Page title="구매 결과">
         <Empty />
       </Page>
     );
-  const pick = async (which: 'product' | 'receipt') => {
+  const pick = async (which: 'product' | 'receipt' | 'stock') => {
     try {
-      const v = await pickImage();
-      if (v) (which === 'product' ? setProductImage : setReceiptImage)(v);
-    } catch (e) {
-      a.notify((e as Error).message);
+      const value = await pickImage();
+      if (!value) return;
+      if (which === 'product') setProductImage(value);
+      else if (which === 'receipt') setReceiptImage(value);
+      else setStockEvidence(value);
+    } catch (error) {
+      a.notify((error as Error).message);
     }
   };
   const submit = async () => {
+    const body = outcome === 'PURCHASED'
+      ? {
+          action: 'PURCHASE', expectedRevision: t.revision, productImage, receiptImage,
+          storeName, purchasedAt: date, localAmount: Number(amount), locationNote: location,
+        }
+      : {
+          action: 'OUT_OF_STOCK', expectedRevision: t.revision, evidenceImage: stockEvidence,
+          storeName, checkedAt: date, locationNote: location, reason, note,
+        };
     const result = await a.mutate(
       `/transactions/${t.id}/actions`,
-      {
-        action: 'PURCHASE',
-        expectedRevision: t.revision,
-        productImage,
-        receiptImage,
-        storeName,
-        purchasedAt: date,
-        localAmount: Number(amount),
-        locationNote: location,
-      },
-      '구매 소식을 전했어요.',
+      body,
+      outcome === 'PURCHASED' ? '구매 인증을 보냈어요.' : '구매 불가를 알리고 결제금을 환불했어요.',
     );
     if (result) a.nav('transaction', { id: t.id });
   };
+  const upload = (which: 'product' | 'receipt' | 'stock', label: string, value: string) => (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${label} ${value ? '다시 선택' : '올리기'}`}
+      onPress={() => pick(which)}
+      style={({ pressed }) => ({
+        flex: 1,
+        minWidth: which === 'stock' ? '100%' : 130,
+        height: which === 'stock' ? 170 : 150,
+        borderRadius: 18,
+        borderWidth: value ? 0 : 1,
+        borderStyle: 'dashed',
+        borderColor: c.green,
+        backgroundColor: c.mint,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        overflow: 'hidden',
+        opacity: pressed ? 0.75 : 1,
+      })}
+    >
+      {value ? (
+        <>
+          <Image source={{ uri: value }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+          <View style={{ position: 'absolute', right: 8, bottom: 8, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 10, backgroundColor: '#14213DCC' }}>
+            <Txt size={11} color="white">다시 선택</Txt>
+          </View>
+        </>
+      ) : (
+        <>
+          <ImagePlus size={29} color={c.green} />
+          <Txt size={14} weight="700" color={c.green}>{label}</Txt>
+          <Txt size={11} color={c.secondary}>눌러서 사진 선택</Txt>
+        </>
+      )}
+    </Pressable>
+  );
+  const valid = outcome === 'PURCHASED'
+    ? Boolean(productImage || receiptImage) && Number(amount) > 0 && storeName.trim().length >= 2 && date && location.trim().length >= 2
+    : Boolean(stockEvidence && reason && storeName.trim().length >= 2 && date && location.trim().length >= 2);
   return (
     <Page
-      title="구매 소식을 전해요"
+      title="매장 방문 결과"
       footer={
         <Button
-          label="구매 인증 보내기"
-          disabled={!productImage || !receiptImage}
+          label={outcome === 'PURCHASED' ? '구매 인증 보내기' : '구매 불가 알리고 환불하기'}
+          disabled={!valid}
           loading={a.busy}
           onPress={submit}
         />
       }
     >
       <Stack gap={8}>
-        <Txt size={28} weight="800">
-          잘 샀다는 안심,{'\n'}사진으로 전해요.
-        </Txt>
-        <Txt color={c.secondary}>상품과 영수증을 한 장씩 올려주세요.</Txt>
+        <Badge>구매자에게 바로 알려요</Badge>
+        <Txt size={28} weight="800">매장에서는 어땠나요?</Txt>
+        <Txt color={c.secondary}>결과와 사진을 남기면 다음 단계가 자동으로 이어져요.</Txt>
       </Stack>
-      <Row style={{ alignItems: 'flex-start' }}>
+      <Row style={{ alignItems: 'stretch', gap: 10 }}>
         {[
-          ['product', '상품 사진', productImage],
-          ['receipt', '영수증', receiptImage],
-        ].map(([kind, label, value]) => (
-          <Pressable
-            key={kind}
-            accessibilityRole="button"
-            accessibilityLabel={`${label} 올리기`}
-            onPress={() => pick(kind as 'product' | 'receipt')}
-            style={{
-              flex: 1,
-              height: 185,
-              borderRadius: 18,
-              borderWidth: 1,
-              borderStyle: 'dashed',
-              borderColor: c.green,
-              backgroundColor: c.mint,
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 10,
-              overflow: 'hidden',
-            }}
-          >
-            {value ? (
-              <Image
-                source={{ uri: value }}
-                style={{ width: '100%', height: '100%' }}
-                resizeMode="contain"
-              />
-            ) : (
-              <>
-                <ImagePlus size={32} color={c.green} />
-                <Txt weight="600" color={c.green}>
-                  {label}
-                </Txt>
-              </>
-            )}
-          </Pressable>
-        ))}
+          ['PURCHASED', '구매했어요', '상품을 전달할게요', CheckCircle2],
+          ['OUT_OF_STOCK', '구매하지 못했어요', '품절·휴무·구매 제한', AlertCircle],
+        ].map(([value, title, body, Icon]) => {
+          const selected = outcome === value;
+          const ResultIcon = Icon as typeof CheckCircle2;
+          return (
+            <Pressable
+              key={value as string}
+              accessibilityRole="radio"
+              accessibilityLabel={title as string}
+              accessibilityState={{ selected }}
+              onPress={() => setOutcome(value as typeof outcome)}
+              style={{ flex: 1, minHeight: 112, padding: 15, gap: 7, borderRadius: 18, borderWidth: 1.5, borderColor: selected ? c.green : c.border, backgroundColor: selected ? c.mint : c.paper }}
+            >
+              <ResultIcon size={22} color={selected ? c.green : c.muted} />
+              <Txt size={15} weight="700">{title as string}</Txt>
+              <Txt size={11} color={c.secondary}>{body as string}</Txt>
+            </Pressable>
+          );
+        })}
       </Row>
+      {outcome === 'PURCHASED' ? (
+        <Card>
+          <Stack gap={12}>
+            <Stack gap={3}>
+              <Txt size={18} weight="700">구매 증빙</Txt>
+              <Txt size={13} color={c.secondary}>상품 사진 또는 영수증 중 하나만 올려도 돼요. 둘 다 있으면 함께 남겨주세요.</Txt>
+            </Stack>
+            <Row style={{ alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              {upload('product', '상품 사진', productImage)}
+              {upload('receipt', '영수증', receiptImage)}
+            </Row>
+            <Txt size={12} color={productImage || receiptImage ? c.green : c.secondary}>
+              {productImage || receiptImage ? '필수 증빙이 첨부됐어요.' : '사진 1장 이상이 필요해요.'}
+            </Txt>
+          </Stack>
+        </Card>
+      ) : (
+        <Stack gap={16}>
+          <Notice tone="warning">결제금 전액이 구매자에게 환불되고 이 거래는 종료돼요. 방문 기록은 양쪽 거래 내역에 남아요.</Notice>
+          <Button
+            small
+            kind="secondary"
+            icon={MessageCircle}
+            label="환불 전 구매자와 상의하기"
+            onPress={() => a.nav('chat', { id: t.id })}
+          />
+          <Stack gap={8}>
+            <Txt size={16} weight="700">구매하지 못한 이유</Txt>
+            <Row style={{ flexWrap: 'wrap' }}>
+              {unavailableReasons.map(([value, label]) => (
+                <Chip key={value} label={label} selected={reason === value} onPress={() => setReason(value)} />
+              ))}
+            </Row>
+          </Stack>
+          <Card>
+            <Stack gap={12}>
+              <Stack gap={3}>
+                <Txt size={18} weight="700">방문 증빙</Txt>
+                <Txt size={13} color={c.secondary}>품절 안내, 빈 매대, 구매 제한 안내처럼 상황을 확인할 수 있는 사진을 올려주세요.</Txt>
+              </Stack>
+              {upload('stock', '방문 증빙 사진', stockEvidence)}
+            </Stack>
+          </Card>
+          <Field label="구매 불가 메모" value={note} onChange={setNote} multiline placeholder="직원이 재입고 일정을 모른다고 안내했어요." hint="선택 사항 · 구매자에게 그대로 보여요." />
+        </Stack>
+      )}
       <Button
         small
         kind="secondary"
-        label="체험용 샘플 사진 채우기"
+        label={outcome === 'PURCHASED' ? '체험용 샘플 사진 채우기' : '체험용 방문 증빙 채우기'}
         onPress={() => {
-          setProductImage(demoImages.product);
-          setReceiptImage(demoImages.receipt);
+          if (outcome === 'PURCHASED') {
+            setProductImage(demoImages.product);
+            setReceiptImage(demoImages.receipt);
+          } else setStockEvidence(demoImages.product);
         }}
       />
-      <Notice>
-        샘플 증빙에는 DEMO 표기가 있어요. 실제 구매나 인증을 뜻하지 않아요. 업로드한 사진의 진위
-        판독 기능은 아직 없어요.
-      </Notice>
-      <Field label="구매 매장" value={storeName} onChange={setStoreName} />
-      <DateField label="구매일" value={date} onChange={setDate} />
-      <Field
-        label={`실제 현지 결제금액 (${r.currency})`}
-        value={amount}
-        onChange={(v) => setAmount(v.replace(/[^0-9]/g, ''))}
-        keyboard="numeric"
-      />
-      <Field
-        label="구매 위치 메모"
-        value={location}
-        onChange={setLocation}
-        hint="지금은 직접 입력한 위치예요. GPS 확인은 하지 않아요."
-      />
+      <Notice>샘플에는 DEMO 표기가 있어요. 실제 구매나 방문 증빙을 뜻하지 않으며 사진 진위 판독 기능은 아직 연결되지 않았어요.</Notice>
+      <Field label={outcome === 'PURCHASED' ? '구매 매장' : '방문 매장'} value={storeName} onChange={setStoreName} required />
+      <DateField label={outcome === 'PURCHASED' ? '구매일' : '방문 확인일'} value={date} onChange={setDate} />
+      {outcome === 'PURCHASED' && (
+        <Field label={`실제 현지 결제금액 (${r.currency})`} value={amount} onChange={(value) => setAmount(value.replace(/[^0-9.]/g, ''))} keyboard="numeric" required />
+      )}
+      <Field label="매장 위치 메모" value={location} onChange={setLocation} required hint="지금은 직접 입력한 위치예요. GPS 확인은 하지 않아요." />
     </Page>
   );
 }
@@ -847,10 +963,8 @@ export function ReceiveScreen() {
   const submit = async () => {
     const result = await a.mutate(
       `/transactions/${t.id}/actions`,
-      { action: delivered ? 'CONFIRM' : 'RECEIVE', expectedRevision: t.revision },
-      delivered
-        ? '구매를 확정했어요. 고마운 마음을 후기로 전해보세요.'
-        : '상품 수령을 기록했어요. 상태를 확인해주세요.',
+      { action: delivered ? 'CONFIRM' : 'RECEIVE_AND_CONFIRM', expectedRevision: t.revision },
+      '수령과 구매 확정을 마쳤어요. 고마운 마음을 후기로 전해보세요.',
     );
     if (result) {
       setChecks([]);
@@ -859,10 +973,10 @@ export function ReceiveScreen() {
   };
   return (
     <Page
-      title={delivered ? '상품을 확인해주세요' : '상품을 받으셨나요?'}
+      title="수령 및 구매 확정"
       footer={
         <Button
-          label={delivered ? '확인했어요 · 구매 확정' : '받았어요 · 수령 기록'}
+          label={delivered ? '구매 확정 마치기' : '받았어요 · 구매 확정'}
           disabled={checks.length < 3}
           loading={a.busy}
           onPress={submit}
@@ -878,10 +992,10 @@ export function ReceiveScreen() {
         />
       </View>
       <Txt size={27} weight="800">
-        {delivered ? '작은 부탁이 도착했어요.' : '실제로 받으셨다면,\n확인해주세요.'}
+        {delivered ? '상품 확인을 마치고\n구매를 확정해주세요.' : '상품을 받았다면\n한 번에 완료해요.'}
       </Txt>
       <Txt color={c.secondary}>
-        구매 확정 뒤 여행자의 정산이 가능해요. 상품을 확인하고 진행해주세요.
+        아래 세 가지를 확인하면 수령 기록과 구매 확정이 함께 처리되고 여행자가 정산할 수 있어요.
       </Txt>
       {[
         '요청한 상품과 옵션이 맞아요.',

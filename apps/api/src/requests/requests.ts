@@ -1,6 +1,6 @@
 import { Body, Controller, Headers, Injectable, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
-import { Database, ProductRequest, TravelerOffer, Transaction, quote, recommendedReward, currencyForCountry } from '@moa/domain';
+import { Database, ProductRequest, TravelerOffer, Transaction, quote, MAX_DEMO_REWARD, currencyForCountry } from '@moa/domain';
 import { Store } from '../infrastructure/store';
 import { ActorRequest, AuthGuard } from '../auth/auth';
 import {
@@ -71,13 +71,23 @@ const createSchema = z.object({
 });
 export const offerSchema = z.object({
   tripId: z.string(),
-  reward: amount.max(100000),
+  reward: amount.max(MAX_DEMO_REWARD),
   estimatedPurchaseDate: date,
   estimatedDeliveryDate: date,
   message: z.string().trim().min(1).max(500),
   transport,
 });
 export type OfferInput = z.infer<typeof offerSchema>;
+const bundleSchema = offerSchema.extend({
+  requestIds: z.array(z.string()).min(1).max(10),
+  // Older clients can still supply one common reward; new clients price each request.
+  rewards: z.record(offerSchema.shape.reward).optional(),
+}).strict().superRefine((data, ctx) => {
+  if (data.rewards && (Object.keys(data.rewards).length !== data.requestIds.length ||
+      data.requestIds.some((id) => !Object.hasOwn(data.rewards!, id)))) {
+    ctx.addIssue({ code: 'custom', path: ['rewards'], message: '선택한 부탁마다 보상금을 입력해주세요.' });
+  }
+});
 @Injectable()
 export class RequestsService {
   constructor(private readonly store: Store) {}
@@ -184,7 +194,6 @@ export class RequestsService {
     const offer: TravelerOffer = {
       ...base(),
       ...data,
-      reward: recommendedReward(request),
       requestId,
       travelerId: actor,
       status: 'PENDING',
@@ -230,14 +239,15 @@ export class RequestsService {
     }));
   }
   claimBundle(actor: string, key: string | undefined, input: unknown) {
-    const data = parse(offerSchema.extend({ requestIds: z.array(z.string()).min(1).max(10) }).strict(), input);
+    const data = parse(bundleSchema, input);
     return this.store.transaction((db) => once(db, actor, key, 'bundle:claim', data, () => {
       check(new Set(data.requestIds).size === data.requestIds.length, '중복된 부탁은 선택할 수 없어요.');
       const requests = data.requestIds.map((id) => get(db.requests, id));
       check(requests.every((request) => request.placeId === requests[0].placeId), '같은 장소의 부탁만 한 번에 수락할 수 있어요.');
       const bundleBase = base();
-      const { requestIds, ...acceptance } = data;
-      const offers = requestIds.map((id) => this.createOffer(db, actor, id, acceptance, bundleBase.id));
+      const { requestIds, rewards, ...acceptance } = data;
+      const offers = requestIds.map((id) => this.createOffer(db, actor, id,
+        { ...acceptance, reward: rewards?.[id] ?? acceptance.reward }, bundleBase.id));
       const transactions = offers.map((offer) => this.matchAccepted(db, actor, offer));
       const bundle = { ...bundleBase, tripId: data.tripId, travelerId: actor, placeId: requests[0].placeId, requestIds, offerIds: offers.map((offer) => offer.id), totalReward: offers.reduce((sum, offer) => sum + offer.reward, 0) };
       db.bundles.push(bundle);
@@ -252,7 +262,7 @@ export class RequestsService {
   }
   bundle(actor: string, key: string | undefined, input: unknown) {
     const data = parse(
-      offerSchema.extend({ requestIds: z.array(z.string()).min(1).max(10) }).strict(),
+      bundleSchema,
       input,
     );
     return this.store.transaction((db) =>
@@ -267,8 +277,9 @@ export class RequestsService {
           '같은 장소의 요청만 묶을 수 있어요.',
         );
         const b = base();
-        const { requestIds, ...offer } = data;
-        const offers = requestIds.map((id) => this.createOffer(db, actor, id, offer, b.id));
+        const { requestIds, rewards, ...offer } = data;
+        const offers = requestIds.map((id) => this.createOffer(db, actor, id,
+          { ...offer, reward: rewards?.[id] ?? offer.reward }, b.id));
         const bundle = {
           ...b,
           tripId: data.tripId,
