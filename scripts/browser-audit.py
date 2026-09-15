@@ -1,121 +1,168 @@
-from playwright.sync_api import sync_playwright
-import requests, subprocess, tempfile, os, json, base64
+"""Local, isolated layout regression test; never modifies the user's API data.
+Uses the exported app, temporary static/API servers and a fresh Chrome context.
+External maps/fonts are stubbed: this checks layout, not provider integration.
+"""
+from playwright.sync_api import sync_playwright, expect
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from functools import partial
 from pathlib import Path
+from urllib.parse import urlsplit
+import requests, subprocess, tempfile, threading, os, json, sys
 
-root=str(Path(__file__).resolve().parents[1])
-def button(page, label): return page.get_by_role('button',name=label,exact=True)
-def field(page, label): return page.get_by_role('textbox',name=label,exact=True)
-with tempfile.TemporaryDirectory(prefix='moa-audit-qa-') as tmp:
-    env=dict(os.environ,DATA_FILE=tmp+'/state.json',PORT='0',QUIET='1')
-    env.pop('DATABASE_URL',None)
-    server=subprocess.Popen(['node','-e',"require('./apps/api/dist/main').bootstrap().then(a=>console.log(JSON.stringify({port:a.getHttpServer().address().port})))"],cwd=root,env=env,stdout=subprocess.PIPE,text=True)
+ROOT = Path(__file__).resolve().parents[1]
+def button(page, label): return page.get_by_role('button', name=label, exact=True)
+def field(page, label): return page.get_by_role('textbox', name=label, exact=True)
+
+class QuietStatic(SimpleHTTPRequestHandler):
+    def log_message(self, *args): pass
+    def handle(self):
+        try: super().handle()
+        except (BrokenPipeError, ConnectionResetError): pass
+
+def check_layout(page, name, output):
+    # Let React effects start sheet animations before waiting for them to finish.
+    page.evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))')
+    page.evaluate('Promise.all(document.getAnimations().filter(a=>a.effect.getComputedTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{})))')
+    assert not page.evaluate('document.documentElement.scrollWidth > innerWidth + 1'), name + ': page overflow'
+    # Horizontal carousels are intentionally clipped; vertical form/modal contents must fit.
+    offenders = page.evaluate("""() => [...document.querySelectorAll('input,button,[role="button"],[role="tab"]')].filter(e => {
+      const r=e.getBoundingClientRect(); if(!r.width || !r.height) return false;
+      let p=e.parentElement;
+      while(p) { const s=getComputedStyle(p); if(['auto','scroll','hidden'].includes(s.overflowX) && p.scrollWidth>p.clientWidth+1) return false; p=p.parentElement; }
+      return r.left < -1 || r.right > innerWidth+1;
+    }).map(e=>e.getAttribute('aria-label')||e.textContent)""")
+    assert not offenders, name + ': controls outside viewport ' + repr(offenders)
+    page.screenshot(path=str(output / (name + '.png')), full_page=False)
+
+with tempfile.TemporaryDirectory(prefix='moa-isolated-ui-') as tmp:
+    output = Path(tempfile.mkdtemp(prefix='moa-layout-results-'))
+    env=dict(os.environ, DATA_FILE=tmp+'/state.json', PORT='0', QUIET='1')
+    env.pop('DATABASE_URL', None)
+    static=ThreadingHTTPServer(('127.0.0.1', 0), partial(QuietStatic, directory=str(ROOT/'apps/mobile/dist')))
+    worker=threading.Thread(target=static.serve_forever, daemon=True); worker.start()
+    app_url='http://127.0.0.1:' + str(static.server_port)
+    server=subprocess.Popen(['node','-e',"require('./apps/api/dist/main').bootstrap().then(a=>console.log(JSON.stringify({port:a.getHttpServer().address().port})))"], cwd=ROOT, env=env, stdout=subprocess.PIPE, text=True)
     try:
-        port=json.loads(server.stdout.readline())['port']
-        base=f'http://localhost:{port}/api'
-        tokens={actor:requests.post(base+'/auth/demo',json={'provider':'DEMO','userId':actor}).json()['token'] for actor in ['u-me','u-min']}
-        headers={'Authorization':'Bearer '+tokens['u-me']}
-        fixture=json.loads(subprocess.check_output(['node','-e',r"""
-const w=require('zxing-wasm/writer'),fs=require('fs');const b=fs.readFileSync(require.resolve('zxing-wasm/writer/zxing_writer.wasm'));
-w.prepareZXingModule({overrides:{wasmBinary:b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength)}});
-const date=n=>new Date(Date.now()+n*86400000).toISOString().slice(0,10);
-const jd=d=>String(Math.round((Date.parse(d)-Date.parse(d.slice(0,4)+'-01-01'))/86400000)+1).padStart(3,'0');
-const make=async(from,to,d)=>{const r=await w.writeBarcode('M1'+'SAMPLE/TRAVELER'.padEnd(20)+'E'+'PNRDEMO'+from+to+'KE '+'00701'+jd(d)+'Y'+'001A'+'00001'+'1'+'00',{format:'QRCode',scale:5});return Buffer.from(await r.image.arrayBuffer()).toString('base64')};
-(async()=>console.log(JSON.stringify({out:await make('ICN','NRT',date(4)),back:await make('NRT','ICN',date(7))})))();
-"""],cwd=root,text=True))
+        api_url='http://127.0.0.1:' + str(json.loads(server.stdout.readline())['port'])
+        token=requests.post(api_url+'/api/auth/demo', json={'provider':'DEMO','userId':'u-me'}, timeout=10).json()['token']
         with sync_playwright() as p:
-            browser=p.chromium.launch(channel='chrome',headless=True)
-            for width,height in [(320,740),(360,800),(390,844),(430,932)]:
-                page=browser.new_page(viewport={'width':width,'height':height})
-                page.set_default_timeout(15000)
-                page.set_default_navigation_timeout(60000)
-                errors=[]
-                page.on('pageerror',lambda error:errors.append(str(error)))
-                page.route('**/api/**',lambda route:route.continue_(url=route.request.url.replace('localhost:4000',f'localhost:{port}')))
-                page.route('https://tile.openstreetmap.org/**',lambda route:route.fulfill(content_type='image/svg+xml',body='<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="#edf2f7"/></svg>'))
-                page.goto('http://localhost:8081',wait_until='domcontentloaded')
-                page.evaluate('(token)=>sessionStorage.setItem("moa-token",token)',tokens['u-me'])
-                page.goto('http://localhost:8081/#request-form?method=photo',wait_until='domcontentloaded')
-                page.reload(wait_until='domcontentloaded')
-                button(page,'치이카와 샘플로 인식 체험').click()
-                page.get_by_text('예시 상품을 채웠어요',exact=True).wait_for()
-                button(page,'수령 방법 정하기').click()
-                for label,value in [('받는 분','테스트 구매자'),('연락처','01012345678'),('우편번호','04524'),('주소','서울 중구 세종대로 110'),('상세 주소','테스트동 1203호')]:
-                    field(page,label).fill(value)
-                page.reload(wait_until='domcontentloaded')
-                assert field(page,'상세 주소').input_value()=='테스트동 1203호'
-                assert field(page,'연락처').input_value()=='01012345678'
-                page.get_by_text('한국 도착 후 어떻게 받을까요?',exact=True).wait_for()
-                assert not page.evaluate('document.documentElement.scrollWidth>innerWidth')
-                page.screenshot(path=f'/tmp/moa-audit-request-{width}.png')
-                button(page,'뒤로').click()
-                button(page,'수령 방법 정하기').click()
-                assert field(page,'상세 주소').input_value()=='테스트동 1203호'
-                button(page,'부탁 등록하기').click()
-                page.get_by_text('여행자의 수락을 기다려요',exact=False).wait_for()
-                assert page.evaluate('sessionStorage.getItem("moa-request-draft-v1")') is None
-                page.goto('http://localhost:8081/#trip-form',wait_until='domcontentloaded')
-                button(page,'일정 저장하고 항공권 인증하기').click()
-                page.get_by_text('가는 편도, 오는 편도',exact=False).wait_for()
-                for label,key in [('가는 편 항공권 사진 올리기','out'),('오는 편 항공권 사진 올리기','back')]:
-                    with page.expect_file_chooser() as chooser: button(page,label).click()
-                    chooser.value.set_files({'name':'synthetic-boarding-qr.png','mimeType':'image/png','buffer':base64.b64decode(fixture[key])})
-                page.get_by_role('checkbox',name='항공권의 개인정보를 일정 대조에 사용하는 데 동의해요 (필수)',exact=True).click()
-                button(page,'항공권 인식하고 일정 대조하기').click()
-                page.get_by_text('최근 항공권 대조 결과',exact=True).wait_for()
-                page.get_by_text('일정 대조 완료 · 발권 확인 대기',exact=True).wait_for()
-                assert button(page,'가는 편 항공권 사진 올리기').count()==1
-                assert page.get_by_text('SAMPLE/TRAVELER',exact=False).count()==0
-                assert not page.evaluate('document.documentElement.scrollWidth>innerWidth')
-                page.screenshot(path=f'/tmp/moa-audit-flight-{width}.png')
-                trip_id=page.url.split('/')[-1]
-                page.goto(f'http://localhost:8081/#offer-form?requestId=r-2&tripId={trip_id}',wait_until='domcontentloaded')
-                button(page,'먼저 왕복 항공권 인증하기').click()
-                page.get_by_text('최근 항공권 대조 결과',exact=True).wait_for()
-                page.goto('http://localhost:8081/#my',wait_until='domcontentloaded')
-                assert not page.evaluate('document.documentElement.scrollWidth>innerWidth')
-                page.screenshot(path=f'/tmp/moa-audit-my-{width}.png')
-                page.goto('http://localhost:8081/#request/%E0%A4%A',wait_until='domcontentloaded')
-                button(page,'사고 싶어요').click()
-                page.get_by_text('찾으시는 물건을',exact=False).wait_for()
-                assert not errors,errors
-                print(json.dumps({'width':width,'draft_reload_back':'PASS','registration':'PASS','flight_upload_private_pending':'PASS','verification_gate':'PASS','my_overflow':'PASS','malformed_route':'PASS'}),flush=True)
-                page.close()
-            # Hold an old account snapshot until after switching accounts.
-            page=browser.new_page(viewport={'width':390,'height':844})
-            page.route('**/api/**',lambda route:route.continue_(url=route.request.url.replace('localhost:4000',f'localhost:{port}')))
-            page.goto('http://localhost:8081',wait_until='domcontentloaded')
-            page.evaluate('(token)=>sessionStorage.setItem("moa-token",token)',tokens['u-me'])
-            page.goto('http://localhost:8081/#request-form',wait_until='domcontentloaded')
-            page.reload(wait_until='domcontentloaded')
-            button(page,'예시 링크로 빠르게 채우기').click()
-            page.get_by_text('예시 상품을 채웠어요',exact=True).wait_for()
-            page.evaluate('location.hash="#settings"')
-            button(page,'최신 상태 다시 가져오기').wait_for()
-            held=[]
-            old_snapshot=requests.get(base+'/snapshot',headers=headers).json()
-            def hold_once(route):
-                if not held: held.append(route)
-                else: route.continue_(url=route.request.url.replace('localhost:4000',f'localhost:{port}'))
-            page.route('**/api/snapshot',hold_once)
-            button(page,'최신 상태 다시 가져오기').click()
-            button(page,'민트로드 계정 체험').click()
-            page.get_by_text('현재 계정: 민트로드.',exact=False).wait_for()
-            held[0].fulfill(json=old_snapshot)
-            page.wait_for_timeout(300)
-            assert page.get_by_text('현재 계정: 민트로드.',exact=False).count()==1
-            assert page.evaluate('sessionStorage.getItem("moa-request-draft-v1")') is None
-            page.unroute('**/api/snapshot',hold_once)
-            held.clear()
-            page.route('**/api/snapshot',hold_once)
-            button(page,'최신 상태 다시 가져오기').click()
-            button(page,'체험 로그아웃').click()
-            button(page,'사고 싶어요').wait_for()
-            held[0].fulfill(json=old_snapshot)
-            page.wait_for_timeout(300)
-            assert button(page,'사고 싶어요').count()==1
-            assert page.evaluate('sessionStorage.getItem("moa-token")') is None
-            print('PASS: late previous-account snapshot cannot replace new account or resurrect logout; private draft cleared',flush=True)
-            page.close()
-            browser.close()
+            browser=p.chromium.launch(channel='chrome', headless=True)
+            try:
+                for width,height in [(360,800),(390,844),(548,734)]:
+                    context=browser.new_context(viewport={'width':width,'height':height}, reduced_motion='reduce')
+                    page=context.new_page(); page.set_default_timeout(10000)
+                    errors=[]
+                    meetup_fixture={'searchAvailable': False}
+                    page.on('pageerror', lambda error: errors.append(str(error)))
+                    def route_local(route):
+                        url=urlsplit(route.request.url)
+                        if url.netloc==urlsplit(app_url).netloc and url.path.startswith('/api/'):
+                            if url.path=='/api/meetup/status':
+                                route.fulfill(json={'searchAvailable':meetup_fixture['searchAvailable'],'countries':['KR']}); return
+                            if url.path=='/api/meetup/search':
+                                route.fulfill(json={'results':[{'providerId':'qa-only','name':'서울역 테스트 만남 장소','address':'테스트 주소','latitude':37.55,'longitude':126.97,'detail':''}]}); return
+                            target=api_url+url.path+('?' + url.query if url.query else '')
+                            response=route.fetch(url=target)
+                            route.fulfill(response=response)
+                        elif url.netloc==urlsplit(app_url).netloc:
+                            route.continue_()
+                        else:
+                            if route.request.resource_type=='script':
+                                route.fulfill(status=503, content_type='text/javascript', body='')
+                            elif route.request.resource_type=='stylesheet':
+                                route.fulfill(status=200, content_type='text/css', body='')
+                            else:
+                                route.fulfill(status=200, content_type='text/html', body='<html lang="ko"><body style="background:#eaf2ff">테스트용 외부 지도</body></html>')
+                    page.route('**/*', route_local)
+                    page.goto(app_url)
+                    page.evaluate('(token)=>sessionStorage.setItem("moa-token",token)', token)
+                    def go(route): page.goto(app_url+'/#'+route); page.reload()
+                    go('home')
+                    expect(button(page,'링크로 찾기')).to_be_visible()
+                    check_layout(page, 'home-'+str(width), output)
+                    go('request-form?placeId=p-station')
+                    button(page,'예시 링크로 빠르게 채우기').click()
+                    expect(page.get_by_text('예시 상품을 채웠어요', exact=True)).to_be_visible()
+                    button(page,'수령 방법 정하기').click()
+                    field(page,'여행자 보상 (원)').fill('5000')
+                    button(page,'부탁 등록하기').scroll_into_view_if_needed()
+                    check_layout(page, 'request-'+str(width), output)
+                    page.reload()
+                    expect(field(page,'여행자 보상 (원)')).to_have_value('5000')
+                    button(page,'뒤로').click()
+                    button(page,'수령 방법 정하기').click()
+                    expect(field(page,'여행자 보상 (원)')).to_have_value('5000')
+                    button(page,'희망 수령일 달력 열기').click()
+                    check_layout(page, 'request-date-'+str(width), output)
+                    button(page,'희망 수령일 달력 열기').click()
+                    button(page,'직접 전달 · 무료').click()
+                    expect(page.get_by_role('textbox', name='장소 검색', exact=True)).to_be_visible()
+                    expect(button(page,'장소 검색하기')).to_be_disabled()
+                    expect(page.get_by_text('이 환경에서는 장소 이름 검색이 아직 연결되지 않았어요. 아래 지도에서 위치를 지정할 수 있어요.',exact=True)).to_be_visible()
+                    button(page,'닫기').click()
+                    expect(button(page,'국내 택배 · ₩3,500')).to_have_attribute('aria-pressed','true')
+                    meetup_fixture['searchAvailable']=True
+                    button(page,'직접 전달 · 무료').click()
+                    field(page,'장소 검색').fill('서울역')
+                    expect(button(page,'장소 검색하기')).to_be_enabled()
+                    button(page,'장소 검색하기').click()
+                    button(page,'서울역 테스트 만남 장소 지도에서 확인').click()
+                    field(page,'만나는 위치 상세 설명').fill('1번 출구 앞')
+                    button(page,'이 위치에서 만날게요').click()
+                    expect(page.get_by_text('직거래 위치가 저장됐어요',exact=True)).to_be_visible()
+                    button(page,'직거래 위치 변경').click()
+                    field(page,'만나는 위치 상세 설명').fill('취소할 편집')
+                    check_layout(page, 'meetup-'+str(width), output)
+                    button(page,'닫기').click()
+                    expect(page.get_by_text('1번 출구 앞',exact=True)).to_be_visible()
+                    page.reload()
+                    expect(page.get_by_text('1번 출구 앞',exact=True)).to_be_visible()
+                    stored=page.evaluate('JSON.parse(sessionStorage.getItem("moa-request-draft-v1")).draft')
+                    assert stored['meetupPoint']['latitude']==37.55
+                    assert stored['meetupPoint']['detail']=='1번 출구 앞'
+                    assert stored['transport']=='MEETUP'
+                    go('trip-form')
+                    button(page,'여행지 선택 열기').click()
+                    page.get_by_role('checkbox',name='도쿄 선택',exact=True).click()
+                    page.get_by_role('checkbox',name='이시가키섬 선택',exact=True).click()
+                    button(page,'2곳 선택 완료').click()
+                    button(page,'방문 예정지 선택').click()
+                    page.get_by_role('checkbox',name='시부야 PARCO 방문',exact=True).click()
+                    page.get_by_role('checkbox',name='도쿄역 캐릭터 스트리트 방문',exact=True).click()
+                    page.get_by_role('checkbox',name='유글레나 몰 방문',exact=True).click()
+                    button(page,'3곳을 일정에 저장').click()
+                    page.reload()
+                    expect(page.get_by_text('시부야 PARCO · 도쿄역 캐릭터 스트리트 · 유글레나 몰',exact=True)).to_be_visible()
+                    check_layout(page, 'trip-'+str(width), output)
+                    button(page,'여행 날짜 선택').click()
+                    expect(page.get_by_text('가는 날부터 차례로 선택해주세요.',exact=True)).to_be_visible()
+                    footer=page.get_by_role('button',name=__import__('re').compile(' — .* 확인$'))
+                    expect(footer).to_be_in_viewport(ratio=1)
+                    check_layout(page, 'trip-dates-'+str(width), output)
+                    box=footer.bounding_box()
+                    assert box and box['y']>=0 and box['y']+box['height']<=height, 'calendar footer must remain visible'
+                    button(page,'닫기').click()
+                    go('search')
+                    page.get_by_role('tab',name='지도',exact=True).click()
+                    check_layout(page, 'map-'+str(width), output)
+                    go('my')
+                    expect(button(page,'이용 모드 설정')).to_be_visible()
+                    check_layout(page, 'my-'+str(width), output)
+                    button(page,'이용 모드 설정').click()
+                    button(page,'여행하기 모드로 전환').click()
+                    go('home')
+                    check_layout(page, 'traveler-home-'+str(width), output)
+                    go('trades')
+                    check_layout(page, 'trades-'+str(width), output)
+                    assert not errors, errors
+                    print(json.dumps({'width':width,'request_reload_back':'PASS','meetup_search_save_cancel':'PASS','trip_draft':'PASS','calendar_footer':'PASS','layout':'PASS','runtime':'PASS'}), flush=True)
+                    context.close()
+            finally:
+                if sys.exc_info()[0] is not None and not page.is_closed():
+                    page.screenshot(path=str(output/'failure.png'))
+                    print('Failure page: '+page.url+'\n'+page.locator('body').inner_text()[-2400:],flush=True)
+                browser.close()
     finally:
-        server.terminate();server.wait(timeout=10)
+        print('Screenshots: '+str(output), flush=True)
+        server.terminate(); server.wait(timeout=10)
+        static.shutdown(); static.server_close()

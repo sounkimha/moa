@@ -11,11 +11,15 @@ const responseSchema = z.object({ documents: z.array(z.object({
 @Controller('meetup')
 @UseGuards(AuthGuard)
 export class MeetupController {
+  @Get('status')
+  status() {
+    return { searchAvailable: Boolean(process.env.KAKAO_REST_API_KEY?.trim()), countries: ['KR'] };
+  }
   @Get('search')
   async search(@Query() query: unknown) {
     const { q } = parse(querySchema, query);
     const key = process.env.KAKAO_REST_API_KEY;
-    if (!key) throw new ServiceUnavailableException('장소 검색 연결이 아직 준비되지 않았어요. 서버의 카카오 로컬 API 키 설정이 필요해요.');
+    if (!key?.trim()) throw new ServiceUnavailableException('장소 검색 연결이 아직 준비되지 않았어요. 지도에서 만날 위치를 지정해주세요.');
     try {
       const url = new URL('https://dapi.kakao.com/v2/local/search/keyword.json');
       url.search = new URLSearchParams({ query: q, size: '10' }).toString();

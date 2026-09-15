@@ -30,7 +30,9 @@ export function seedDatabase(now = new Date()): Database {
     successRate: successRate as number | null,
     responseMinutes: responseMinutes as number,
     lastActive: createdAt,
-    verificationLabels: ['휴대폰', '계좌', '여행 일정'],
+    verificationLabels: id === 'u-me'
+      ? ['휴대폰', '계좌', '여행 일정']
+      : ['휴대폰', '계좌', '본인 인증', '여행 일정'],
   }));
   const places: Place[] = [
     {
@@ -256,6 +258,7 @@ export function seedDatabase(now = new Date()): Database {
       localPrice: p.localPrice,
       currency: p.currency,
       quantity: i === 2 ? 2 : 1,
+      requestedReward: [3500, 4000, 5000, 2500, 3000, 2000, 6000, 3000, 4500, 3000, 3500, 5000, 2500, 2000, 3000][i],
       desiredDate: day(18 + (i % 3)),
       deliveryCountry: 'KR',
       deliveryCity: '서울',
@@ -295,7 +298,7 @@ export function seedDatabase(now = new Date()): Database {
       requestId: 'r-1',
       travelerId: u.id,
       tripId: `trip-${u.id}`,
-      reward: [7000, 5500, 9000][i],
+      reward: requests[0].requestedReward!,
       estimatedPurchaseDate: day(5),
       estimatedDeliveryDate: day(13 - i),
       message: [
@@ -307,10 +310,10 @@ export function seedDatabase(now = new Date()): Database {
       status: 'PENDING' as const,
     }));
   const verifications = users.flatMap((u) =>
-    ['PHONE', 'ACCOUNT', 'TRIP'].map((kind, i) => ({
+    (u.id === 'u-me' ? ['PHONE', 'ACCOUNT', 'TRIP'] : ['PHONE', 'ACCOUNT', 'IDENTITY', 'TRIP']).map((kind, i) => ({
       ...base(`verify-${u.id}-${i}`),
       userId: u.id,
-      kind: kind as 'PHONE' | 'ACCOUNT' | 'TRIP',
+      kind: kind as 'PHONE' | 'ACCOUNT' | 'IDENTITY' | 'TRIP',
       status: 'DEMO_VERIFIED' as const,
       providerRef: 'demo-only',
     })),

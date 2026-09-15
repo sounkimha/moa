@@ -1,18 +1,15 @@
-import React, { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, Easing, Pressable, View } from 'react-native';
 import {
   ArrowRight,
-  Calendar,
-  Check,
   CheckCircle2,
   ChevronRight,
   Clock,
   Layers,
   MapPin,
-  MessageCircle,
+  Plane,
   ShieldCheck,
   Star,
-  Wallet,
 } from 'lucide-react-native';
 import {
   groupForTrip,
@@ -22,12 +19,13 @@ import {
   shortDate,
   STATUS_LABEL,
   Transaction,
+  Trip,
+  Place,
   TravelerOffer,
   Transport,
   TRANSPORT_LABEL,
   countryName,
   MAX_DEMO_REWARD,
-  rewardCommission,
   canAcceptTrip,
   TRIP_VERIFICATION_LABEL,
 } from '@moa/domain';
@@ -51,7 +49,39 @@ import {
   Stack,
   Txt,
 } from '../components/ui';
-import { Avatar, AvatarStack, MoneyBreakdown, ProductArt, ProductRow } from '../components/visuals';
+import { Avatar, MoneyBreakdown, ProductArt, ProductRow } from '../components/visuals';
+
+function TravelerSchedule({ trip, places }: { trip: Trip; places: Place[] }) {
+  const progress = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const motion = Animated.loop(Animated.sequence([
+      Animated.timing(progress, { toValue: 1, duration: 1900, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(progress, { toValue: 0, duration: 1900, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+    ]));
+    motion.start();
+    return () => motion.stop();
+  }, [progress]);
+  const cities = [...new Set(places.map((place) => place.city))];
+  return (
+    <View accessibilityLabel={`${trip.departureCity}에서 ${cities.join(' · ') || trip.destinationCity} 왕복 일정`} style={{ padding: 16, borderRadius: 16, backgroundColor: c.canvas, gap: 12, overflow: 'hidden' }}>
+      <Row style={{ justifyContent: 'space-between' }}>
+        <View><Txt size={12} color={c.secondary}>출발</Txt><Txt weight="700">{trip.departureCity}</Txt></View>
+        <View style={{ alignItems: 'flex-end' }}><Txt size={12} color={c.secondary}>여행지</Txt><Txt weight="700">{cities.join(' · ') || trip.destinationCity}</Txt></View>
+      </Row>
+      <View style={{ height: 34, justifyContent: 'center' }}>
+        <View style={{ height: 2, marginHorizontal: 7, backgroundColor: c.border }} />
+        <View style={{ position: 'absolute', left: 2, width: 8, height: 8, borderRadius: 4, backgroundColor: c.green }} />
+        <View style={{ position: 'absolute', right: 2, width: 8, height: 8, borderRadius: 4, backgroundColor: c.green }} />
+        <Animated.View style={{ position: 'absolute', left: 7, width: 30, height: 30, borderRadius: 15, backgroundColor: c.paper, alignItems: 'center', justifyContent: 'center', transform: [{ translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [0, 190] }) }, { rotate: progress.interpolate({ inputRange: [0, 0.49, 0.5, 1], outputRange: ['0deg', '0deg', '180deg', '180deg'] }) }] }}>
+          <Plane size={17} color={c.green} fill={c.mint} />
+        </Animated.View>
+      </View>
+      <Row style={{ justifyContent: 'space-between' }}><Txt size={13} color={c.secondary}>{shortDate(trip.startDate)} 출발</Txt><Txt size={13} color={c.secondary}>{shortDate(trip.endDate)} 귀국</Txt></Row>
+      <Txt size={13} color={c.secondary} lines={2}>방문 예정 · {places.map((place) => place.name).join(' · ')}</Txt>
+      <Row style={{ gap: 6 }}><ShieldCheck size={15} color={c.green} /><Txt size={12} color={c.green}>{TRIP_VERIFICATION_LABEL[trip.verificationStatus]}</Txt></Row>
+    </View>
+  );
+}
 
 export function RequestScreen() {
   const a = useApp(),
@@ -68,20 +98,22 @@ export function RequestScreen() {
         />
       </Page>
     );
-  const p = d.places.find((x) => x.id === r.placeId)!,
+  const p = d.places.find((x) => x.id === r.placeId),
     mine = r.requesterId === d.me.id,
     offers = d.offers.filter((o) => o.requestId === r.id && o.status === 'PENDING'),
     transaction = d.transactions.find((t) => t.requestId === r.id);
+  if (!p) return <Page title="부탁 상세"><Empty title="구매 장소를 불러오지 못했어요" body="이전 화면에서 부탁을 다시 확인해주세요." action="둘러보기" onPress={() => a.tab('search')} /></Page>;
   const active = ['REQUESTED', 'OFFER_RECEIVED'].includes(r.status);
+  const alreadyAccepted = offers.some((offer) => offer.travelerId === d.me.id);
   const act = () =>
     transaction
-      ? a.nav(transaction.status === 'MATCHED' ? 'payment' : 'transaction', { id: transaction.id })
+      ? a.nav(transaction.status === 'MATCHED' && mine ? 'payment' : 'transaction', { id: transaction.id })
       : mine
         ? a.nav('offers', { id: r.id })
         : a.nav('offer-form', { id: r.id });
   return (
     <Page
-      title="이 부탁, 함께 볼까요?"
+      title="부탁 상세"
       footer={
         <Button
           label={
@@ -89,9 +121,9 @@ export function RequestScreen() {
               ? '거래 이어가기'
               : mine
                 ? `수락한 여행자 보기 · ${offers.length}명`
-                : '이 부탁 수락하기'
+                : alreadyAccepted ? '수락을 보냈어요' : '이 부탁 수락하기'
           }
-          disabled={!active && !transaction}
+          disabled={(!active && !transaction) || (alreadyAccepted && !transaction)}
           icon={ArrowRight}
           onPress={act}
         />
@@ -99,9 +131,9 @@ export function RequestScreen() {
     >
       <View
         style={{
-          backgroundColor: c.mint,
-          borderRadius: 26,
-          padding: 25,
+          backgroundColor: c.canvas,
+          borderRadius: 20,
+          padding: 20,
           alignItems: 'center',
           gap: 10,
         }}
@@ -123,15 +155,16 @@ export function RequestScreen() {
             {countryName(r.country)} · {r.city}
           </Txt>
         </Row>
-        <Txt size={27} weight="800">
+        <Txt size={24} weight="700">
           {r.productName}
         </Txt>
         <Txt size={24} weight="700">
-          {localMoney(r.localPrice, r.currency)}{' '}
+          {money(quote({ ...r, quantity: 1 }, 0, r.transport).productPrice)}{' '}
           <Txt size={14} color={c.secondary}>
             / 1개
           </Txt>
         </Txt>
+        <Txt size={13} color={c.secondary}>{localMoney(r.localPrice, r.currency)} · 현지 상품가 기준</Txt>
       </Stack>
       <Pressable accessibilityRole="button" onPress={() => a.nav('place', { id: p.id })}>
         <Card>
@@ -140,7 +173,7 @@ export function RequestScreen() {
             <View style={{ flex: 1 }}>
               <Txt weight="700">{p.name}</Txt>
               <Txt size={12} color={c.secondary}>
-                예시 방문 예정자 {p.visitors}명
+                {p.city} · {p.region}
               </Txt>
             </View>
             <ChevronRight size={20} />
@@ -149,11 +182,9 @@ export function RequestScreen() {
       </Pressable>
       <Card style={{ backgroundColor: c.canvas }}>
         <Stack gap={10}>
-          <Row><MapPin size={20} color={c.green} /><Txt weight="700">구매 위치와 재고 확인</Txt></Row>
-          <Txt size={14}>{p.city} {p.region} · {p.name}</Txt>
-          <Txt size={12} color={c.secondary}>위치 분석 {p.latitude.toFixed(4)}, {p.longitude.toFixed(4)} · 여행 동선 계산에 사용</Txt>
+          <Row><MapPin size={20} color={c.green} /><Txt weight="700">방문 전 확인해요</Txt></Row>
           <Badge bg={r.inventoryStatus === 'IN_STOCK' ? c.mint : r.inventoryStatus === 'OUT_OF_STOCK' ? c.dangerBg : c.butter} color={r.inventoryStatus === 'OUT_OF_STOCK' ? c.danger : c.ink}>{r.inventoryStatus === 'IN_STOCK' ? '링크 재고 있음' : r.inventoryStatus === 'OUT_OF_STOCK' ? '링크 품절' : r.inventoryStatus === 'PREORDER' ? '예약 판매' : '재고 확인 필요'}</Badge>
-          <Txt size={12} color={c.secondary}>상품 링크의 구조화된 재고 정보가 있으면 자동 판독해요. 정보가 없는 매장은 여행자가 방문 전 판매처 링크나 전화로 확인해야 해요.</Txt>
+          <Txt size={13} color={c.secondary}>온라인 재고와 매장 재고는 다를 수 있어요. 방문 전 판매처에서 확인해주세요.</Txt>
         </Stack>
       </Card>
       <Card>
@@ -161,7 +192,6 @@ export function RequestScreen() {
           {[
             ['수량', `${r.quantity}개`],
             ['옵션', r.option || '기본 옵션'],
-            [transaction ? '총 결제금액' : '보상 제외 금액', money(transaction?.totalPrice ?? quote(r, 0, r.transport).totalPrice)],
             ['희망 수령일', r.desiredDate],
             ['수령지', `${countryName(r.deliveryCountry)} · ${r.deliveryCity}`],
             ['귀국 후 수령 방법', TRANSPORT_LABEL[r.transport]],
@@ -188,22 +218,10 @@ export function RequestScreen() {
       <Stack gap={14}>
         {r.transport === 'MEETUP' && <MeetupSummary point={r.meetupPoint} />}
         <ProductOriginal text={r.originalText} />
-        <Section title="예상 금액, 한눈에" subtitle="여행자가 보상금을 직접 제안하고, 구매자는 총액을 확인한 뒤 결제해요." />
-        <MoneyBreakdown price={transaction || quote(r, 0, r.transport)} rewardPending={!transaction} />
-        <Notice>
-          여행자가 돌아오는 길에 직접 가져와요. 귀국 후 국내 택배 예상 3,500원 또는 직거래 0원으로 전달해요.
-        </Notice>
+        <Section title="예상 결제금액" subtitle={r.requestedReward !== undefined ? '구매자가 정한 보상을 포함했어요.' : '이전 부탁은 여행자의 보상을 확인한 뒤 결제해요.'} />
+        <MoneyBreakdown price={transaction || quote(r, r.requestedReward ?? 0, r.transport)} rewardPending={!transaction && r.requestedReward === undefined} />
+        <Txt size={13} color={c.secondary}>여행자가 직접 가져와 귀국 후 전달해요.</Txt>
       </Stack>
-      <Notice>
-        직구 비교 정보 확인 필요 · 실제 비교 견적 없이 절약 금액을 표시하지 않아요. 매칭 시간은 첫
-        거래 데이터를 모은 뒤 안내해요.
-      </Notice>
-      <Row>
-        <AvatarStack users={d.users.filter((u) => u.id !== d.me.id)} />
-        <Txt size={13} color={c.secondary}>
-          가격뿐 아니라 일정과 후기도 함께 살펴봐요.
-        </Txt>
-      </Row>
     </Page>
   );
 }
@@ -212,6 +230,7 @@ export function OffersScreen() {
     d = a.data!,
     r = d.requests.find((x) => x.id === a.route.id);
   const [sort, setSort] = useState('추천순');
+  const [openTrip, setOpenTrip] = useState<string | null>(null);
   if (!r)
     return (
       <Page title="수락한 여행자">
@@ -219,7 +238,7 @@ export function OffersScreen() {
       </Page>
     );
   const offers = d.offers
-    .filter((o) => o.requestId === r.id && o.status === 'PENDING')
+    .filter((o) => o.requestId === r.id && o.status === 'PENDING' && d.users.some((u) => u.id === o.travelerId))
     .sort((a, b) =>
       sort === '낮은 보상순'
         ? a.reward - b.reward
@@ -228,6 +247,7 @@ export function OffersScreen() {
           : d.users.find((u) => u.id === b.travelerId)!.completed -
             d.users.find((u) => u.id === a.travelerId)!.completed,
     );
+  if (r.requesterId !== d.me.id) return <Page title="수락한 여행자"><Empty title="내가 보낸 부탁에서 확인할 수 있어요" action="부탁 상세 보기" onPress={() => a.nav('request', { id: r.id })} /></Page>;
   const select = async (o: TravelerOffer) => {
     const result = await a.mutate<Transaction>(
       `/offers/${o.id}/accept`,
@@ -238,21 +258,17 @@ export function OffersScreen() {
   };
   return (
     <Page title="누가 가져올까요?">
-      <Stack gap={8}>
-        <Txt size={28} weight="800">
-          가는 길의 여행자,{'\n'}
-          {offers.length}명이 가져오겠다고 했어요.
-        </Txt>
-        <Txt color={c.secondary}>보상, 도착일, 거래 경험을 함께 비교해요.</Txt>
-      </Stack>
+      <Txt color={c.secondary}>{offers.length}명의 일정과 거래 경험을 확인해보세요.</Txt>
       <ProductRow request={r} onPress={() => a.nav('request', { id: r.id })} />
       <Row style={{ flexWrap: 'wrap' }}>
-        {['추천순', '낮은 보상순', '빠른 수령순'].map((v) => (
+        {(r.requestedReward === undefined ? ['추천순', '낮은 보상순', '빠른 수령순'] : ['추천순', '빠른 수령순']).map((v) => (
           <Chip key={v} label={v} selected={sort === v} onPress={() => setSort(v)} />
         ))}
       </Row>
       {offers.map((o, i) => {
         const u = d.users.find((x) => x.id === o.travelerId)!;
+        const trip = d.trips.find((item) => item.id === o.tripId);
+        const places = trip ? trip.placeIds.map((id) => d.places.find((place) => place.id === id)).filter((place): place is Place => Boolean(place)) : [];
         return (
           <Card key={o.id} style={i === 0 ? { borderColor: c.green, borderWidth: 1.5 } : undefined}>
             <Stack gap={17}>
@@ -302,6 +318,8 @@ export function OffersScreen() {
               <Txt size={14} color={c.secondary}>
                 {o.message}
               </Txt>
+              {trip && <Button small kind="secondary" label={openTrip === o.id ? '일정 접기' : '일정 보기'} icon={Plane} onPress={() => setOpenTrip(openTrip === o.id ? null : o.id)} />}
+              {trip && openTrip === o.id && <TravelerSchedule trip={trip} places={places} />}
               <Divider />
               <Row style={{ justifyContent: 'space-between' }}>
                 <Txt size={13} color={c.secondary}>
@@ -312,6 +330,7 @@ export function OffersScreen() {
               <Button
                 label={`${u.nickname}님과 함께하기`}
                 loading={a.busy}
+                disabled={!canAcceptTrip(trip) || !['REQUESTED', 'OFFER_RECEIVED'].includes(r.status) || o.estimatedPurchaseDate < new Date().toISOString().slice(0, 10)}
                 onPress={() => select(o)}
               />
             </Stack>
@@ -474,16 +493,16 @@ export function BundleScreen() {
           </Txt>
         </Row>
       </Stack>
-      <Card style={{ backgroundColor: c.lime, borderWidth: 0 }}>
+      <Card style={{ backgroundColor: c.mint, borderWidth: 0 }}>
         <Stack gap={10}>
           <Row style={{ justifyContent: 'space-between' }}>
             <Txt size={14}>선택한 {requests.length}건의 보상금</Txt>
             <Layers size={22} />
           </Row>
-          <Txt size={35} weight="800">
-            직접 제안해요
+          <Txt size={28} weight="700">
+            {money(requests.reduce((sum, request) => sum + (request.requestedReward ?? 0), 0))}
           </Txt>
-          <Txt size={12}>다음 화면에서 부탁별로 원하는 금액을 입력해요. 정산 시 보상의 10%가 운영 수수료로 공제돼요.</Txt>
+          <Txt size={13} color={c.secondary}>{requests.some((request) => request.requestedReward === undefined) ? '보상이 미정인 이전 부탁은 다음 화면에서 확인해요.' : '구매자가 정한 보상이에요.'}</Txt>
           <Divider />
           <Txt size={14}>
             상품 {items}개 · 선지출 {money(advance)}
@@ -508,6 +527,7 @@ export function BundleScreen() {
           <Pressable
             key={r.id}
             accessibilityRole="checkbox"
+            aria-checked={selected.includes(r.id)}
             accessibilityState={{ checked: selected.includes(r.id) }}
             accessibilityLabel={r.productName}
             onPress={() =>
@@ -539,7 +559,7 @@ export function BundleScreen() {
                   {r.quantity}개 · {shortDate(r.desiredDate)}까지
                 </Txt>
                 <Txt size={13} color={c.green}>
-                  상품·전달비 {money(quote(r, 0, r.transport).totalPrice)} · 보상 별도
+                  {r.requestedReward === undefined ? '보상 미정' : `보상 ${money(r.requestedReward)}`}
                 </Txt>
               </Stack>
               {selected.includes(r.id) ? (
@@ -572,19 +592,22 @@ export function BundleScreen() {
 export function OfferForm() {
   const a = useApp(),
     d = a.data!;
-  const ids = a.route.requestIds || [a.route.id!];
+  const ids = [...new Set(a.route.requestIds || [a.route.id!])];
   const requests = d.requests.filter((r) => ids.includes(r.id));
   const first = requests[0];
   const trips = d.trips.filter(
-    (t) => t.travelerId === d.me.id && first && t.placeIds.includes(first.placeId),
+    (t) => t.travelerId === d.me.id && first && t.endDate >= new Date().toISOString().slice(0, 10) && requests.every((request) =>
+      t.placeIds.includes(request.placeId) && t.destinationCountry === request.country &&
+      t.departureCountry === request.deliveryCountry && (request.transport !== 'MEETUP' || t.departureCity === request.deliveryCity) &&
+      t.endDate <= request.desiredDate),
   );
-  const [tripId, setTripId] = useState(a.route.tripId || trips.at(-1)?.id || '');
+  const [tripId, setTripId] = useState(trips.find((item) => item.id === a.route.tripId)?.id || trips.at(-1)?.id || '');
   const trip = trips.find((t) => t.id === tripId);
   const suggestedDelivery = (endDate: string) => {
     const candidate = new Date(new Date(endDate).getTime() + 5 * 86400000).toISOString().slice(0, 10);
     return requests.reduce((date, request) => request.desiredDate < date ? request.desiredDate : date, candidate);
   };
-  const [purchase, setPurchase] = useState(trip?.startDate || ''),
+  const [purchase, setPurchase] = useState(trip ? (trip.startDate > new Date().toISOString().slice(0, 10) ? trip.startDate : new Date().toISOString().slice(0, 10)) : ''),
     [delivery, setDelivery] = useState(
       trip
         ? suggestedDelivery(trip.endDate)
@@ -596,36 +619,95 @@ export function OfferForm() {
     [transport] = useState<Transport>(first?.transport || 'DOMESTIC_PARCEL');
   const [agree, setAgree] = useState(false);
   const [rewards, setRewards] = useState<Record<string, string>>({});
+  const [identityStarted, setIdentityStarted] = useState(false);
+  const [identityName, setIdentityName] = useState('');
+  const [identityPhone, setIdentityPhone] = useState('');
+  const [identityBirth, setIdentityBirth] = useState('');
+  const [identityConsent, setIdentityConsent] = useState(false);
   const rewardFor = (id: string) => {
+    const requestedReward = requests.find((request) => request.id === id)?.requestedReward;
+    if (requestedReward !== undefined) return requestedReward;
     const input = (rewards[id] || '').replace(/,/g, '').trim();
     const value = Number(input);
     return /^\d+$/.test(input) && Number.isSafeInteger(value) && value <= MAX_DEMO_REWARD
       ? value : undefined;
   };
-  if (!first)
+  if (!first || requests.length !== ids.length)
     return (
       <Page title="부탁 수락하기">
-        <Empty />
+        <Empty title="선택한 부탁을 다시 확인해주세요" body="일부 부탁 정보를 불러오지 못했어요." action="가는 길의 부탁 보기" onPress={() => a.tab('home')} />
       </Page>
     );
   if (!trips.length)
     return (
       <Page title="부탁 수락하기">
         <Empty
-          title="먼저 방문 일정을 등록해주세요"
-          body="예정된 방문 장소의 부탁만 수락할 수 있어요."
+          title="이 부탁과 맞는 여행 일정이 없어요"
+          body="방문 장소, 귀국 도시와 수령일이 맞는 일정을 등록해주세요."
           action="여행 등록"
           onPress={() => a.nav('trip-form')}
         />
       </Page>
     );
+  const identityVerified = d.me.verificationLabels.includes('본인 인증');
+  if (!identityVerified) {
+    const identityValid = identityName.trim().length >= 2 && /^01[016789]-?\d{3,4}-?\d{4}$/.test(identityPhone) && /^\d{6}$/.test(identityBirth) && identityConsent;
+    const verifyIdentity = async () => {
+      if (!identityValid) return;
+      await a.mutate('/auth/identity/verify', {
+        name: identityName,
+        phone: identityPhone,
+        birthDate: identityBirth,
+        consent: identityConsent,
+      }, '본인인증을 완료했어요. 이제 부탁을 수락할 수 있어요.');
+    };
+    return (
+      <Page
+        title="본인인증"
+        footer={
+          <Button
+            label={identityStarted ? '본인인증 완료하기' : '본인인증 시작하기'}
+            icon={ShieldCheck}
+            disabled={identityStarted && !identityValid}
+            loading={a.busy}
+            onPress={() => identityStarted ? void verifyIdentity() : setIdentityStarted(true)}
+          />
+        }
+      >
+        <Stack gap={8}>
+          <Badge>여행자 필수</Badge>
+          <Txt size={28} weight="800">본인인증부터{`\n`}진행할게요</Txt>
+          <Txt size={15} color={c.secondary}>구매자가 안심하고 부탁할 수 있도록 한 번만 확인해요.</Txt>
+        </Stack>
+        {!identityStarted ? (
+          <Stack gap={10}>
+            <Card><Row><ShieldCheck size={22} color={c.green} /><View style={{ flex: 1 }}><Txt weight="700">본인 여부 확인</Txt><Txt size={13} color={c.secondary}>인증된 계정만 부탁을 수락할 수 있어요.</Txt></View></Row></Card>
+            <Card><Row><CheckCircle2 size={22} color={c.green} /><View style={{ flex: 1 }}><Txt weight="700">노쇼 위험 줄이기</Txt><Txt size={13} color={c.secondary}>본인인증 후 왕복 일정까지 확인해요.</Txt></View></Row></Card>
+          </Stack>
+        ) : (
+          <Stack gap={14}>
+            <Field label="이름" value={identityName} onChange={setIdentityName} placeholder="본인 이름" required />
+            <Field label="휴대폰 번호" value={identityPhone} onChange={setIdentityPhone} placeholder="01012345678" keyboard="numeric" required />
+            <Field label="생년월일" value={identityBirth} onChange={setIdentityBirth} placeholder="예: 950101" keyboard="numeric" required hint="주민등록번호 뒷자리는 받지 않아요." />
+            <Pressable accessibilityRole="checkbox" accessibilityLabel="본인인증 동의" aria-checked={identityConsent} accessibilityState={{ checked: identityConsent }} onPress={() => setIdentityConsent(!identityConsent)} style={{ paddingVertical: 8 }}>
+              <Row style={{ alignItems: 'flex-start' }}><CheckCircle2 size={23} color={identityConsent ? c.green : c.muted} /><Txt size={14} style={{ flex: 1 }}>본인 확인을 위해 인증 정보를 일회성으로 사용하는 데 동의해요.</Txt></Row>
+            </Pressable>
+            <Notice>체험에서는 인증 결과만 저장하고 이름·생년월일·휴대폰 번호는 저장하지 않아요.</Notice>
+          </Stack>
+        )}
+      </Page>
+    );
+  }
   const total = requests.reduce((s, r) => s + quote(r, 0, r.transport).productPrice, 0);
+  const earliestPurchase = trip && trip.startDate > new Date().toISOString().slice(0, 10) ? trip.startDate : new Date().toISOString().slice(0, 10);
+  const latestDelivery = requests.reduce((earliest, request) => request.desiredDate < earliest ? request.desiredDate : earliest, first.desiredDate);
+  const datesValid = Boolean(trip && purchase >= earliestPurchase && purchase <= trip.endDate && delivery >= purchase && delivery >= trip.endDate && delivery <= latestDelivery);
+  const requestsOpen = requests.every((request) => request.requesterId !== d.me.id && ['REQUESTED', 'OFFER_RECEIVED'].includes(request.status));
   const validRewards = requests.every((r) => rewardFor(r.id) !== undefined);
   const grossReward = requests.reduce((s, r) => s + (rewardFor(r.id) ?? 0), 0);
-  const commission = requests.reduce((s, r) => s + rewardCommission(rewardFor(r.id) ?? 0), 0);
   const methods = [...new Set(requests.map((r) => TRANSPORT_LABEL[r.transport]))].join(' · ');
   const submit = async () => {
-    if (!validRewards) return;
+    if (!validRewards || !datesValid || !requestsOpen || !agree) return;
     const body = {
       tripId,
       reward: rewardFor(first.id)!,
@@ -647,18 +729,13 @@ export function OfferForm() {
       footer={
         <Button
           label={canAcceptTrip(trip) ? `${ids.length}건 부탁 수락하기` : '먼저 왕복 항공권 인증하기'}
-          disabled={canAcceptTrip(trip) ? !agree || !validRewards : !trip}
+          disabled={canAcceptTrip(trip) ? !agree || !validRewards || !datesValid || !requestsOpen || !message.trim() : !trip}
           loading={a.busy}
           onPress={() => canAcceptTrip(trip) ? submit() : trip && a.nav('flight-proof', { id: trip.id })}
         />
       }
     >
-      <Stack gap={8}>
-        <Badge>{ids.length}개의 부탁</Badge>
-        <Txt size={28} weight="800">
-          이 일정으로{'\n'}가져올 수 있어요.
-        </Txt>
-      </Stack>
+      <Txt size={22} weight="700">{ids.length}건, 가는 길에 가져올게요</Txt>
       <Row style={{ flexWrap: 'wrap' }}>
         {trips.map((t) => (
           <Chip
@@ -667,7 +744,8 @@ export function OfferForm() {
             selected={tripId === t.id}
             onPress={() => {
               setTripId(t.id);
-              setPurchase(t.startDate);
+              setPurchase(t.startDate > new Date().toISOString().slice(0, 10) ? t.startDate : new Date().toISOString().slice(0, 10));
+              setAgree(false);
               setDelivery(
                 suggestedDelivery(t.endDate),
               );
@@ -676,9 +754,14 @@ export function OfferForm() {
         ))}
       </Row>
       <Stack gap={12}>
-        <Txt size={20} weight="700">보상금은 직접 정하세요</Txt>
-        <Txt size={13} color={c.secondary}>구매자가 이 금액을 포함한 총액을 확인하고 결제해요. 수량과 구매에 드는 시간을 고려해 부탁별로 입력해주세요.</Txt>
-        {requests.map((r, index) => (
+        <Txt size={18} weight="700">부탁과 보상 확인</Txt>
+        {requests.map((r, index) => r.requestedReward !== undefined ? (
+          <Row key={r.id} style={{ paddingVertical: 12, alignItems: 'flex-start' }}>
+            <ProductArt art={r.art} image={r.productImage} size={52} />
+            <View style={{ flex: 1 }}><Txt size={15} weight="600">{r.productName}</Txt><Txt size={13} color={c.secondary}>{r.quantity}개 · {TRANSPORT_LABEL[r.transport]}</Txt></View>
+            <Txt weight="700">{money(r.requestedReward)}</Txt>
+          </Row>
+        ) : (
           <Field
             key={r.id}
             label={`${index + 1}. ${r.productName} 보상금 (원)`}
@@ -687,7 +770,7 @@ export function OfferForm() {
             keyboard="numeric"
             required
             placeholder="원하는 금액 입력"
-            hint={`수량 ${r.quantity}개를 포함한 이 부탁 전체의 보상 · 0~${MAX_DEMO_REWARD.toLocaleString('ko-KR')}원 (체험 한도)`}
+            hint={`보상이 정해지지 않은 이전 부탁이에요. 전체 수량 ${r.quantity}개의 보상을 입력해주세요.`}
             error={rewards[r.id] && rewardFor(r.id) === undefined ? '0원 이상의 원 단위 금액을 체험 한도 안에서 입력해주세요.' : undefined}
           />
         ))}
@@ -695,25 +778,18 @@ export function OfferForm() {
       <Card style={{ backgroundColor: c.mint }}>
         <Stack gap={8}>
           <Row style={{ justifyContent: 'space-between' }}>
-            <Txt weight="600">제안 보상 합계</Txt>
+            <Txt weight="600">보상 합계</Txt>
             <Txt size={20} weight="800">{validRewards ? money(grossReward) : '금액 입력 필요'}</Txt>
-          </Row>
-          <Row style={{ justifyContent: 'space-between' }}>
-            <Txt size={13} color={c.secondary}>운영 수수료 10%</Txt>
-            <Txt size={13} color={c.secondary}>{validRewards ? `-${money(commission)}` : '—'}</Txt>
-          </Row>
-          <Row style={{ justifyContent: 'space-between' }}>
-            <Txt weight="700">예상 순보상</Txt>
-            <Txt size={24} weight="800" color={c.green}>{validRewards ? money(grossReward - commission) : '—'}</Txt>
           </Row>
         </Stack>
         <Txt size={13} color={c.secondary} style={{ marginTop: 12 }}>
-          상품 선지출 {money(total)} · {methods}{'\n'}상품가격은 수익이 아니라 구매 확정 뒤
-          상환받을 금액이에요.
+          상품 구매에 {money(total)}이 필요해요. 구매 확정 후 돌려받아요.
         </Txt>
       </Card>
-      <DateField label="예상 구매일" value={purchase} onChange={setPurchase} min={trip?.startDate} />
-      <DateField label="예상 수령일" value={delivery} onChange={setDelivery} min={trip && trip.endDate > purchase ? trip.endDate : purchase} />
+      <DateField label="예상 구매일" value={purchase} onChange={(value) => { setPurchase(value); setAgree(false); }} min={earliestPurchase} max={trip?.endDate} />
+      <DateField label="예상 수령일" value={delivery} onChange={(value) => { setDelivery(value); setAgree(false); }} min={trip && trip.endDate > purchase ? trip.endDate : purchase} max={latestDelivery} />
+      {!datesValid && <Notice tone="warning">구매일은 여행 기간 안에서, 수령일은 귀국일 이후부터 {shortDate(latestDelivery)}까지로 선택해주세요.</Notice>}
+      {!requestsOpen && <Notice tone="warning">이미 매칭되었거나 내 계정의 부탁이 포함되어 있어요. 다른 부탁을 선택해주세요.</Notice>}
       <Stack>
         <Txt size={14} weight="600">
           전달 방식
@@ -736,6 +812,7 @@ export function OfferForm() {
       ))}
       <Pressable
         accessibilityRole="checkbox"
+        aria-checked={agree}
         accessibilityState={{ checked: agree }}
         onPress={() => setAgree(!agree)}
         style={{ paddingVertical: 10 }}

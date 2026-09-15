@@ -1,4 +1,4 @@
-import React, { Component, ReactNode, useEffect } from 'react';
+import React, { Component, ReactNode, useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, useWindowDimensions, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -6,17 +6,15 @@ import {
   ArrowUpRight,
   Compass,
   Home as HomeIcon,
-  Layers,
   Plus,
   ShoppingBag,
   User,
   HelpCircle,
-  Plane,
   RefreshCw,
 } from 'lucide-react-native';
 import { AppProvider, Screen, useApp } from './src/state/AppContext';
 import { colors as c } from './src/theme/tokens';
-import { Badge, Button, Row, Stack, Txt } from './src/components/ui';
+import { Badge, Button, Row, Sheet, Stack, Txt } from './src/components/ui';
 import { Logo } from './src/components/visuals';
 import { CreateScreen, Home, Onboarding, PlaceScreen, SearchScreen } from './src/screens/Home';
 import { RequestForm, TripForm } from './src/screens/Forms';
@@ -78,7 +76,7 @@ const screens: Record<Screen, React.ComponentType> = {
 };
 const tabs: [Screen, string, typeof HomeIcon][] = [
   ['home', '홈', HomeIcon],
-  ['search', '찾아보기', Compass],
+  ['search', '둘러보기', Compass],
   ['create', '등록', Plus],
   ['trades', '거래', ShoppingBag],
   ['my', 'MY', User],
@@ -106,9 +104,21 @@ function Shell() {
   const a = useApp(),
     { width, height } = useWindowDimensions();
   const desktop = width >= 1060;
+  const [createOpen, setCreateOpen] = useState(false);
+  useEffect(() => setCreateOpen(false), [a.route.name, a.data?.me.id]);
+  const focusedFlow = ['request-form', 'trip-form', 'flight-proof', 'offer-form', 'payment', 'receipt', 'receive', 'chat'].includes(a.route.name);
   const Current = screens[a.route.name] || Home;
   useEffect(() => {
-    if (Platform.OS === 'web') document.title = '모아 · 가는 김에, 하나 더.';
+    if (Platform.OS !== 'web') return;
+    document.title = '모아 · 가는 김에, 하나 더.';
+    if (!document.getElementById('moa-pretendard')) {
+      const font = document.createElement('link');
+      font.id = 'moa-pretendard';
+      font.rel = 'stylesheet';
+      font.crossOrigin = 'anonymous';
+      font.href = 'https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css';
+      document.head.appendChild(font);
+    }
   }, []);
   const navigation = (vertical = false) => (
     <View
@@ -128,13 +138,17 @@ function Shell() {
     >
       {tabs.map(([name, label, Icon]) => {
         const selected = a.route.name === name;
+        const resolvedLabel = name === 'create' ? '등록' : label;
         return (
           <Pressable
             key={name}
             accessibilityRole="tab"
             accessibilityLabel={label}
             accessibilityState={{ selected }}
-            onPress={() => a.tab(name)}
+            aria-selected={selected}
+            onPress={() => name === 'create'
+              ? setCreateOpen(true)
+              : a.tab(name)}
             style={({ pressed }) =>
               vertical
                 ? {
@@ -170,11 +184,11 @@ function Shell() {
               />
             )}
             <Txt
-              size={vertical ? 15 : 11}
+              size={vertical ? 15 : 12}
               weight={selected ? '700' : '500'}
               color={selected ? c.green : c.secondary}
             >
-              {vertical && name === 'create' ? '새로 등록하기' : label}
+              {resolvedLabel}
             </Txt>
           </Pressable>
         );
@@ -225,26 +239,22 @@ function Shell() {
                   가는 김에,{'\n'}하나 더.
                 </Txt>
                 <Txt size={13} color={c.secondary}>
-                  이미 그곳에 가는 사람과{'\n'}작은 부탁을 연결해요.
+                  여행자의 동선과{'\n'}필요한 부탁을 연결해요.
                 </Txt>
               </Stack>
               {navigation(true)}
               <View style={{ flex: 1 }} />
-              <View style={{ backgroundColor: c.mint, borderRadius: 20, padding: 18, gap: 12 }}>
-                <Plane size={25} color={c.darkGreen} />
-                <Txt size={14} weight="700">
-                  여행은 그대로.{'\n'}작은 보상은 덤으로.
-                </Txt>
+              <View style={{ backgroundColor: c.paper, borderRadius: 18, padding: 18, gap: 10 }}>
+                <RefreshCw size={23} color={c.green} />
+                <Txt size={14} weight="700">현재 이용 모드</Txt>
+                <Txt size={13} color={c.secondary}>{a.role === 'buyer' ? '부탁하기' : '여행하기'}</Txt>
                 <Pressable
                   accessibilityRole="button"
-                  onPress={() => {
-                    a.setRole('traveler');
-                    a.tab('home');
-                  }}
+                  onPress={() => a.nav('settings')}
                 >
                   <Row style={{ gap: 4 }}>
                     <Txt size={12} color={c.darkGreen} weight="700">
-                      내 동선 살펴보기
+                      모드 설정
                     </Txt>
                     <ArrowUpRight size={13} color={c.darkGreen} />
                   </Row>
@@ -269,7 +279,7 @@ function Shell() {
                 <Txt size={30} weight="800" color={c.green}>
                   모아
                 </Txt>
-                <Txt color={c.secondary}>가는 김에, 하나 더.</Txt>
+                <Txt color={c.secondary}>여행 경로에 부탁을 연결해요.</Txt>
                 <ActivityIndicator color={c.green} />
               </Stack>
             ) : !a.data ? (
@@ -299,16 +309,25 @@ function Shell() {
                     <Current />
                   </Boundary>
                 </View>
-                {!desktop && navigation()}
+                {!desktop && !focusedFlow && navigation()}
+                <Sheet visible={createOpen} title="어떤 걸 등록할까요?" onClose={() => setCreateOpen(false)}>
+                  {[
+                    { title: '이거 부탁하기', body: '상품 링크나 사진으로 시작해요', icon: ShoppingBag, route: 'request-form' as const },
+                    { title: '여행 등록하기', body: '가는 곳의 부탁을 모아드려요', icon: Compass, route: 'trip-form' as const },
+                  ].map((item) => <Pressable key={item.route} accessibilityRole="button" accessibilityLabel={item.title} onPress={() => { setCreateOpen(false); a.nav(item.route); }} style={({ pressed }) => ({ padding: 18, borderRadius: 16, backgroundColor: pressed ? c.mint : c.canvas })}>
+                    <Row><item.icon size={24} color={c.green} /><View style={{ flex: 1, gap: 4 }}><Txt size={18} weight="700">{item.title}</Txt><Txt size={13} color={c.secondary}>{item.body}</Txt></View><ArrowUpRight size={20} color={c.muted} /></Row>
+                  </Pressable>)}
+                </Sheet>
               </>
             )}
             {!!a.toast && (
               <View
+                pointerEvents="none"
                 accessibilityRole="alert"
                 accessibilityLiveRegion="polite"
                 style={{
                   position: 'absolute',
-                  bottom: desktop ? 22 : 83,
+                  bottom: desktop || focusedFlow ? 22 : 83,
                   left: 18,
                   right: 18,
                   backgroundColor: c.ink,

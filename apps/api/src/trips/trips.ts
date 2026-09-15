@@ -16,13 +16,15 @@ export class TripsController {
     const data = parse(
       z
         .object({
-          departureCountry: z.enum(['KR', 'JP']),
+          departureCountry: z.enum(COUNTRY_CODES),
           departureCity: z.string().trim().min(1).max(40),
           destinationCountry: z.enum(COUNTRY_CODES),
           destinationCity: z.string().min(1).max(40),
+          destinationAreas: z.array(z.string().trim().min(1).max(40)).min(1).max(8).optional(),
           startDate: date,
           endDate: date,
-          placeIds: z.array(z.string()).min(1).max(12),
+          placeIds: z.array(z.string()).max(12),
+          customStops: z.array(z.string().trim().min(2).max(100)).max(8).default([]),
           maxItems: z.number().int().min(1).max(20),
         })
         .strict(),
@@ -45,8 +47,16 @@ export class TripsController {
             '선택한 여행 국가에 있는 방문 장소를 골라주세요.',
           );
         });
-        check(DESTINATIONS[data.destinationCountry].cities.includes(data.destinationCity), '선택한 국가·지역 안의 도시를 골라주세요.');
-        check(data.placeIds.some((id) => get(db.places, id).city === data.destinationCity), '대표 도시에 방문할 장소를 하나 이상 골라주세요.');
+        const selectedAreas = data.destinationAreas || [data.destinationCity];
+        check(selectedAreas[0] === data.destinationCity, '첫 번째 여행지와 대표 여행지를 맞춰주세요.');
+        if (data.destinationAreas) data.placeIds.forEach((id) => {
+          check(selectedAreas.includes(get(db.places, id).city), '선택한 여행지 안의 방문 장소를 골라주세요.');
+        });
+        const knownCity = DESTINATIONS[data.destinationCountry].cities.includes(data.destinationCity);
+        if (knownCity && !data.destinationAreas)
+          check(data.placeIds.some((id) => get(db.places, id).city === data.destinationCity), '선택한 도시에서 들를 장소를 하나 이상 골라주세요.');
+        else if (!knownCity && !data.destinationAreas)
+          check(data.placeIds.length === 0, '목록에 없는 지역은 직접 입력한 장소로 등록해주세요.');
         const trip = {
           ...base(),
           ...data,

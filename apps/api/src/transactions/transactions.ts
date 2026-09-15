@@ -23,6 +23,7 @@ import {
   once,
   owner,
   parse,
+  today,
 } from '../common/validation';
 import { Store } from '../infrastructure/store';
 import { canAcceptTrip } from '@moa/domain';
@@ -30,7 +31,13 @@ import { MockPaymentGateway } from '../infrastructure/adapters';
 const revision = { expectedRevision: z.number().int().min(0) };
 const actionSchema = z.discriminatedUnion('action', [
   z
-    .object({ ...revision, action: z.literal('PAY'), simulateFailure: z.boolean().default(false) })
+    .object({
+      ...revision,
+      action: z.literal('PAY'),
+      paymentMethod: z.enum(['CARD', 'ACCOUNT']),
+      paymentReference: z.string().trim().min(4).max(40),
+      simulateFailure: z.boolean().default(false),
+    })
     .strict(),
   z
     .object({
@@ -110,7 +117,12 @@ export class TransactionsService {
         const offer = get(db.offers, id, '제안');
         const request = get(db.requests, offer.requestId, '요청');
         owner(actor, request.requesterId);
-        check(canAcceptTrip(get(db.trips, offer.tripId)), '여행자의 왕복 항공권 인증이 완료되지 않았어요. 인증 상태를 확인해주세요.');
+        const trip = get(db.trips, offer.tripId, '여행 일정');
+        check(canAcceptTrip(trip), '여행자의 왕복 항공권 인증이 완료되지 않았어요. 인증 상태를 확인해주세요.');
+        check(trip.travelerId === offer.travelerId && db.verifications.some((v) => v.userId === offer.travelerId && v.kind === 'IDENTITY' && v.status === 'DEMO_VERIFIED'), '여행자의 본인인증 상태를 다시 확인해주세요.');
+        check(trip.placeIds.includes(request.placeId) && trip.destinationCountry === request.country && trip.departureCountry === request.deliveryCountry && (request.transport !== 'MEETUP' || trip.departureCity === request.deliveryCity), '여행 일정이 바뀌어 이 부탁을 전달할 수 없어요. 다른 여행자를 선택해주세요.');
+        check(offer.transport === request.transport, '받는 방법이 바뀌었어요. 여행자와 다시 확인해주세요.');
+        check(offer.estimatedPurchaseDate >= today() && offer.estimatedPurchaseDate >= trip.startDate && offer.estimatedPurchaseDate <= trip.endDate && offer.estimatedDeliveryDate >= trip.endDate && offer.estimatedDeliveryDate >= offer.estimatedPurchaseDate && offer.estimatedDeliveryDate <= request.desiredDate, '예정된 구매·수령일이 지났거나 일정과 맞지 않아요. 여행자와 다시 확인해주세요.');
         check(
           request.revision === data.expectedRevision,
           '요청이 변경됐어요. 새로고침 후 다시 선택해주세요.',
@@ -119,6 +131,7 @@ export class TransactionsService {
           offer.status === 'PENDING' && ['REQUESTED', 'OFFER_RECEIVED'].includes(request.status),
           '이미 선택되었거나 종료된 제안이에요.',
         );
+        offer.reward = request.requestedReward ?? offer.reward;
         const price = quote(request, offer.reward, offer.transport);
         const t: Transaction = {
           ...base(),
@@ -187,7 +200,7 @@ export class TransactionsService {
               transactionId: id,
               buyerId: actor,
               amount: t.totalPrice,
-              provider: 'MOCK',
+              provider: `MOCK_${data.paymentMethod}`,
               status: 'HELD',
               providerRef: result.providerRef,
             });

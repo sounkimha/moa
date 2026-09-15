@@ -23,17 +23,16 @@ export function PhotoCredit({ place, list = false }: { place: Place; list?: bool
         style={({ pressed }) => ({
           position: 'absolute',
           left: list ? 12 : 6,
-          top: list ? 82 : 6,
-          width: list ? 112 : 44,
+          top: list ? 16 : 6,
+          width: 44,
           height: 44,
           alignItems: 'center',
           justifyContent: 'center',
           opacity: pressed ? 0.7 : 1,
         })}
       >
-        <Row style={{ gap: 4, backgroundColor: list ? 'transparent' : '#FFFFFFF2', borderRadius: 16, padding: 7 }}>
-          <Info size={15} color={list ? c.secondary : c.ink} />
-          {list && <Txt size={11} color={c.secondary}>사진 정보</Txt>}
+        <Row style={{ gap: 4, backgroundColor: '#FFFFFFF2', borderRadius: 16, padding: 7 }}>
+          <Info size={15} color={c.ink} />
         </Row>
       </Pressable>
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>

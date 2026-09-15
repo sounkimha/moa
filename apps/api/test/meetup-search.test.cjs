@@ -2,6 +2,22 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { MeetupController } = require('../dist/meetup/meetup');
 
+test('meetup search capability distinguishes missing setup without exposing provider keys', async () => {
+  const previousKey = process.env.KAKAO_REST_API_KEY;
+  try {
+    delete process.env.KAKAO_REST_API_KEY;
+    const controller = new MeetupController();
+    assert.deepEqual(controller.status(), { searchAvailable: false, countries: ['KR'] });
+    await assert.rejects(controller.search({ q: '서울역' }), /지도에서 만날 위치/);
+    process.env.KAKAO_REST_API_KEY = 'test-secret';
+    assert.deepEqual(controller.status(), { searchAvailable: true, countries: ['KR'] });
+    assert.ok(!JSON.stringify(controller.status()).includes('test-secret'));
+  } finally {
+    if (previousKey === undefined) delete process.env.KAKAO_REST_API_KEY;
+    else process.env.KAKAO_REST_API_KEY = previousKey;
+  }
+});
+
 test('place provider response maps longitude/latitude correctly and handles upstream failure', async () => {
   const previousFetch = global.fetch;
   const previousKey = process.env.KAKAO_REST_API_KEY;

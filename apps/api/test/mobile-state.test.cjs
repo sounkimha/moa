@@ -19,7 +19,7 @@ const storage = () => {
   return { getItem: (key) => values.get(key) || null, setItem: (key, value) => values.set(key, value), removeItem: (key) => values.delete(key) };
 };
 const draft = () => ({ step: 2, method: 'photo', url: '', name: '치이카와 키링', image: 'data:image/png;base64,sample',
-  art: 'keyring', price: '2420', quantity: 1, desired: '2026-10-02', placeId: 'p-station', category: 'CHARACTER',
+  art: 'keyring', price: '2420', requestedReward: '5000', quantity: 1, desired: '2026-10-02', placeId: 'p-station', category: 'CHARACTER',
   storeName: '도쿄역', option: '파랑', metadataMessage: '', aiFilled: true, editingDetails: false,
   transport: 'MEETUP', deliveryCountry: 'KR', deliveryCity: '서울', deliveryAddressId: '', deliveryRecipient: '예시',
   deliveryPhone: '01000000000', deliveryPostalCode: '', deliveryAddress1: '', deliveryAddress2: '',
@@ -50,8 +50,16 @@ test('corrupt, oversized or quota-denied draft does not crash or restore stale d
   assert.equal(readDraft(store, 'buyer'), null);
   writeDraft(store, 'buyer', { ...draft(), quantity: -1 });
   assert.equal(readDraft(store, 'buyer'), null);
+  writeDraft(store, 'buyer', { ...draft(), requestedReward: { amount: 5000 } });
+  assert.equal(readDraft(store, 'buyer'), null, 'malformed reward cannot become a text input value');
   writeDraft(store, 'buyer', draft());
   assert.equal(writeDraft(store, 'buyer', { ...draft(), image: 'x'.repeat(4_000_001) }), false);
   assert.equal(readDraft(store, 'buyer'), null);
   assert.equal(writeDraft({ ...store, setItem: () => { throw new Error('quota'); } }, 'buyer', draft()), false);
+  store.setItem('moa-request-draft-v1', 'x'.repeat(4_000_001));
+  assert.equal(readDraft(store, 'buyer'), null);
+  assert.equal(store.getItem('moa-request-draft-v1'), null, 'oversized private drafts are removed');
+  assert.equal(writeDraft({ ...store, removeItem() { throw new Error('denied'); } }, 'buyer', null), false, 'failed deletion must not report success');
+  writeDraft(store, 'buyer', { ...draft(), sampleFilled: 'false' });
+  assert.equal(readDraft(store, 'buyer').sampleFilled, undefined, 'untrusted truthy text cannot activate sample mode');
 });

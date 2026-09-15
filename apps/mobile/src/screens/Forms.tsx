@@ -1,10 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { BackHandler, Platform, Pressable, ScrollView, View } from 'react-native';
+import * as Location from 'expo-location';
 import {
   ArrowRight,
   Check,
+  ChevronRight,
   ImagePlus,
   Link,
+  LocateFixed,
   MapPin,
   Minus,
   Plane,
@@ -27,16 +30,23 @@ import {
   normalizeTransport,
   Country,
   Currency,
+  TRIP_AREAS,
   currencyForCountry,
   countryName,
   localMoney,
+  COUNTRY_CODES,
+  MAX_DEMO_REWARD,
 } from '@moa/domain';
 import { DestinationPicker } from '../components/DestinationPicker';
+import { TripRoutePicker, TripStopPicker } from '../components/TripRoutePicker';
+import { DateRangePicker } from '../components/DateRangePicker';
 import { MeetupPicker } from '../components/MeetupPicker';
 import { ProductOriginal } from '../components/ProductOriginal';
 import { useApp } from '../state/AppContext';
 import { api } from '../lib/api';
 import { pickImage } from '../lib/images';
+import { readTripDraft, writeTripDraft } from '../state/trip-draft';
+import { addressValidation, productValidation, validDate, validLocalPrice, validProductUrl } from '../state/form-validation';
 import { colors as c } from '../theme/tokens';
 import {
   Badge,
@@ -52,11 +62,16 @@ import {
   Page,
   Row,
   Section,
+  SectionTabs,
+  Sheet,
   Stack,
   Txt,
 } from '../components/ui';
 import { ProductArt, MoneyBreakdown } from '../components/visuals';
-const future = (n: number) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+const future = (n: number) => {
+  const date = new Date(); date.setDate(date.getDate() + n);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
 type RecognitionSuggestion = {
   originalText?: ProductOriginalText;
   option?: string;
@@ -87,12 +102,12 @@ type RecognitionResult = {
 export function RequestForm() {
   const a = useApp();
   if (!a.data?.places.length) return <Page title="이거 부탁하기"><Empty title="구매 장소를 불러오지 못했어요" body="연결 상태를 확인한 뒤 다시 시도해주세요." action="다시 불러오기" onPress={() => a.refresh().catch((error) => a.notify(error.message))} /></Page>;
-  return <RequestFormContent />;
+  return <RequestFormContent key={`${a.data.me.id}:${a.route.id || ''}:${a.route.placeId || ''}`} />;
 }
 function RequestFormContent() {
   const a = useApp(),
     d = a.data!;
-  const sourceRequest = d.requests.find((request) => request.id === a.route.id);
+  const sourceRequest = d.requests.find((request) => request.id === a.route.id && request.requesterId === d.me.id);
   const draft = a.requestDraft?.sourceRequestId === a.route.id &&
     a.requestDraft?.entryPlaceId === a.route.placeId ? a.requestDraft : null;
   const preset = draft ? undefined : sourceRequest;
@@ -106,15 +121,16 @@ function RequestFormContent() {
     [image, setImage] = useState(preset?.productImage || draft?.image || ''),
     [art, setArt] = useState<Art>(preset?.art || draft?.art || 'keyring'),
     [price, setPrice] = useState(preset ? String(preset.localPrice) : draft?.price || ''),
-    [quantity, setQuantity] = useState(preset?.quantity || draft?.quantity || 1),
+    [requestedReward, setRequestedReward] = useState(preset?.requestedReward !== undefined ? String(preset.requestedReward) : draft?.requestedReward || ''),
+    [quantity, setQuantity] = useState(Math.max(1, Math.min(10, preset?.quantity || draft?.quantity || 1))),
     [desired, setDesired] = useState(
-      preset?.desiredDate && preset.desiredDate >= future(0)
+      validDate(preset?.desiredDate) && preset.desiredDate >= future(0)
         ? preset.desiredDate
-        : draft?.desired || future(18),
+        : validDate(draft?.desired) && draft.desired >= future(0) ? draft.desired : future(18),
     ),
     [placeId, setPlaceId] = useState(() => {
-      const selected = draft?.placeId || a.route.placeId || preset?.placeId || 'p-station';
-      return d.places.some((p) => p.id === selected) ? selected : d.places[0].id;
+      const selected = draft?.placeId || a.route.placeId || preset?.placeId || '';
+      return d.places.some((p) => p.id === selected) ? selected : '';
     }),
     [category, setCategory] = useState<Category>(preset?.category || draft?.category || 'CHARACTER'),
     [storeName, setStoreName] = useState(preset?.storeName || draft?.storeName || ''),
@@ -125,6 +141,9 @@ function RequestFormContent() {
     [aiFilled, setAiFilled] = useState(Boolean(preset) || Boolean(draft?.aiFilled)),
     [sampleFilled, setSampleFilled] = useState(Boolean(draft?.sampleFilled)),
     [editingDetails, setEditingDetails] = useState(draft?.editingDetails || false),
+    [editingAddress, setEditingAddress] = useState(false),
+    [editingRegion, setEditingRegion] = useState(false),
+    [editingMeetup, setEditingMeetup] = useState(false),
     [error, setError] = useState(''),
     [transport, setTransport] = useState<Transport>(preset?.transport || draft?.transport || 'DOMESTIC_PARCEL'),
     [deliveryCountry, setDeliveryCountry] = useState<Country>(preset?.deliveryCountry || draft?.deliveryCountry || 'KR'),
@@ -144,6 +163,7 @@ function RequestFormContent() {
     );
   // A retry already has confirmed product details; only recognize a newly edited URL.
   const lastResolvedUrl = useRef(preset?.productUrl?.trim() || (draft?.aiFilled ? draft.url.trim() : ''));
+  const pendingUrl = useRef('');
   const currentUrl = useRef(url);
   currentUrl.current = url;
   const recognitionRun = useRef(0);
@@ -165,6 +185,7 @@ function RequestFormContent() {
   const changeUrl = (value: string) => {
     recognitionRun.current++;
     lastResolvedUrl.current = '';
+    pendingUrl.current = '';
     currentUrl.current = value;
     setUrl(value);
     setResolving(false);
@@ -175,12 +196,40 @@ function RequestFormContent() {
     clearFeedback(); clearProduct(); setResolving(true);
     return run;
   };
+  const editProductManually = () => {
+    recognitionRun.current++;
+    pendingUrl.current = '';
+    lastResolvedUrl.current = currentUrl.current.trim();
+    setResolving(false); clearFeedback(); setEditingDetails(true);
+  };
+  const deliveryValues = () => ({ transport, deliveryCountry, deliveryCity, deliveryAddressId, deliveryRecipient, deliveryPhone, deliveryPostalCode, deliveryAddress1, deliveryAddress2, meetupLocation, meetupPoint });
+  const deliverySnapshot = useRef<ReturnType<typeof deliveryValues> | null>(null);
+  const openDeliveryEditor = (editor: 'address' | 'region' | 'meetup') => {
+    deliverySnapshot.current = deliveryValues();
+    setEditingAddress(editor === 'address'); setEditingRegion(editor === 'region'); setEditingMeetup(editor === 'meetup');
+  };
+  const finishDeliveryEditor = () => {
+    deliverySnapshot.current = null;
+    setEditingAddress(false); setEditingRegion(false); setEditingMeetup(false); setError('');
+  };
+  const cancelDeliveryEditor = () => {
+    const previous = deliverySnapshot.current;
+    if (previous) {
+      setTransport(previous.transport); setDeliveryCountry(previous.deliveryCountry); setDeliveryCity(previous.deliveryCity);
+      setDeliveryAddressId(previous.deliveryAddressId); setDeliveryRecipient(previous.deliveryRecipient); setDeliveryPhone(previous.deliveryPhone);
+      setDeliveryPostalCode(previous.deliveryPostalCode); setDeliveryAddress1(previous.deliveryAddress1); setDeliveryAddress2(previous.deliveryAddress2);
+      setMeetupLocation(previous.meetupLocation); setMeetupPoint(previous.meetupPoint);
+    }
+    finishDeliveryEditor();
+  };
   const place = d.places.find((p) => p.id === placeId) || d.places[0];
   const mode = normalizeTransport(transport);
-  const pricingInput = { localPrice: Number(price) || 0, quantity, currency: currencyForCountry(place.country) };
-  const q = quote(pricingInput, 0, mode);
-  const parcelQuote = quote(pricingInput, 0, 'DOMESTIC_PARCEL');
-  const meetupQuote = quote(pricingInput, 0, 'MEETUP');
+  const pricingInput = { localPrice: validLocalPrice(price) ? Number(price) : 0, quantity, currency: currencyForCountry(place.country) };
+  const reward = Number(requestedReward) || 0;
+  const previewReward = Number.isSafeInteger(reward) && reward >= 0 && reward <= MAX_DEMO_REWARD ? reward : 0;
+  const q = quote(pricingInput, previewReward, mode);
+  const parcelQuote = quote(pricingInput, previewReward, 'DOMESTIC_PARCEL');
+  const meetupQuote = quote(pricingInput, previewReward, 'MEETUP');
   const completedMeetups = d.transactions.filter((t) =>
     (t.buyerId === d.me.id || t.travelerId === d.me.id) &&
     ['CONFIRMED', 'SETTLED'].includes(t.status)).map((t) => d.requests.find((r) => r.id === t.requestId))
@@ -188,6 +237,7 @@ function RequestFormContent() {
     .map((r) => r!.meetupPoint!).reverse()
     .filter((p, index, all) => all.findIndex((other) => other.latitude === p.latitude && other.longitude === p.longitude) === index).slice(0, 3);
   useEffect(() => {
+    if (editingAddress || editingRegion || editingMeetup) return;
     a.setRequestDraft({
       sourceRequestId: a.route.id,
       entryPlaceId: a.route.placeId,
@@ -200,6 +250,7 @@ function RequestFormContent() {
       image,
       art,
       price,
+      requestedReward,
       quantity,
       desired,
       placeId,
@@ -232,6 +283,7 @@ function RequestFormContent() {
     image,
     art,
     price,
+    requestedReward,
     quantity,
     desired,
     placeId,
@@ -254,20 +306,24 @@ function RequestFormContent() {
     meetupLocation,
     meetupPoint,
     inventoryStatus,
+    editingAddress,
+    editingRegion,
+    editingMeetup,
   ]);
   const setProduct = (p: Product) => {
-    setName(p.name);
-    setPrice(String(p.localPrice));
-    setArt(p.art);
-    setCategory(p.category);
+    setName(typeof p.name === 'string' ? p.name : '');
+    setPrice(Number.isFinite(p.localPrice) ? String(p.localPrice) : '');
+    setArt(['keyring', 'plush', 'pouch', 'tshirt', 'pin', 'bag'].includes(p.art) ? p.art : 'keyring');
+    setCategory(Object.hasOwn(CATEGORIES, p.category) ? p.category : 'CHARACTER');
     setStoreName(d.places.find((place) => place.id === p.placeId)?.name || '');
-    setPlaceId(p.placeId);
+    setPlaceId(d.places.some((place) => place.id === p.placeId) ? p.placeId : '');
     setOption('기본 옵션');
   };
   const applyRecognition = (result: RecognitionResult, uploadedImage?: string) => {
     setOriginalText(result.suggestion?.originalText);
     setSampleFilled(result.source === 'DEMO_SAMPLE' || result.status === 'DEMO_FOUND');
-    setImage(uploadedImage ?? result.suggestion?.imageUrl ?? result.product?.image ?? '');
+    const detectedImage = uploadedImage ?? result.suggestion?.imageUrl ?? result.product?.image;
+    setImage(typeof detectedImage === 'string' ? detectedImage : '');
     const detectedPlaceId = result.product?.placeId || result.suggestion?.placeId || placeId;
     const detectedPlace = d.places.find((p) => p.id === detectedPlaceId);
     const detectedCurrency = result.product?.currency || result.suggestion?.currency;
@@ -275,35 +331,37 @@ function RequestFormContent() {
     if (result.product) setProduct(result.product);
     else if (result.suggestion) {
       const suggestion = result.suggestion;
-      if (suggestion.productName) setName(suggestion.productName);
-      setCategory(suggestion.category);
-      setArt(suggestion.art);
-      if (suggestion.placeId) setPlaceId(suggestion.placeId);
-      if (suggestion.localPrice) setPrice(String(suggestion.localPrice));
-      if (suggestion.storeName) setStoreName(suggestion.storeName);
+      if (typeof suggestion.productName === 'string') setName(suggestion.productName);
+      setCategory(Object.hasOwn(CATEGORIES, suggestion.category) ? suggestion.category : 'CHARACTER');
+      setArt(['keyring', 'plush', 'pouch', 'tshirt', 'pin', 'bag'].includes(suggestion.art) ? suggestion.art : 'keyring');
+      if (suggestion.placeId) setPlaceId(detectedPlace?.id || '');
+      if (Number.isFinite(suggestion.localPrice) && suggestion.localPrice! > 0) setPrice(String(suggestion.localPrice));
+      if (typeof suggestion.storeName === 'string') setStoreName(suggestion.storeName);
       if (suggestion.stockStatus) setInventoryStatus(suggestion.stockStatus);
-      setOption(suggestion.option || '기본 옵션');
+      setOption(typeof suggestion.option === 'string' ? suggestion.option : '기본 옵션');
     }
-    const filled = Boolean(result.product || result.suggestion?.productName);
+    const filled = Boolean(typeof result.product?.name === 'string' ? result.product.name : typeof result.suggestion?.productName === 'string' ? result.suggestion.productName : '');
     setAiFilled(filled);
     const hasPrice = (result.product?.localPrice || result.suggestion?.localPrice || 0) > 0;
     if (currencyMismatch) {
       setPrice('');
       setError('판매 페이지의 가격 통화가 구매 장소와 달라요. 현지 판매 가격을 확인해주세요.');
     }
-    setEditingDetails(!filled || !hasPrice || currencyMismatch);
+    if (!detectedPlace) setError('구매 장소를 확인하지 못했어요. 실제 판매처를 선택해주세요.');
+    setEditingDetails(!filled || !hasPrice || currencyMismatch || !detectedPlace);
   };
   const resolve = async (sample = false, force = false) => {
     const value = sample ? 'https://demo.moa.local/products/1' : url.trim();
-    if (!value || (!force && lastResolvedUrl.current === value)) return;
+    if (!value || !validProductUrl(value) || (!force && (lastResolvedUrl.current === value || pendingUrl.current === value))) return;
     const run = beginRecognition();
-    lastResolvedUrl.current = value;
+    pendingUrl.current = value;
     if (sample) { currentUrl.current = value; setUrl(value); }
     setLinkStatus('checking');
     try {
       const result = await api<RecognitionResult>('/metadata', { url: value });
       if (recognitionRun.current !== run || currentUrl.current.trim() !== value) return;
       applyRecognition(result);
+      lastResolvedUrl.current = value;
       setMetadataMessage(result.notice);
       setLinkStatus(['LINK_NOT_FOUND', 'LINK_UNREACHABLE', 'LINK_BLOCKED'].includes(result.status) ? 'error' : 'done');
     } catch (e) {
@@ -313,16 +371,16 @@ function RequestFormContent() {
       setEditingDetails(true);
       lastResolvedUrl.current = '';
     } finally {
-      if (recognitionRun.current === run) setResolving(false);
+      if (recognitionRun.current === run) { pendingUrl.current = ''; setResolving(false); }
     }
   };
   useEffect(() => {
     const value = url.trim();
-    if (method !== 'link' || !/^https?:\/\/[^\s]+$/i.test(value)) {
+    if (method !== 'link' || !value || !validProductUrl(value)) {
       setLinkStatus('idle');
       return;
     }
-    if (lastResolvedUrl.current === value) return;
+    if (lastResolvedUrl.current === value || pendingUrl.current === value) return;
     setAiFilled(false);
     setLinkStatus('checking');
     setMetadataMessage('링크를 확인하고 있어요…');
@@ -331,36 +389,38 @@ function RequestFormContent() {
   }, [url, method]);
   const photo = async () => {
     const selectionRun = recognitionRun.current;
-    let run = selectionRun;
+    let run: number | null = null;
     try {
       const v = await pickImage();
       if (v && selectionRun === recognitionRun.current) {
         run = beginRecognition();
+        pendingUrl.current = ''; lastResolvedUrl.current = ''; currentUrl.current = '';
         setUrl('');
         setImage(v);
         const result = await api<RecognitionResult>('/recognize', { image: v });
         if (recognitionRun.current !== run) return;
         applyRecognition(result, v);
-        const ocr = result.signals?.extractedText.filter(Boolean).slice(0, 3).join(' · ');
+        const ocr = Array.isArray(result.signals?.extractedText) ? result.signals.extractedText.filter((text) => typeof text === 'string').slice(0, 3).join(' · ') : '';
         setMetadataMessage(`${result.notice}${ocr ? ` 읽은 글자: ${ocr}` : ''}`);
       }
     } catch (e) {
-      if (recognitionRun.current !== run) return;
+      if (recognitionRun.current !== (run ?? selectionRun)) return;
       setError((e as Error).message);
       setEditingDetails(true);
     } finally {
-      if (recognitionRun.current === run) setResolving(false);
+      if (run !== null && recognitionRun.current === run) setResolving(false);
     }
   };
   const recognizeSample = async () => {
     const run = beginRecognition();
+    pendingUrl.current = ''; lastResolvedUrl.current = ''; currentUrl.current = '';
     setUrl('');
     try {
       const result = await api<RecognitionResult>('/recognize', { sample: 'chiikawa' });
       if (recognitionRun.current !== run) return;
       applyRecognition(result);
       setMetadataMessage(
-        `${result.notice} 인식 신뢰도 ${Math.round((result.confidence || 0) * 100)}% · OCR: ${result.signals?.extractedText.join(' · ') || '문구 없음'}`,
+        result.notice,
       );
     } catch (e) {
       if (recognitionRun.current !== run) return;
@@ -371,28 +431,36 @@ function RequestFormContent() {
     }
   };
   const next = () => {
-    if (name.trim().length < 2 || !/^\d+(?:\.\d{1,2})?$/.test(price) || Number(price) <= 0) {
-      setError('상품명과 0원보다 큰 현지가를 입력해주세요.');
-      return;
-    }
-    if (url && !/^https?:\/\//.test(url)) {
-      setError('상품 링크는 https://로 시작하는 주소를 입력해주세요.');
+    const issue = productValidation({ name, price, url, quantity, storeName, option, hasPlace: d.places.some((place) => place.id === placeId) });
+    if (issue) {
+      setError(!name.trim() && !editingDetails ? '링크를 붙여넣거나 사진을 올려주세요.' : issue);
+      if (name.trim()) setEditingDetails(true);
       return;
     }
     setError('');
     setStep(2);
   };
   const submit = async () => {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(desired)) {
-      setError('희망 수령일은 YYYY-MM-DD로 입력해주세요.');
+    const issue = productValidation({ name, price, url, quantity, storeName, option, hasPlace: d.places.some((place) => place.id === placeId) });
+    if (issue) { setError(issue); setEditingDetails(true); setStep(1); return; }
+    if (!/^\d+$/.test(requestedReward) || !Number.isSafeInteger(reward) || reward > MAX_DEMO_REWARD) {
+      setError(`여행자 보상은 0원부터 ${money(MAX_DEMO_REWARD)}까지 직접 정해주세요.`);
       return;
     }
-    if (mode === 'DOMESTIC_PARCEL' && (!deliveryRecipient || !deliveryPhone || !deliveryPostalCode || !deliveryAddress1)) {
-      setError('국내 택배를 받을 배송지 정보를 모두 입력해주세요.');
+    if (!validDate(desired) || desired < future(0)) {
+      setError('희망 수령일은 오늘 이후의 날짜로 선택해주세요.');
+      return;
+    }
+    if (!deliveryCity.trim() || deliveryCity.trim().length > 40) { setError('수령 도시를 40자 안으로 입력해주세요.'); openDeliveryEditor('region'); return; }
+    const addressIssue = addressValidation({ recipient: deliveryRecipient, phone: deliveryPhone, postalCode: deliveryPostalCode, address1: deliveryAddress1, address2: deliveryAddress2 });
+    if (mode === 'DOMESTIC_PARCEL' && addressIssue) {
+      setError(addressIssue);
+      openDeliveryEditor('address');
       return;
     }
     if (mode === 'MEETUP' && !meetupPoint) {
       setError('지도를 움직여 만날 지점을 정하고 ‘이 위치에서 만날게요’를 눌러주세요.');
+      openDeliveryEditor('meetup');
       return;
     }
     setError('');
@@ -406,6 +474,7 @@ function RequestFormContent() {
         art,
         placeId,
         localPrice: Number(price),
+        requestedReward: reward,
         quantity,
         desiredDate: desired,
         deliveryCountry,
@@ -453,56 +522,28 @@ function RequestFormContent() {
         </Stack>
       }
     >
-      <Row style={{ justifyContent: 'space-between' }}>
-        <Badge>간편 요청</Badge>
-        <Txt size={13} color={c.secondary}>
-          {step} / 2
-        </Txt>
-      </Row>
-      <View style={{ height: 4, backgroundColor: c.border, borderRadius: 2 }}>
-        <View
-          style={{
-            height: 4,
-            width: step === 1 ? '50%' : '100%',
-            backgroundColor: c.green,
-            borderRadius: 2,
-          }}
-        />
-      </View>
+      <Row style={{ gap: 8 }}><Txt size={12} weight="700" color={step === 1 ? c.green : c.muted}>1 상품 확인</Txt><ChevronRight size={13} color={c.muted} /><Txt size={12} weight="700" color={step === 2 ? c.green : c.muted}>2 수령·보상</Txt></Row>
       <Stack gap={6}>
-        <Txt size={28} weight="800">
-          {step === 1 ? '링크나 사진을 보내주세요' : '어떻게 받을까요?'}
+        <Txt size={28} weight="700">
+          {step === 1 ? '어떤 물건을 부탁할까요?' : '어떻게 받을까요?'}
         </Txt>
         <Txt color={c.secondary}>
           {step === 1
             ? d.recognition?.image === false
-              ? '링크로 자동 입력하거나 사진 샘플을 체험해보세요.'
-              : 'AI가 상품명·종류·구매 장소를 알아서 채워드려요.'
-            : '측정된 예상 금액을 확인하고 수령 방법만 정해주세요.'}
+              ? '상품 링크로 시작해보세요.'
+              : '링크나 사진으로 상품 정보를 채워드려요.'
+            : '받는 방법과 여행자 보상을 정해주세요.'}
         </Txt>
       </Stack>
       {error.length > 0 && <Notice tone="error">{error}</Notice>}
       {step === 1 ? (
         <>
-          <Row>
-            {[
-              ['link', '상품 링크', Link],
-              ['photo', '사진 올리기', ImagePlus],
-            ].map(([v, label, Icon]) => (
-              <Chip
-                key={v as string}
-                label={label as string}
-                icon={Icon as typeof Link}
-                selected={method === v}
-                onPress={() => {
-                  if (method === v) return;
-                  recognitionRun.current++;
-                  setResolving(false); clearFeedback();
-                  setMethod(v as 'link' | 'photo');
-                }}
-              />
-            ))}
-          </Row>
+          <SectionTabs items={['상품 링크', '사진 올리기']} value={method === 'link' ? '상품 링크' : '사진 올리기'} onChange={(value) => {
+            const nextMethod = value === '상품 링크' ? 'link' : 'photo';
+            if (method === nextMethod) return;
+            pendingUrl.current = '';
+            recognitionRun.current++; setResolving(false); clearFeedback(); setMethod(nextMethod);
+          }} />
           {method === 'link' ? (
             <Stack gap={12}>
               <Field
@@ -510,22 +551,17 @@ function RequestFormContent() {
                 value={url}
                 onChange={changeUrl}
                 keyboard="url"
-                placeholder="https://..."
+                placeholder="사고 싶은 상품의 링크를 붙여넣으세요"
               />
-              <Button
-                label={resolving ? '상품 정보·한국어 번역을 가져오는 중' : '링크에서 정보 가져오기'}
-                kind="secondary"
-                icon={Sparkles}
-                loading={resolving}
-                onPress={() => resolve(false, true)}
-              />
+              {(resolving || linkStatus === 'checking') ? <Row style={{ gap: 7 }}><Sparkles size={15} color={c.green} /><Txt size={13} color={c.green}>상품 정보를 가져오고 있어요</Txt></Row> : linkStatus === 'error' && <Button label="링크 다시 확인하기" kind="secondary" icon={Sparkles} onPress={() => resolve(false, true)} />}
               <Pressable
                 accessibilityRole="button"
+                accessibilityLabel="예시 링크로 빠르게 채우기"
                 onPress={() => resolve(true)}
                 style={{ paddingVertical: 8 }}
               >
-                <Txt size={13} color={c.green} style={{ textDecorationLine: 'underline' }}>
-                  예시 링크로 빠르게 채우기
+                <Txt size={13} color={c.secondary}>
+                  링크가 없다면 예시로 체험하기
                 </Txt>
               </Pressable>
             </Stack>
@@ -534,13 +570,14 @@ function RequestFormContent() {
               <Button
                 label={image ? '사진 다시 선택하고 인식하기' : '사진 보내고 바로 인식하기'}
                 icon={ImagePlus}
+                kind="secondary"
                 loading={resolving}
                 onPress={photo}
               />
               <Txt size={13} color={c.secondary}>
                 {d.recognition?.image === false
-                  ? '현재 실제 사진 AI 연결이 필요해요. 아래 샘플로 자동 입력 흐름을 먼저 체험할 수 있어요.'
-                  : '사진 속 글자(OCR)·로고·포장을 함께 봐서 상품과 살 곳을 찾아요.'}
+                  ? '사진 자동 인식은 준비 중이에요. 샘플로 먼저 체험할 수 있어요.'
+                  : '상품 이름과 포장이 잘 보이는 사진을 골라주세요.'}
               </Txt>
               <Txt size={12} color={c.muted}>
                 자동 인식을 사용하면 선택한 사진이 인식 서버로 전송돼요.
@@ -548,14 +585,14 @@ function RequestFormContent() {
               <Button
                 small
                 label="치이카와 샘플로 인식 체험"
-                kind="secondary"
+                kind="ghost"
                 icon={Sparkles}
                 loading={resolving}
                 onPress={recognizeSample}
               />
             </Stack>
           )}
-          {metadataMessage.length > 0 && (
+          {metadataMessage.length > 0 && !resolving && (linkStatus === 'error' || !aiFilled) && (
             <Notice tone={linkStatus === 'error' ? 'error' : 'info'}>{metadataMessage}</Notice>
           )}
           {aiFilled && !editingDetails ? (
@@ -564,11 +601,11 @@ function RequestFormContent() {
                 <Row style={{ justifyContent: 'space-between' }}>
                   <Row style={{ gap: 8 }}>
                     <Sparkles size={18} color={c.green} />
-                    <Txt size={17} weight="700">
+                    <Txt size={14} weight="600">
                       {preset ? '이전 부탁을 불러왔어요' : sampleFilled ? '예시 상품을 채웠어요' : '상품 정보를 채웠어요'}
                     </Txt>
                   </Row>
-                  <Button small label="수정" kind="ghost" onPress={() => setEditingDetails(true)} />
+                  <Button small label="수정" kind="ghost" onPress={editProductManually} />
                 </Row>
                 <Row style={{ alignItems: 'flex-start' }}>
                   <ProductArt
@@ -590,21 +627,17 @@ function RequestFormContent() {
                         구매 동선 후보 · {place.city} · {place.name}
                       </Txt>
                     )}
-                    <Txt size={13} color={c.secondary}>
-                      {CATEGORIES[category]} ·{' '}
-                      {price
-                        ? localMoney(Number(price), currencyForCountry(place.country))
-                        : '가격 확인 필요'}
-                    </Txt>
+                    <Txt size={18} weight="700">{price ? money(q.productPrice) : '가격 확인 필요'}</Txt>
+                    <Txt size={12} color={c.secondary}>{CATEGORIES[category]} · {localMoney(Number(price), currencyForCountry(place.country))}</Txt>
                     {option !== '기본 옵션' && <Txt size={13} color={c.secondary}>{option}</Txt>}
                   </Stack>
                 </Row>
                 <Txt size={12} color={c.muted}>
                   {preset
-                    ? '기존 상품 정보를 그대로 가져왔어요. 수령 방법과 날짜를 확인하고 다시 부탁해주세요.'
+                    ? '수령 방법과 날짜를 확인하고 다시 부탁해주세요.'
                     : sampleFilled
-                    ? '자동 입력 흐름을 확인하는 샘플이에요. 실제 상품 식별이나 재고 확인 결과는 아니에요.'
-                    : '가져온 상품 정보를 등록 전에 한 번만 확인해주세요.'}
+                    ? '예시 정보예요. 실제 상품·재고 확인 결과는 아니에요.'
+                    : '이 상품이 맞는지 확인해주세요. 재고는 구매 전에 확인해요.'}
                 </Txt>
               </Stack>
             </Card>
@@ -673,6 +706,7 @@ function RequestFormContent() {
                   onPress={() => {
                     if (p.country !== place.country) setPrice('');
                     setPlaceId(p.id);
+                    setStoreName(p.name); setInventoryStatus('CHECK_REQUIRED'); setError('');
                   }}
                 />
               ))}
@@ -705,19 +739,19 @@ function RequestFormContent() {
               small
               label="사진 없이 직접 입력하기"
               kind="ghost"
-              onPress={() => setEditingDetails(true)}
+              onPress={editProductManually}
             />
           )}
         </>
       ) : (
         <>
-          <Card>
-            <Row>
+          <Stack gap={8}>
+            <Row style={{ alignItems: 'flex-start' }}>
               <ProductArt
                 art={art}
                 image={image}
                 featured={name.includes('치이카와')}
-                size={70}
+                size={56}
               />
               <View style={{ flex: 1 }}>
                 <Txt weight="700">{name}</Txt>
@@ -727,7 +761,7 @@ function RequestFormContent() {
               </View>
               <Button small label="수정" kind="ghost" onPress={() => setStep(1)} />
             </Row>
-          </Card>
+          </Stack>
           <Row style={{ justifyContent: 'space-between' }}>
             <Txt weight="600">수량</Txt>
             <Row>
@@ -746,277 +780,200 @@ function RequestFormContent() {
               />
             </Row>
           </Row>
+          <Divider />
           <Stack gap={10}>
-            <Txt size={14} weight="600">
-              어느 나라에서 받으세요?
-            </Txt>
-            <Row>
-              <Chip
-                label="한국"
-                selected={deliveryCountry === 'KR'}
-                onPress={() => {
-                  if (deliveryCountry !== 'KR') { setMeetupPoint(undefined); setMeetupLocation(''); }
-                  setDeliveryCountry('KR');
-                  setDeliveryCity('서울');
-                }}
-              />
-              <Chip
-                label="일본"
-                selected={deliveryCountry === 'JP'}
-                onPress={() => {
-                  if (deliveryCountry !== 'JP') { setMeetupPoint(undefined); setMeetupLocation(''); }
-                  setDeliveryCountry('JP');
-                  setDeliveryCity('도쿄');
-                }}
-              />
-            </Row>
-            <Field label="수령 도시" value={deliveryCity} onChange={setDeliveryCity} />
-          </Stack>
-          <Stack gap={10}>
-            <Txt size={14} weight="600">
-              {countryName(deliveryCountry)} 도착 후 어떻게 받을까요?
-            </Txt>
-            <Row>
-              <Chip
-                label="국내 택배 · ₩3,500"
-                selected={mode === 'DOMESTIC_PARCEL'}
-                onPress={() => setTransport('DOMESTIC_PARCEL')}
-              />
-              <Chip
-                label="직접 전달 · 무료"
-                selected={mode === 'MEETUP'}
-                onPress={() => setTransport('MEETUP')}
-              />
-            </Row>
+            <Row style={{ justifyContent: 'space-between' }}><Txt size={17} weight="700">받는 방법</Txt><Pressable accessibilityRole="button" accessibilityLabel="수령 지역 변경" onPress={() => openDeliveryEditor('region')} style={{ minHeight: 44, justifyContent: 'center' }}><Row style={{ gap: 3 }}><Txt size={12} color={c.secondary}>{countryName(deliveryCountry)} · {deliveryCity}</Txt><ChevronRight size={14} color={c.muted} /></Row></Pressable></Row>
+            {([
+              ['DOMESTIC_PARCEL', '국내 택배 · ₩3,500', '국내 택배', '귀국 후 집으로 보내드려요', parcelQuote],
+              ['MEETUP', '직접 전달 · 무료', '직접 만나요', '배송비 없이 가까운 곳에서 받아요', meetupQuote],
+            ] as const).map(([value, accessibilityLabel, label, description, priceQuote]) => <Pressable key={value} accessibilityRole="button" accessibilityLabel={accessibilityLabel} accessibilityState={{ selected: mode === value }} aria-selected={mode === value} aria-pressed={mode === value} onPress={() => { if (value === 'MEETUP' && !meetupPoint) openDeliveryEditor('meetup'); setTransport(value); }}
+              style={({ pressed }) => ({ padding: 16, borderRadius: 16, borderWidth: 1.5, borderColor: mode === value ? c.green : c.border, backgroundColor: c.paper, flexDirection: 'row', alignItems: 'center', gap: 12, opacity: pressed ? 0.7 : 1 })}>
+              <View style={{ flex: 1, gap: 4 }}><Txt size={15} weight="600">{label}</Txt><Txt size={12} color={c.secondary}>{description}</Txt></View><View style={{ alignItems: 'flex-end', gap: 4 }}><Txt size={16} weight="700">{money(priceQuote.totalPrice)}</Txt><Txt size={11} color={c.muted}>{requestedReward === '' ? '보상 입력 전' : '예상 합계'}</Txt></View>
+            </Pressable>)}
           </Stack>
           {mode === 'DOMESTIC_PARCEL' ? (
-            <Card>
-              <Stack gap={12}>
-                <Row style={{ justifyContent: 'space-between' }}>
-                  <Txt size={17} weight="700">받을 배송지</Txt>
-                  {defaultAddress && <Badge>기본 배송지</Badge>}
-                </Row>
-                {defaultAddress && deliveryAddressId !== defaultAddress.id && (
-                  <Button
-                    small
-                    kind="secondary"
-                    label="기본 배송지로 설정"
-                    onPress={() => {
-                      setDeliveryAddressId(defaultAddress.id);
-                      setDeliveryRecipient(defaultAddress.recipient);
-                      setDeliveryPhone(defaultAddress.phone);
-                      setDeliveryPostalCode(defaultAddress.postalCode);
-                      setDeliveryAddress1(defaultAddress.address1);
-                      setDeliveryAddress2(defaultAddress.address2);
-                    }}
-                  />
-                )}
-                <Row>
-                  <Field style={{ flex: 1 }} label="받는 분" required value={deliveryRecipient} onChange={(v) => { setDeliveryAddressId(''); setDeliveryRecipient(v); }} />
-                  <Field style={{ flex: 1 }} label="연락처" required value={deliveryPhone} onChange={(v) => { setDeliveryAddressId(''); setDeliveryPhone(v); }} />
-                </Row>
-                <Field label="우편번호" required value={deliveryPostalCode} onChange={(v) => { setDeliveryAddressId(''); setDeliveryPostalCode(v); }} keyboard="numeric" />
-                <Field label="주소" required value={deliveryAddress1} onChange={(v) => { setDeliveryAddressId(''); setDeliveryAddress1(v); }} placeholder="도로명 주소" />
-                <Field label="상세 주소" value={deliveryAddress2} onChange={(v) => { setDeliveryAddressId(''); setDeliveryAddress2(v); }} />
-                <Txt size={12} color={c.secondary}>MY의 배송지 관리에서 기본 배송지를 바꿀 수 있어요.</Txt>
-              </Stack>
-            </Card>
+            <Pressable accessibilityRole="button" accessibilityLabel="받을 배송지 변경" onPress={() => openDeliveryEditor('address')} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 }}>
+              <MapPin size={19} color={c.secondary} /><View style={{ flex: 1, gap: 5 }}><Txt size={13} weight="600">{deliveryAddressId && deliveryAddressId === defaultAddress?.id ? '기본 배송지' : '받을 배송지'}</Txt><Txt size={14} color={c.secondary}>{deliveryAddress1 ? `${deliveryAddress1} ${deliveryAddress2}`.trim() : '배송지를 추가해주세요'}</Txt>{!!deliveryRecipient && <Txt size={12} color={c.muted}>{deliveryRecipient} · {deliveryPhone}</Txt>}</View><ChevronRight size={19} color={c.muted} />
+            </Pressable>
           ) : (
-            <MeetupPicker key={deliveryCountry} country={deliveryCountry} value={meetupPoint} legacyName={meetupLocation} history={completedMeetups}
-              onChange={(point) => {
-                setMeetupPoint(point);
-                if (point) { setMeetupLocation(point.name); setError(''); }
-              }} />
+            <Pressable accessibilityRole="button" accessibilityLabel="직거래 위치 변경" onPress={() => openDeliveryEditor('meetup')} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 }}>
+              <MapPin size={19} color={c.secondary} /><View style={{ flex: 1, gap: 5 }}><Txt size={14} weight="600">{meetupPoint?.name || '어디에서 만날까요?'}</Txt><Txt size={12} color={c.secondary}>{meetupPoint ? '직거래 위치가 저장됐어요' : '지도에서 만날 곳을 골라주세요'}</Txt>{!!meetupPoint?.detail && <Txt size={12} color={c.muted}>{meetupPoint.detail}</Txt>}</View><ChevronRight size={19} color={c.muted} />
+            </Pressable>
           )}
-          <Card>
-            <Stack>
-              <Txt size={17} weight="700">
-                예상 비용을 미리 확인해요
-              </Txt>
-              <MoneyBreakdown price={q} rewardPending />
-            </Stack>
-          </Card>
-          <Card style={{ backgroundColor: c.mint }}>
-            <Stack gap={12}>
-              <Txt size={17} weight="700">받는 방법별 금액 비교</Txt>
-              <Txt size={12} color={c.secondary}>상품가격과 전달비 비교예요. 여행자 보상은 별도로 정해요.</Txt>
-              <Row style={{ justifyContent: 'space-between' }}><Txt color={c.secondary}>국내 택배</Txt><Txt weight="700">{money(parcelQuote.totalPrice)}</Txt></Row>
-              <Row style={{ justifyContent: 'space-between' }}><Txt color={c.secondary}>직거래</Txt><Txt weight="700" color={c.green}>{money(meetupQuote.totalPrice)}</Txt></Row>
-              <Txt size={12} color={c.secondary}>직거래는 국내 배송비 {money(parcelQuote.totalPrice - meetupQuote.totalPrice)}을 아낄 수 있어요.</Txt>
-            </Stack>
-          </Card>
+          <Divider />
           <DateField label="희망 수령일" value={desired} onChange={setDesired} min={future(0)} />
-          {place.country !== deliveryCountry && (
-            <Notice>
-              해외에서 {countryName(deliveryCountry)}까지는 여행자의 원래 이동으로 가져와요. 별도 국제배송비는 붙지 않아요.
-            </Notice>
-          )}
-          <Notice>
-            일반 직구 비교 정보는 아직 없어요. 가격이 더 싸거나 온라인 구매가 불가능하다고 단정하지
-            않아요.
-          </Notice>
+          <Stack gap={10}><Txt size={17} weight="700">보상은 얼마가 좋을까요?</Txt><Field label="여행자 보상 (원)" value={requestedReward} onChange={(value) => { setRequestedReward(value.replace(/[^0-9]/g, '').slice(0, 7)); setError(''); }} keyboard="numeric" placeholder="직접 금액을 정해주세요" hint="이 부탁을 가져와 주는 여행자에게 전하는 보상이에요." /></Stack>
+          <Divider />
+          <Stack gap={16}><Txt size={18} weight="700">예상 결제금액</Txt><MoneyBreakdown price={q} rewardPending={requestedReward === ''} /></Stack>
+          <Sheet visible={editingMeetup} title="어디에서 만날까요?" onClose={cancelDeliveryEditor}>
+            {editingMeetup && <MeetupPicker key={deliveryCountry} country={deliveryCountry} value={meetupPoint} legacyName={meetupLocation} history={completedMeetups} onChange={(point) => {
+              setMeetupPoint(point);
+              if (point) { setMeetupLocation(point.name); finishDeliveryEditor(); }
+            }} />}
+          </Sheet>
+          <Sheet visible={editingAddress} title="어디로 보내드릴까요?" onClose={cancelDeliveryEditor} footer={<Button label="이 배송지로 받을게요" disabled={!!addressValidation({ recipient: deliveryRecipient, phone: deliveryPhone, postalCode: deliveryPostalCode, address1: deliveryAddress1, address2: deliveryAddress2 })} onPress={finishDeliveryEditor} />}>
+            {deliveryCountry === 'KR' && defaultAddress && deliveryAddressId !== defaultAddress.id && <Button kind="secondary" label="기본 배송지로 설정" onPress={() => {
+              setDeliveryAddressId(defaultAddress.id); setDeliveryRecipient(defaultAddress.recipient); setDeliveryPhone(defaultAddress.phone); setDeliveryPostalCode(defaultAddress.postalCode); setDeliveryAddress1(defaultAddress.address1); setDeliveryAddress2(defaultAddress.address2);
+            }} />}
+            <Field label="받는 분" value={deliveryRecipient} onChange={(value) => { setDeliveryAddressId(''); setDeliveryRecipient(value); }} />
+            <Field label="연락처" value={deliveryPhone} onChange={(value) => { setDeliveryAddressId(''); setDeliveryPhone(value); }} />
+            <Field label="우편번호" value={deliveryPostalCode} onChange={(value) => { setDeliveryAddressId(''); setDeliveryPostalCode(value); }} keyboard="numeric" />
+            <Field label="주소" value={deliveryAddress1} onChange={(value) => { setDeliveryAddressId(''); setDeliveryAddress1(value); }} placeholder="도로명 주소" />
+            <Field label="상세 주소" value={deliveryAddress2} onChange={(value) => { setDeliveryAddressId(''); setDeliveryAddress2(value); }} />
+          </Sheet>
+          <Sheet visible={editingRegion} title="어느 지역에서 받으세요?" onClose={cancelDeliveryEditor} footer={<Button label="이 지역에서 받을게요" disabled={!deliveryCity.trim() || deliveryCity.trim().length > 40} onPress={finishDeliveryEditor} />}>
+            <Row>{(['KR', 'JP'] as const).map((code) => <Chip key={code} label={countryName(code)} selected={deliveryCountry === code} onPress={() => {
+              if (deliveryCountry === code) return;
+              if (deliveryCountry !== code) { setMeetupPoint(undefined); setMeetupLocation(''); setDeliveryAddressId(''); setDeliveryAddress1(''); setDeliveryAddress2(''); setDeliveryPostalCode(''); }
+              setDeliveryCountry(code); setDeliveryCity(code === 'KR' ? '서울' : '도쿄');
+            }} />)}</Row><Field label="수령 도시" value={deliveryCity} onChange={(value) => { setDeliveryCity(value); if (value.trim() !== deliveryCity.trim()) { setMeetupPoint(undefined); setMeetupLocation(''); } }} />
+          </Sheet>
         </>
       )}
     </Page>
   );
 }
 export function TripForm() {
+  const a = useApp();
+  if (!a.data) return <Page title="여행 등록"><Empty title="여행 정보를 불러오는 중이에요" /></Page>;
+  return <TripFormContent key={a.data.me.id} />;
+}
+function TripFormContent() {
   const a = useApp(),
     d = a.data!;
-  const [departure, setDeparture] = useState('서울'),
-    [depCountry, setDepCountry] = useState<'KR' | 'JP'>('KR'),
-    [country, setCountry] = useState<Country>('JP'),
-    [cities, setCities] = useState<string[]>(['도쿄']),
-    [start, setStart] = useState(future(4)),
-    [end, setEnd] = useState(future(7)),
-    [places, setPlaces] = useState<string[]>(['p-shibuya', 'p-station']),
-    [capacity, setCapacity] = useState('8'),
+  const homeAddress = (d.addresses || []).find((item) => item.userId === d.me.id && item.isDefault);
+  const homeCity = homeAddress?.address1.match(/서울|부산|대구|인천|광주|대전|울산|제주/)?.[0]
+    || homeAddress?.address1.trim().split(/\s+/).find((part) => /[시군]$/.test(part))?.replace(/[시군]$/, '') || '';
+  const [restored] = useState(() => readTripDraft(d.me.id));
+  const initialStart = restored?.start && restored.start >= future(0) ? restored.start : future(4);
+  const initialEnd = restored?.end && restored.end >= initialStart ? restored.end : initialStart > future(7) ? initialStart : future(7);
+  const [departure, setDeparture] = useState(restored?.departure ?? homeCity),
+    [depCountry, setDepCountry] = useState<Country>(restored?.depCountry || 'KR'),
+    [originSource, setOriginSource] = useState<'address' | 'gps' | 'manual'>(restored?.originSource || (homeAddress ? 'address' : 'manual')),
+    [editingOrigin, setEditingOrigin] = useState(false),
+    [locating, setLocating] = useState(false),
+    [country, setCountry] = useState<Country>(restored?.country || 'JP'),
+    [areas, setAreas] = useState<string[]>(restored?.areas || []),
+    [customStops, setCustomStops] = useState<string[]>(restored?.customStops || []),
+    [start, setStart] = useState(initialStart),
+    [end, setEnd] = useState(initialEnd),
+    [places, setPlaces] = useState<string[]>(restored?.places.filter((id) => d.places.some((place) => place.id === id && place.country === restored.country && restored.areas.includes(place.city))) || []),
     [error, setError] = useState('');
-  const available = d.places.filter((p) => p.country === country && cities.includes(p.city));
+  const saved = useRef(false), storageWarning = useRef(false);
+  const originSnapshot = useRef<{ departure: string; depCountry: Country; originSource: typeof originSource } | null>(null);
+  const locationRun = useRef(0);
+  useEffect(() => () => { locationRun.current++; }, []);
+  const openOriginEditor = () => { originSnapshot.current = { departure, depCountry, originSource }; setEditingOrigin(true); };
+  const finishOriginEditor = () => { locationRun.current++; setLocating(false); originSnapshot.current = null; setEditingOrigin(false); setError(''); };
+  const cancelOriginEditor = () => {
+    const previous = originSnapshot.current;
+    if (previous) { setDeparture(previous.departure); setDepCountry(previous.depCountry); setOriginSource(previous.originSource); }
+    finishOriginEditor();
+  };
+  useEffect(() => {
+    if (saved.current || editingOrigin) return;
+    const stored = writeTripDraft(d.me.id, { departure, depCountry, originSource, country, areas, customStops, start, end, places });
+    if (!stored && !storageWarning.current) { storageWarning.current = true; a.notify('임시 저장을 사용할 수 없어요. 이 화면에서 일정을 마저 등록해주세요.'); }
+  }, [d.me.id, departure, depCountry, originSource, country, areas, customStops, start, end, places, editingOrigin]);
+  const locateDeparture = async () => {
+    const currentRun = ++locationRun.current;
+    setLocating(true);
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (currentRun !== locationRun.current) return;
+      if (permission.status !== 'granted') throw new Error('위치 권한을 허용해주세요.');
+      const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const [address] = await Location.reverseGeocodeAsync(current.coords);
+      if (currentRun !== locationRun.current) return;
+      const code = address?.isoCountryCode?.toUpperCase();
+      const city = address?.city || address?.district || address?.subregion || address?.region;
+      if (!city) throw new Error('현재 도시를 확인하지 못했어요.');
+      if (!code || !(COUNTRY_CODES as readonly string[]).includes(code)) throw new Error('현재 위치는 지원하는 출발 국가가 아니에요. 출발지를 직접 선택해주세요.');
+      setDepCountry(code as Country);
+      setDeparture(city);
+      setOriginSource('gps');
+      finishOriginEditor();
+      a.notify('현재 위치를 출발지로 설정했어요.');
+    } catch (locationError) {
+      if (currentRun !== locationRun.current) return;
+      const message = (locationError as Error).message || '';
+      a.notify(/[가-힣]/.test(message) ? message : '현재 도시를 확인하지 못했어요. 출발지를 직접 선택해주세요.');
+    } finally {
+      if (currentRun === locationRun.current) setLocating(false);
+    }
+  };
   const submit = async () => {
-    if (!departure.trim() || !Number.isInteger(Number(capacity)) || Number(capacity) < 1) {
-      setError('출발 도시와 1개 이상의 처리 가능 수량을 입력해주세요.');
+    if (!departure.trim() || departure.trim().length > 40) {
+      setError('출발 도시를 40자 안으로 입력해주세요.');
+      openOriginEditor();
       return;
     }
-    if (start < future(0) || end < start) {
+    if (!validDate(start) || !validDate(end) || start < future(0) || end < start) {
       setError('오늘 이후의 시작일과 그 이후의 종료일을 선택해주세요.');
       return;
     }
-    if (!cities.length || cities.some((city) => !places.some((id) => d.places.find((p) => p.id === id)?.city === city))) {
-      setError('선택한 도시마다 방문할 장소를 하나 이상 골라주세요.');
-      return;
-    }
-    if (!places.length) {
-      setError('방문할 장소를 하나 이상 골라주세요.');
-      return;
-    }
+    const destinationAreas = areas.length ? areas : [`${countryName(country)} 전역`];
     const t = await a.mutate<Trip>(
       '/trips',
       {
         departureCountry: depCountry,
-        departureCity: departure,
+        departureCity: departure.trim(),
         destinationCountry: country,
-        destinationCity: cities[0],
+        destinationCity: destinationAreas[0],
+        destinationAreas,
         startDate: start,
         endDate: end,
         placeIds: places,
-        maxItems: Number(capacity),
+        customStops,
+        maxItems: 8,
       },
       '여행을 등록했어요. 왕복 항공권을 확인해주세요.',
     );
     if (t) {
+      saved.current = true;
+      writeTripDraft(d.me.id, null);
       a.setRole('traveler');
       a.nav('flight-proof', { id: t.id });
     }
   };
   return (
     <Page
-      title="어디로 떠나세요?"
+      title="여행 등록"
       resetScrollKey={error}
       footer={
         <Button
-          label="일정 저장하고 항공권 인증하기"
+          label="이 일정으로 계속"
           icon={ArrowRight}
           loading={a.busy}
           onPress={submit}
         />
       }
     >
-      <Stack gap={8}>
-        <Badge>여행 일정 등록</Badge>
-        <Txt size={29} weight="800">
-          원래 가는 그 길에,{'\n'}작은 보상을 더해요.
-        </Txt>
-      </Stack>
       {error.length > 0 && <Notice tone="error">{error}</Notice>}
-      <Field label="출발 도시" value={departure} onChange={setDeparture} />
-      <Row>
-        <Chip
-          label="한국 출발"
-          selected={depCountry === 'KR'}
-          onPress={() => { setDepCountry('KR'); setDeparture('서울'); }}
-        />
-        <Chip
-          label="일본 출발"
-          selected={depCountry === 'JP'}
-          onPress={() => {
-            setDepCountry('JP');
-            setDeparture('도쿄');
-          }}
-        />
-      </Row>
-      <Stack gap={10}>
-        <Txt size={14} weight="600">
-          어디로 여행 가시나요? · 여러 곳 선택 가능
-        </Txt>
-        <DestinationPicker country={country} cities={cities} multiple onChange={(nextCountry, selectedCities) => {
-          if (nextCountry === 'ALL') return;
-          setCountry(nextCountry); setCities(selectedCities); setError('');
-          setPlaces(places.filter((id) => { const place = d.places.find((p) => p.id === id); return place?.country === nextCountry && selectedCities.includes(place.city); }));
+      <Stack gap={8}><Txt size={28} weight="700">여행지는 어디인가요?</Txt><Txt size={15} color={c.secondary}>원래 가는 길에서 부탁을 만나보세요.</Txt></Stack>
+      <View style={{ backgroundColor: c.paper, borderRadius: 20, paddingHorizontal: 20 }}>
+        <Pressable accessibilityRole="button" accessibilityLabel="출발지 변경" onPress={openOriginEditor} style={({ pressed }) => ({ paddingVertical: 16, minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 14, opacity: pressed ? 0.65 : 1 })}>
+          <LocateFixed size={21} color={c.secondary} /><View style={{ flex: 1, gap: 4 }}><Txt size={12} color={c.secondary}>출발 · {originSource === 'gps' ? '현재 위치' : originSource === 'address' ? '기본 배송지' : '직접 선택'}</Txt><Txt size={16} weight="600">{departure ? `${countryName(depCountry)} · ${departure}` : '출발지를 선택해주세요'}</Txt></View><ChevronRight size={19} color={c.muted} />
+        </Pressable>
+        <Divider />
+        <TripRoutePicker country={country} areas={areas} onChange={(nextCountry, selectedAreas) => {
+          setCountry(nextCountry); setAreas(selectedAreas); setError('');
+          setPlaces(places.filter((id) => d.places.some((place) => place.id === id && place.country === nextCountry && selectedAreas.includes(place.city))));
+          setCustomStops(country === nextCountry ? customStops.filter((stop) => selectedAreas.some((area) => stop.startsWith(`${area} · `))) : []);
         }} />
-        <Txt size={12} color={c.secondary}>한 여행에서는 선택한 국가·지역 안의 여러 도시를 묶어요.</Txt>
-      </Stack>
-      <DateField label="여행 시작일" value={start} onChange={(value) => { setStart(value); if (end < value) setEnd(value); setError(''); }} min={future(0)} />
-      <DateField label="여행 종료일" value={end} onChange={setEnd} min={start} />
-      <View>
-        <Section title="들를 곳을 골라주세요" subtitle="예정된 장소에 있는 부탁만 추천해요." />
-        {available.map((p) => (
-          <Pressable
-            key={p.id}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: places.includes(p.id) }}
-            accessibilityLabel={p.name}
-            onPress={() =>
-              setPlaces(
-                places.includes(p.id) ? places.filter((id) => id !== p.id) : [...places, p.id],
-              )
-            }
-            style={{
-              backgroundColor: places.includes(p.id) ? c.mint : c.paper,
-              borderWidth: 1,
-              borderColor: places.includes(p.id) ? c.green : c.border,
-              borderRadius: 16,
-              padding: 18,
-              marginBottom: 10,
-            }}
-          >
-            <Row>
-              <MapPin size={22} color={c.green} />
-              <View style={{ flex: 1 }}>
-                <Txt weight="700">{p.name}</Txt>
-                <Txt size={12} color={c.secondary}>
-                  {p.region} · 예시 요청 {p.requestCount}건
-                </Txt>
-              </View>
-              <View
-                style={{
-                  width: 23,
-                  height: 23,
-                  borderRadius: 7,
-                  borderWidth: 1,
-                  borderColor: places.includes(p.id) ? c.green : c.border,
-                  backgroundColor: places.includes(p.id) ? c.green : c.paper,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                {places.includes(p.id) && <Check size={16} color="white" />}
-              </View>
-            </Row>
-          </Pressable>
-        ))}
       </View>
-      <Field
-        label="최대 처리 가능한 상품 수량"
-        value={capacity}
-        onChange={(v) => setCapacity(v.replace(/[^0-9]/g, ''))}
-        keyboard="numeric"
-        hint="여유 시간을 생각해 1~20개 사이로 정해주세요."
-      />
-      <Notice>
-        다음 화면에서 왕복 항공권을 인식하고 일정과 대조해요. 항공권 인식은 발권 진위 확인과 다르며,
-        실제 항공사·본인확인 연동 전에는 새 일정으로 부탁을 수락할 수 없어요.
-      </Notice>
+      <View style={{ gap: 8 }}><Row style={{ justifyContent: 'space-between' }}><Txt size={17} weight="700">방문 예정지</Txt><Txt size={12} color={c.muted}>선택</Txt></Row>
+        <TripStopPicker country={country} areas={areas} catalog={d.places} placeIds={places} customStops={customStops} onChange={(ids, stops) => { setPlaces(ids); setCustomStops(stops); }} />
+      </View>
+      <View style={{ gap: 8 }}><Txt size={17} weight="700">언제 다녀오세요?</Txt><DateRangePicker start={start} end={end} min={future(0)} onChange={(nextStart, nextEnd) => { setStart(nextStart); setEnd(nextEnd); setError(''); }} /></View>
+      <Row style={{ gap: 8 }}><ShieldCheck size={16} color={c.muted} /><Txt size={12} color={c.secondary} style={{ flex: 1 }}>일정 저장 후 왕복 항공권을 확인해요.</Txt></Row>
+      <Sheet visible={editingOrigin} title="어디에서 출발하세요?" onClose={cancelOriginEditor} footer={<Button label="이 출발지로 설정" disabled={!departure.trim() || departure.trim().length > 40} onPress={finishOriginEditor} />}>
+        {Platform.OS !== 'web' ? <Button kind="secondary" icon={LocateFixed} label="현재 위치로 바꾸기" loading={locating} onPress={() => void locateDeparture()} /> : <Txt size={13} color={c.secondary}>웹에서는 출발 도시를 직접 선택해주세요.</Txt>}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+          {COUNTRY_CODES.map((code) => <Chip key={code} label={countryName(code)} selected={code === depCountry} onPress={() => { if (depCountry !== code) setDeparture(''); setDepCountry(code); setOriginSource('manual'); }} />)}
+        </ScrollView>
+        <Field label="출발 도시" value={departure} onChange={(value) => { setDeparture(value); setOriginSource('manual'); }} placeholder="예: 서울" />
+      </Sheet>
     </Page>
   );
 }

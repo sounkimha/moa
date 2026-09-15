@@ -12,7 +12,7 @@ import {
 import { randomBytes } from 'node:crypto';
 import { Request } from 'express';
 import { z } from 'zod';
-import { parse, get } from '../common/validation';
+import { base, parse, get } from '../common/validation';
 import { Store } from '../infrastructure/store';
 export interface ActorRequest extends Request {
   actorId: string;
@@ -89,5 +89,38 @@ export class AuthController {
   @UseGuards(AuthGuard) @Post('logout') logout(@Req() req: ActorRequest) {
     this.sessions.remove((req.headers.authorization || '').replace(/^Bearer /, ''));
     return { ok: true };
+  }
+  @UseGuards(AuthGuard) @Post('identity/verify') async verifyIdentity(
+    @Req() req: ActorRequest,
+    @Body() body: unknown,
+  ) {
+    const data = parse(
+      z.object({
+        name: z.string().trim().min(2).max(30),
+        phone: z.string().regex(/^01[016789]-?\d{3,4}-?\d{4}$/, '휴대폰 번호를 확인해주세요.'),
+        birthDate: z.string().regex(/^\d{6}$/, '생년월일 6자리를 입력해주세요.'),
+        consent: z.literal(true, { errorMap: () => ({ message: '본인인증 안내에 동의해주세요.' }) }),
+      }).strict(),
+      body,
+    );
+    await this.store.transaction((db) => {
+      const user = get(db.users, req.actorId, '사용자');
+      if (!user.verificationLabels.includes('본인 인증')) user.verificationLabels.push('본인 인증');
+      const current = db.verifications.find((item) => item.userId === req.actorId && item.kind === 'IDENTITY');
+      if (current) current.status = 'DEMO_VERIFIED';
+      else db.verifications.push({
+        ...base(),
+        userId: req.actorId,
+        kind: 'IDENTITY',
+        status: 'DEMO_VERIFIED',
+        providerRef: `demo-identity-${randomBytes(6).toString('hex')}`,
+      });
+      db.events.push({ ...base(), actorId: req.actorId, type: 'identity_verified', note: 'demo-provider' });
+    });
+    return {
+      verified: true,
+      maskedPhone: data.phone.replace(/(\d{3})-?\d{3,4}-?(\d{4})/, '$1-****-$2'),
+      notice: '체험용 본인인증을 완료했어요. 입력한 이름·생년월일·휴대폰 번호는 저장하지 않았어요.',
+    };
   }
 }

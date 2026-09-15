@@ -36,6 +36,7 @@ const createSchema = z.object({
   placeId: z.string(),
   localPrice: localAmount.positive(),
   quantity: z.number().int().min(1).max(10),
+  requestedReward: amount.max(MAX_DEMO_REWARD).optional(),
   desiredDate: date,
   deliveryCountry: z.enum(['KR', 'JP']).default('KR'),
   deliveryCity: z.string().trim().min(1).max(40).default('서울'),
@@ -144,6 +145,10 @@ export class RequestsService {
   ): TravelerOffer {
     const request = get(db.requests, requestId, '요청');
     const trip = get(db.trips, data.tripId, '일정');
+    check(
+      db.verifications.some((item) => item.userId === actor && item.kind === 'IDENTITY' && item.status === 'DEMO_VERIFIED'),
+      '부탁을 수락하려면 본인인증부터 완료해주세요.',
+    );
     check(trip.travelerId === actor, '본인의 여행 일정을 선택해주세요.');
     check(canAcceptTrip(trip), '부탁을 수락하려면 왕복 항공권 인증을 먼저 완료해주세요. 항공권 인식만으로는 최종 인증이 완료되지 않아요.');
     check(request.requesterId !== actor, '본인이 등록한 부탁은 수락할 수 없어요.');
@@ -195,6 +200,9 @@ export class RequestsService {
     const offer: TravelerOffer = {
       ...base(),
       ...data,
+      // The buyer's published reward is authoritative, including a zero reward.
+      // Older requests without one retain the existing negotiation flow.
+      reward: request.requestedReward ?? data.reward,
       requestId,
       travelerId: actor,
       status: 'PENDING',

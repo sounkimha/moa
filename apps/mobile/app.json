@@ -14,16 +14,16 @@
     "android": {
       "package": "com.moa.prototype",
       "adaptiveIcon": {
-        "backgroundColor": "#F9FAF5"
+        "backgroundColor": "#F5F6F8"
       }
     },
     "web": {
       "bundler": "metro",
-      "name": "모아 · 가는 김에, 하나 더.",
+      "name": "모아 · 여행 경로에 부탁을 연결해요",
       "shortName": "모아",
       "lang": "ko",
-      "backgroundColor": "#F9FAF5",
-      "themeColor": "#147D4E"
+      "backgroundColor": "#F5F6F8",
+      "themeColor": "#3182F6"
     },
     "plugins": [
       [

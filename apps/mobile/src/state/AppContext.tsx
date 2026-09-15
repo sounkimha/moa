@@ -6,8 +6,13 @@ import { Art, Category, Country, Role, Snapshot, Transport } from '@moa/domain';
 import { api, ApiError, setToken } from '../lib/api';
 import { parseRoute, routeHash, Route, Screen } from './navigation';
 import { clearDraft, readDraft, writeDraft } from './draft-session';
+import { writeTripDraft } from './trip-draft';
 export type { Route, Screen } from './navigation';
 const webRoute = (): Route => Platform.OS === 'web' ? parseRoute(window.location.hash) : { name: 'home' };
+const savedRole = (): Role => {
+  if (Platform.OS !== 'web') return 'buyer';
+  try { return window.localStorage.getItem('moa-role') === 'traveler' ? 'traveler' : 'buyer'; } catch { return 'buyer'; }
+};
 WebBrowser.maybeCompleteAuthSession();
 export type OAuthProvider = 'GOOGLE' | 'KAKAO' | 'NAVER';
 export type RequestDraft = {
@@ -22,6 +27,7 @@ export type RequestDraft = {
   image: string;
   art: Art;
   price: string;
+  requestedReward?: string;
   quantity: number;
   desired: string;
   placeId: string;
@@ -69,23 +75,32 @@ type AppValue = {
   mutate: <T>(path: string, body: unknown, success?: string) => Promise<T | undefined>;
 };
 const Context = createContext<AppValue>(null!);
+let storageWrites: Promise<unknown> = Promise.resolve();
+const writeStorage = (operation: () => void | Promise<void>): Promise<boolean> => {
+  const next = storageWrites.then(async () => {
+    try { await operation(); return true; } catch { return false; }
+  });
+  storageWrites = next;
+  return next;
+};
 const storage = {
-  get: async () =>
-    Platform.OS === 'web'
-      ? window.sessionStorage.getItem('moa-token')
-      : SecureStore.getItemAsync('moa-token'),
-  set: async (v: string) => {
+  get: async () => {
+    await storageWrites;
+    try { return Platform.OS === 'web' ? window.sessionStorage.getItem('moa-token') : await SecureStore.getItemAsync('moa-token'); }
+    catch { return null; }
+  },
+  set: (v: string) => writeStorage(async () => {
     if (Platform.OS === 'web') window.sessionStorage.setItem('moa-token', v);
     else await SecureStore.setItemAsync('moa-token', v);
-  },
-  clear: async () => {
+  }),
+  clear: () => writeStorage(async () => {
     if (Platform.OS === 'web') window.sessionStorage.removeItem('moa-token');
     else await SecureStore.deleteItemAsync('moa-token');
-  },
+  }),
 };
 export function AppProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<Snapshot | null>(null),
-    [role, setRole] = useState<Role>('buyer'),
+    [role, updateRole] = useState<Role>(savedRole),
     [route, setRoute] = useState<Route>(() => webRoute()),
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
@@ -96,12 +111,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const history = useRef<Route[]>([]),
     mutationLock = useRef(false);
   const session = useRef(0), actor = useRef<string | null>(null), authLock = useRef(false);
+  const authAttempt = useRef(0), roleRevision = useRef(0);
   const refreshSequence = useRef(0);
   const draftStorageWarning = useRef(false);
   const notify = (s: string) => setToast(s);
+  const setRole = (next: Role) => {
+    roleRevision.current++;
+    updateRole(next);
+    if (Platform.OS === 'web') {
+      try { window.localStorage.setItem('moa-role', next); } catch {}
+    } else {
+      SecureStore.setItemAsync('moa-role', next).catch(() => {});
+    }
+  };
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const revision = roleRevision.current;
+    SecureStore.getItemAsync('moa-role').then((value) => {
+      if (revision === roleRevision.current && (value === 'buyer' || value === 'traveler')) updateRole(value);
+    }).catch(() => {});
+  }, []);
   const setRequestDraft = (draft: RequestDraft | null) => {
     // A screen from a previous account must not write into the new account's draft.
-    if (!data?.me.id || actor.current !== data.me.id) return;
+    if (authLock.current || !data?.me.id || actor.current !== data.me.id) return;
     updateRequestDraft(draft);
     if (Platform.OS === 'web') {
       let saved = false;
@@ -119,7 +151,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [toast]);
   const clearSession = async () => {
-    session.current++;
+    const generation = ++session.current;
+    if (actor.current) writeTripDraft(actor.current, null);
     actor.current = null;
     setToken('');
     setData(null);
@@ -127,11 +160,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setError('');
     setToast('');
     history.current = [];
+    mutationLock.current = false;
+    setBusy(false);
     draftStorageWarning.current = false;
     if (Platform.OS === 'web') {
       try { clearDraft(window.sessionStorage); } catch {}
     }
-    await storage.clear().catch(() => {});
+    await storage.clear();
+    return generation;
   };
   const refresh = async () => {
     const generation = session.current;
@@ -151,21 +187,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setError('');
     } catch (e) {
       if (generation !== session.current || sequence !== refreshSequence.current) return;
-      setError((e as Error).message);
-      if (e instanceof ApiError && e.status === 401) await clearSession();
+      if (e instanceof ApiError && e.status === 401) {
+        const cleared = await clearSession();
+        if (cleared === session.current) setError(e.message);
+      } else setError((e as Error).message);
       throw e;
     }
   };
-  const acceptOAuthCode = async (code: string) => {
-    const result = await api<{ token: string; provider: OAuthProvider }>('/auth/oauth/exchange', { code });
-    await clearSession();
-    setToken(result.token);
-    await storage.set(result.token);
+  const activateSession = async (token: string, attempt: number): Promise<'saved' | 'memory' | undefined> => {
+    if (attempt !== authAttempt.current) return;
+    if (typeof token !== 'string' || !token) throw new Error('로그인 결과를 확인하지 못했어요. 다시 시도해주세요.');
+    const generation = await clearSession();
+    if (attempt !== authAttempt.current || generation !== session.current) return;
+    setBusy(true);
+    setToken(token);
+    const persisted = await storage.set(token);
+    if (attempt !== authAttempt.current || generation !== session.current) return;
     await refresh();
-    notify(`${result.provider === 'GOOGLE' ? 'Google' : result.provider === 'KAKAO' ? '카카오' : '네이버'} 계정으로 로그인했어요.`);
+    if (attempt !== authAttempt.current || generation !== session.current || !actor.current) return;
+    return persisted ? 'saved' : 'memory';
+  };
+  const acceptOAuthCode = async (code: string, attempt: number) => {
+    const generation = session.current;
+    const result = await api<{ token: string; provider: OAuthProvider }>('/auth/oauth/exchange', { code });
+    if (attempt !== authAttempt.current || generation !== session.current) return false;
+    const activated = await activateSession(result.token, attempt);
+    if (!activated) return false;
+    notify(`${result.provider === 'GOOGLE' ? 'Google' : result.provider === 'KAKAO' ? '카카오' : '네이버'} 계정으로 로그인했어요.${activated === 'memory' ? ' 저장 공간을 사용할 수 없어 새로고침하면 다시 로그인해야 해요.' : ''}`);
     return true;
   };
   useEffect(() => {
+    const generation = session.current;
+    let initialAttempt = authAttempt.current;
+    let mounted = true;
     (async () => {
       try {
         if (Platform.OS === 'web') {
@@ -177,27 +231,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
             url.searchParams.delete('oauth_provider');
             url.searchParams.delete('oauth_error');
             window.history.replaceState({}, '', `${url.pathname}${url.search}#home`);
+            setRoute({ name: 'home' });
           }
           if (oauthError) throw new Error(oauthError);
           if (oauthCode) {
-            await acceptOAuthCode(oauthCode);
+            const attempt = ++authAttempt.current;
+            initialAttempt = attempt;
+            authLock.current = true;
+            try { await acceptOAuthCode(oauthCode, attempt); }
+            finally { if (attempt === authAttempt.current) { authLock.current = false; setBusy(false); } }
             return;
           }
         }
         const t = await storage.get();
+        if (!mounted || generation !== session.current) return;
         if (t) {
           setToken(t);
           await refresh();
         }
       } catch (e) {
-        setError((e as Error).message);
+        if (mounted && initialAttempt === authAttempt.current) setError((e as Error).message);
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     })();
     api<Record<OAuthProvider, boolean>>('/auth/oauth/status')
-      .then(setOauthProviders)
-      .catch(() => setOauthProviders({ GOOGLE: false, KAKAO: false, NAVER: false }));
+      .then((providers) => { if (mounted) setOauthProviders(providers); })
+      .catch(() => { if (mounted) setOauthProviders({ GOOGLE: false, KAKAO: false, NAVER: false }); });
+    return () => { mounted = false; };
   }, []);
   const nav = (name: Screen, params: Omit<Route, 'name'> = {}) => {
     const next = { name, ...params };
@@ -267,17 +328,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const login = async (provider = 'DEMO', userId = 'u-me', reset = false) => {
     if (authLock.current || mutationLock.current) return false;
     authLock.current = true;
+    const attempt = ++authAttempt.current;
     setBusy(true);
     // Invalidate background reads before changing the bearer token.
     session.current++;
     try {
       const result = await api<{ token: string }>('/auth/demo', { provider, userId, reset });
-      await clearSession();
-      setToken(result.token);
-      await storage.set(result.token);
-      await refresh();
-      return true;
+      const activated = await activateSession(result.token, attempt);
+      if (activated === 'memory') notify('로그인했어요. 저장 공간을 사용할 수 없어 새로고침하면 다시 로그인해야 해요.');
+      return !!activated;
     } catch (e) {
+      if (attempt !== authAttempt.current) return false;
       const message = (e as Error).message;
       // Onboarding has no authenticated shell, so a toast alone can make a
       // failed demo login look like an unresponsive button.
@@ -285,13 +346,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       notify(message);
       return false;
     } finally {
-      authLock.current = false;
-      setBusy(false);
+      if (attempt === authAttempt.current) { authLock.current = false; setBusy(false); }
     }
   };
   const socialLogin = async (provider: OAuthProvider) => {
     if (authLock.current || mutationLock.current) return false;
     authLock.current = true;
+    const attempt = ++authAttempt.current;
+    session.current++;
     setBusy(true);
     setError('');
     try {
@@ -299,9 +361,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const start = await api<{ authorizationUrl: string }>(
         `/auth/oauth/${provider.toLowerCase()}/start?returnUrl=${encodeURIComponent(returnUrl)}`,
       );
+      if (attempt !== authAttempt.current) return false;
       const result = await WebBrowser.openAuthSessionAsync(start.authorizationUrl, returnUrl, {
         preferEphemeralSession: false,
       });
+      if (attempt !== authAttempt.current) return false;
       if (result.type !== 'success') {
         if (result.type !== 'cancel' && result.type !== 'dismiss') throw new Error('소셜 로그인을 완료하지 못했어요.');
         return false;
@@ -311,19 +375,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const oauthCode = callback.searchParams.get('oauth_code');
       if (oauthError) throw new Error(oauthError);
       if (!oauthCode) throw new Error('로그인 결과를 확인하지 못했어요. 다시 시도해주세요.');
-      return await acceptOAuthCode(oauthCode);
+      return await acceptOAuthCode(oauthCode, attempt);
     } catch (e) {
+      if (attempt !== authAttempt.current) return false;
       const message = (e as Error).message;
       setError(message);
       notify(message);
       return false;
     } finally {
-      authLock.current = false;
-      setBusy(false);
+      if (attempt === authAttempt.current) { authLock.current = false; setBusy(false); }
     }
   };
   const logout = async () => {
-    if (authLock.current) return;
+    const attempt = ++authAttempt.current;
     authLock.current = true;
     // Start revoking the old token, then immediately remove private client state.
     const revocation = api('/auth/logout', {}).catch(() => {});
@@ -332,7 +396,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     tab('home');
     try {
       await revocation;
-    } finally { authLock.current = false; }
+    } finally { if (attempt === authAttempt.current) { authLock.current = false; setBusy(false); } }
   };
   const switchActor = async (id: string) => {
     const ok = await login('DEMO', id);
@@ -359,17 +423,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (generation !== session.current) return;
         if (success) notify(success);
       } catch {
+        if (generation !== session.current) return;
         notify('처리는 완료됐어요. 새로고침하면 최신 상태를 볼 수 있어요.');
       }
       return result;
     } catch (e) {
       if (generation !== session.current) return;
       notify((e as Error).message);
+      if (e instanceof ApiError && e.status === 401) {
+        const cleared = await clearSession();
+        if (cleared === session.current) setError(e.message);
+      }
       if (e instanceof ApiError && e.status === 409) await refresh().catch(() => {});
       return undefined;
     } finally {
-      mutationLock.current = false;
-      setBusy(false);
+      if (generation === session.current) { mutationLock.current = false; setBusy(false); }
     }
   };
   return (

@@ -13,6 +13,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   BackHandler,
+  Modal,
+  useWindowDimensions,
 } from 'react-native';
 import {
   ArrowLeft,
@@ -25,8 +27,11 @@ import {
   MapPin,
   Package,
   LucideIcon,
+  Search,
+  X,
 } from 'lucide-react-native';
-import { colors as c } from '../theme/tokens';
+import { colors as c, radius, space, typography } from '../theme/tokens';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../state/AppContext';
 export function Txt({
   children,
@@ -50,13 +55,13 @@ export function Txt({
         {
           fontFamily:
             Platform.OS === 'web'
-              ? 'Inter, Pretendard, -apple-system, BlinkMacSystemFont, Segoe UI, Noto Sans KR, sans-serif'
+              ? '"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Segoe UI", sans-serif'
               : undefined,
           fontSize: size,
           fontWeight: weight,
           color,
-          lineHeight: size * 1.48,
-          letterSpacing: size >= 22 ? -0.9 : -0.3,
+          lineHeight: size * 1.38,
+          letterSpacing: size >= 22 ? -0.65 : -0.18,
         },
         style,
       ]}
@@ -67,7 +72,7 @@ export function Txt({
 }
 export function Row({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
   return (
-    <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 10 }, style]}>{children}</View>
+    <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0 }, style]}>{children}</View>
   );
 }
 export function Stack({
@@ -80,6 +85,46 @@ export function Stack({
   style?: StyleProp<ViewStyle>;
 }) {
   return <View style={[{ gap }, style]}>{children}</View>;
+}
+
+export function Sheet({ visible, title, subtitle, onClose, children, footer }: {
+  visible: boolean; title: string; subtitle?: string; onClose: () => void;
+  children: ReactNode; footer?: ReactNode;
+}) {
+  const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
+  return <Modal visible={visible} transparent animationType="slide" accessibilityLabel={title} onRequestClose={onClose}>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, justifyContent: 'flex-end', paddingTop: insets.top + 12, backgroundColor: '#17203366' }}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`${title} 닫기`} onPress={onClose} style={StyleSheet.absoluteFill} />
+      <View accessibilityViewIsModal style={{ width: '100%', maxWidth: 680, alignSelf: 'center', minHeight: 0, flexShrink: 1, maxHeight: Math.max(0, height - insets.top - 12), borderTopLeftRadius: radius.sheet, borderTopRightRadius: radius.sheet, paddingBottom: Math.max(insets.bottom, 16), backgroundColor: c.paper, overflow: 'hidden' }}>
+        <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: c.border, marginTop: 10 }} />
+        <Row style={{ paddingHorizontal: 20, paddingVertical: 12 }}>
+          <View style={{ flex: 1, minWidth: 0, gap: 4 }}><Txt size={22} weight="700">{title}</Txt>{subtitle && <Txt size={13} color={c.secondary}>{subtitle}</Txt>}</View>
+          <IconButton icon={X} label="닫기" onPress={onClose} />
+        </Row>
+        <ScrollView style={{ minHeight: 0, flexShrink: 1 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 12, gap: 16 }}>{children}</ScrollView>
+        {footer && <View style={{ paddingTop: 12, paddingHorizontal: 20 }}>{footer}</View>}
+      </View>
+    </KeyboardAvoidingView>
+  </Modal>;
+}
+
+export function SectionTabs({ items, value, onChange }: { items: string[]; value: string; onChange: (value: string) => void }) {
+  return <View accessibilityRole="tablist" style={{ flexDirection: 'row', backgroundColor: c.lilac, padding: 4, borderRadius: 13, gap: 4 }}>
+    {items.map((item) => <Pressable key={item} accessibilityRole="tab" accessibilityLabel={item} accessibilityState={{ selected: value === item }} aria-selected={value === item} onPress={() => onChange(item)} style={({ pressed }) => ({ flex: 1, minWidth: 0, minHeight: 44, paddingHorizontal: 8, paddingVertical: 9, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: value === item ? c.paper : 'transparent', opacity: pressed ? 0.7 : 1 })}>
+      <Txt size={14} weight={value === item ? '700' : '500'} color={value === item ? c.ink : c.secondary} style={{ textAlign: 'center' }}>{item}</Txt>
+    </Pressable>)}
+  </View>;
+}
+
+export function SearchField({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string }) {
+  const [focused, setFocused] = useState(false);
+  const inputRef = useRef<TextInput>(null);
+  return <View style={{ minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: focused ? c.green : c.border, backgroundColor: c.paper }}>
+    <Search size={20} color={c.muted} />
+    <TextInput ref={inputRef} accessibilityLabel={label} value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor={c.muted} autoCapitalize="none" onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} style={[{ flex: 1, minWidth: 0, minHeight: 50, fontSize: 16, color: c.ink }, Platform.OS === 'web' ? { outlineStyle: 'none' } as never : undefined]} />
+    {!!value && <IconButton icon={X} label="검색어 지우기" onPress={() => { onChange(''); inputRef.current?.focus(); }} />}
+  </View>;
 }
 export function Button({
   label,
@@ -116,13 +161,18 @@ export function Button({
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ disabled: disabled || loading, busy: loading }}
+      aria-disabled={disabled || loading}
+      aria-busy={loading}
       disabled={disabled || loading}
       onPress={onPress}
       style={({ pressed }) => [
         {
           minHeight: small ? 44 : 54,
+          minWidth: 0,
+          maxWidth: '100%',
+          flexShrink: 1,
           paddingVertical: 12,
-          borderRadius: 16,
+          borderRadius: 14,
           paddingHorizontal: small ? 16 : 20,
           alignItems: 'center',
           justifyContent: 'center',
@@ -132,17 +182,12 @@ export function Button({
             kind === 'primary'
               ? c.green
               : kind === 'secondary'
-                ? c.mint
+                ? c.lilac
                 : kind === 'lime'
                   ? c.lime
                   : kind === 'danger'
                     ? c.dangerBg
                     : 'transparent',
-          shadowColor: kind === 'primary' ? c.green : 'transparent',
-          shadowOpacity: kind === 'primary' ? 0.2 : 0,
-          shadowRadius: 10,
-          shadowOffset: { width: 0, height: 5 },
-          elevation: kind === 'primary' ? 2 : 0,
           opacity: disabled ? 0.45 : pressed ? 0.78 : 1,
         },
         style,
@@ -180,6 +225,7 @@ export function IconButton({
       style={({ pressed }) => ({
         width: 44,
         height: 44,
+        flexShrink: 0,
         borderRadius: 22,
         alignItems: 'center',
         justifyContent: 'center',
@@ -205,6 +251,7 @@ export function Chip({
     <Pressable
       accessibilityRole={onPress ? 'button' : undefined}
       accessibilityState={{ selected }}
+      aria-selected={selected}
       onPress={onPress}
       disabled={!onPress}
       style={({ pressed }) => ({
@@ -212,18 +259,18 @@ export function Chip({
         paddingVertical: 10,
         minHeight: 44,
         maxWidth: '100%',
-        borderRadius: 14,
+        borderRadius: 12,
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
-        backgroundColor: selected ? c.green : c.paper,
+        backgroundColor: selected ? c.mint : c.paper,
         borderWidth: 1,
-        borderColor: selected ? c.green : c.border,
+        borderColor: selected ? '#B8D4FC' : c.border,
         opacity: pressed ? 0.75 : 1,
       })}
     >
-      {Icon && <Icon size={15} color={selected ? '#fff' : c.ink} />}
-      <Txt size={14} color={selected ? '#fff' : c.ink} weight={selected ? '700' : '500'} style={{ flexShrink: 1 }}>
+      {Icon && <Icon size={15} color={selected ? c.darkGreen : c.ink} />}
+      <Txt size={14} color={selected ? c.darkGreen : c.ink} weight={selected ? '700' : '500'} style={{ flexShrink: 1 }}>
         {label}
       </Txt>
     </Pressable>
@@ -281,8 +328,9 @@ export function Field({
   secure?: boolean;
   onSubmit?: () => void;
 }) {
+  const [focused, setFocused] = useState(false);
   return (
-    <View style={[{ gap: 7 }, style]}>
+    <View style={[{ gap: 7, minWidth: 0 }, style]}>
       <Txt size={14} weight="600">
         {label}
         {required ? ' *' : ''}
@@ -299,16 +347,22 @@ export function Field({
         multiline={multiline}
         autoCapitalize="none"
         secureTextEntry={secure}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         style={{
           minHeight: 52,
+          minWidth: 0,
+          width: '100%',
           borderWidth: 1,
-          borderColor: error ? c.danger : c.border,
+          borderColor: error ? c.danger : focused ? c.green : c.border,
           backgroundColor: c.paper,
           borderRadius: 14,
           paddingHorizontal: 15,
           paddingVertical: 14,
           fontSize: 16,
           color: c.ink,
+          fontFamily: Platform.OS === 'web' ? 'Pretendard, -apple-system, sans-serif' : undefined,
+          ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as object : {}),
           textAlignVertical: multiline ? 'top' : 'center',
           ...(multiline ? { minHeight: 90 } : {}),
         }}
@@ -322,9 +376,9 @@ export function Field({
   );
 }
 export function DateField({
-  label, value, onChange, min,
-}: { label: string; value: string; onChange: (value: string) => void; min?: string }) {
-  const anchor = min && value < min ? min : value;
+  label, value, onChange, min, max,
+}: { label: string; value: string; onChange: (value: string) => void; min?: string; max?: string }) {
+  const anchor = min && value < min ? min : max && value > max ? max : value;
   const parsed = /^\d{4}-\d{2}-\d{2}$/.test(anchor) ? new Date(`${anchor}T00:00:00`) : new Date();
   const selected = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
   const [open, setOpen] = useState(false);
@@ -342,7 +396,7 @@ export function DateField({
   return (
     <View style={{ gap: 8 }}>
       <Txt size={14} weight="600">{label} *</Txt>
-      <Pressable accessibilityRole="button" accessibilityLabel={`${label} 달력 열기`} accessibilityState={{ expanded: open }} onPress={() => { if (!open) setMonth(new Date(selected.getFullYear(), selected.getMonth(), 1)); setOpen(!open); }} style={{ minHeight: 52, borderWidth: 1, borderColor: c.border, backgroundColor: c.paper, borderRadius: 14, paddingHorizontal: 15, alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`${label} 달력 열기`} accessibilityState={{ expanded: open }} aria-expanded={open} onPress={() => { if (!open) setMonth(new Date(selected.getFullYear(), selected.getMonth(), 1)); setOpen(!open); }} style={{ minHeight: 52, borderWidth: 1, borderColor: c.border, backgroundColor: c.paper, borderRadius: 14, paddingHorizontal: 15, alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
         <Txt size={16}>{value}</Txt><CalendarDays size={20} color={c.green} />
       </Pressable>
       {open && <View style={{ borderWidth: 1, borderColor: c.border, backgroundColor: c.paper, borderRadius: 18, padding: 14, gap: 12 }}>
@@ -355,8 +409,8 @@ export function DateField({
           {['일','월','화','수','목','금','토'].map((day) => <View key={day} style={{ width: '14.285%', alignItems: 'center', paddingVertical: 5 }}><Txt size={11} color={c.secondary}>{day}</Txt></View>)}
           {cells.map((day, index) => {
             if (!day) return <View key={`blank-${index}`} style={{ width: '14.285%', height: 44 }} />;
-            const date = format(day), disabled = Boolean(min && date < min), active = date === value;
-            return <Pressable key={date} accessibilityRole="button" accessibilityLabel={`${date} 선택`} accessibilityState={{ disabled, selected: active }} disabled={disabled} onPress={() => { onChange(date); setOpen(false); }} style={{ width: '14.285%', height: 44, alignItems: 'center', justifyContent: 'center' }}><View style={{ width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: active ? c.green : 'transparent' }}><Txt size={13} weight={active ? '700' : '400'} color={disabled ? c.muted : active ? 'white' : c.ink}>{day}</Txt></View></Pressable>;
+            const date = format(day), disabled = Boolean((min && date < min) || (max && date > max)), active = date === value;
+            return <Pressable key={date} accessibilityRole="button" accessibilityLabel={`${date} 선택`} accessibilityState={{ disabled, selected: active }} aria-disabled={disabled} aria-pressed={active} disabled={disabled} onPress={() => { onChange(date); setOpen(false); }} style={{ width: '14.285%', height: 44, alignItems: 'center', justifyContent: 'center' }}><View style={{ width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: active ? c.green : 'transparent' }}><Txt size={13} weight={active ? '700' : '400'} color={disabled ? c.muted : active ? 'white' : c.ink}>{day}</Txt></View></Pressable>;
           })}
         </View>
       </View>}
@@ -396,7 +450,7 @@ export function Section({
   return (
     <Row style={{ justifyContent: 'space-between', marginBottom: 16, alignItems: 'flex-start' }}>
       <View style={{ flex: 1 }}>
-        <Txt size={21} weight="700">
+        <Txt size={typography.section} weight="700">
           {title}
         </Txt>
         {!!subtitle && (
@@ -409,10 +463,10 @@ export function Section({
         <Pressable
           accessibilityRole="button"
           onPress={onPress}
-          style={{ minHeight: 44, justifyContent: 'center' }}
+          style={{ minHeight: 44, maxWidth: '48%', flexShrink: 1, justifyContent: 'center' }}
         >
           <Row style={{ gap: 2 }}>
-            <Txt size={13} color={c.secondary}>
+            <Txt size={13} color={c.secondary} style={{ flexShrink: 1 }}>
               {action}
             </Txt>
             <ChevronRight size={14} color={c.secondary} />
@@ -428,10 +482,9 @@ export function Card({ children, style }: { children: ReactNode; style?: StylePr
       style={[
         {
           backgroundColor: c.paper,
-          borderWidth: 1,
-          borderColor: c.border,
-          borderRadius: 20,
-          padding: 20,
+          borderWidth: 0,
+          borderRadius: radius.lg,
+          padding: space.lg,
         },
         style,
       ]}
@@ -456,14 +509,14 @@ export function Empty({
 }) {
   const app = useApp();
   return (
-    <Stack style={{ alignItems: 'center', paddingVertical: 44, paddingHorizontal: 20 }}>
-      <View style={{ padding: 22, borderRadius: 28, backgroundColor: c.mint }}>
-        <Package size={30} color={c.green} strokeWidth={1.4} />
+    <Stack gap={12} style={{ alignItems: 'center', paddingVertical: 36, paddingHorizontal: 20 }}>
+      <View style={{ padding: 16, borderRadius: radius.lg, backgroundColor: c.lilac }}>
+        <Package size={26} color={c.muted} strokeWidth={1.5} />
       </View>
-      <Txt size={20} weight="700">
+      <Txt size={18} weight="700" style={{ textAlign: 'center' }}>
         {title}
       </Txt>
-      <Txt color={c.secondary} style={{ textAlign: 'center' }}>
+      <Txt size={14} color={c.secondary} style={{ textAlign: 'center' }}>
         {body}
       </Txt>
       <Button small kind="secondary" label={action || '홈으로 돌아가기'} onPress={onPress || (() => app.tab('home'))} />
@@ -503,7 +556,7 @@ export function Page({
     >
       <Row
         style={{
-          height: 62,
+          minHeight: 58,
           paddingHorizontal: 12,
           borderBottomWidth: 1,
           borderColor: c.border,
@@ -529,7 +582,7 @@ export function Page({
         ) : (
           <View style={{ width: 12 }} />
         )}
-        <Txt size={18} weight="700" style={{ flex: 1 }}>
+        <Txt size={20} weight="700" style={{ flex: 1 }} lines={1}>
           {title}
         </Txt>
       </Row>
@@ -537,7 +590,8 @@ export function Page({
         <ScrollView
           ref={scrollRef}
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ padding: 20, paddingBottom: 28, gap: 24 }}
+          keyboardDismissMode="on-drag"
+          contentContainerStyle={{ padding: space.page, paddingBottom: space.xxl, gap: space.xl }}
         >
           {children}
         </ScrollView>

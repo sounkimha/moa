@@ -73,9 +73,11 @@ export interface Trip extends Entity {
   departureCity: string;
   destinationCountry: Country;
   destinationCity: string;
+  destinationAreas?: string[];
   startDate: string;
   endDate: string;
   placeIds: string[];
+  customStops?: string[];
   maxItems: number;
   verificationStatus: 'DEMO_VERIFIED' | 'UNVERIFIED' | 'PENDING_REVIEW' | 'NEEDS_REVIEW';
   flightProof?: FlightProof;
@@ -132,6 +134,8 @@ export interface ProductRequest extends Entity {
   localPrice: number;
   currency: Currency;
   quantity: number;
+  /** Buyer-selected total reward in KRW. Undefined only on older requests. */
+  requestedReward?: number;
   desiredDate: string;
   deliveryCountry: Country;
   deliveryCity: string;
@@ -220,7 +224,7 @@ export interface Payment extends Entity {
   transactionId: string;
   buyerId: string;
   amount: number;
-  provider: 'MOCK';
+  provider: 'MOCK' | 'MOCK_CARD' | 'MOCK_ACCOUNT';
   status: 'HELD' | 'REFUNDED' | 'RELEASED';
   providerRef: string;
 }

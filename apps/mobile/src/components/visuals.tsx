@@ -4,7 +4,6 @@ import Svg, { Circle, Ellipse, Path, Rect, Line, G, Text as SvgText } from 'reac
 import {
   ArrowUpRight,
   Heart,
-  MapPin,
   Users,
   Check,
   ShieldCheck,
@@ -285,7 +284,7 @@ export function PlaceCard({
         minWidth: 0,
         borderRadius: list ? 18 : 20,
         backgroundColor: c.paper,
-        borderWidth: 1,
+        borderWidth: list ? 0 : 1,
         borderColor: c.border,
         overflow: 'hidden',
       }}
@@ -301,7 +300,7 @@ export function PlaceCard({
           opacity: pressed ? 0.78 : 1,
         })}
       >
-        <View style={list ? { width: 112, paddingBottom: 44, alignSelf: 'flex-start' } : undefined}>
+        <View style={list ? { width: 94, alignSelf: 'center' } : undefined}>
           <View style={{ overflow: 'hidden', borderRadius: list ? 10 : 0 }}>
             <PlaceCover place={place} thumbnail={list} />
           </View>
@@ -317,7 +316,7 @@ export function PlaceCard({
             {place.name}
           </Txt>
           <Txt size={12} color={c.secondary}>
-            방문 예정 {place.visitors}명 · 요청 {place.requestCount}건
+            {place.visitors}명 방문 예정 · 부탁 {place.requestCount}건
           </Txt>
           <Txt size={list ? 13 : 14} color={c.green} weight="700">
             {place.requestCount ? `평균 보상 ${money(place.averageReward)}` : '첫 부탁 남기기'}
@@ -329,7 +328,7 @@ export function PlaceCard({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`${place.name} 관심 장소 ${favorite ? '해제' : '저장'}`}
-          accessibilityState={{ selected: favorite }}
+          accessibilityState={{ selected: favorite }} aria-pressed={favorite}
           onPress={onFavorite}
           style={{
             position: 'absolute',
@@ -355,7 +354,7 @@ export function ProductRow({
   request,
   onPress,
   aside,
-  krw = false,
+  krw = true,
 }: {
   request: ProductRequest;
   onPress: () => void;
@@ -409,13 +408,13 @@ export function MoneyBreakdown({ price, compact = false, rewardPending = false }
   const legacyFee = price.shippingFee !== 0 && price.shippingFee !== DOMESTIC_PARCEL_FEE;
   const rows = [
     ['상품가격', price.productPrice],
-    ['여행자 보상', rewardPending ? '직접 제안' : price.travelerReward],
+    ['여행자 보상', rewardPending ? '보상 미정' : price.travelerReward],
     [legacyFee ? '이전 체험 운송비 (기록)' : '국내 전달비', price.shippingFee],
     ['세금 예치액 (데모)', price.taxReserve],
   ] as const;
   return (
     <Stack gap={compact ? 8 : 12}>
-      {rows.map(([label, value]) => (
+      {rows.filter(([label, value]) => label !== '세금 예치액 (데모)' || value !== 0).map(([label, value]) => (
         <Row key={label} style={{ justifyContent: 'space-between' }}>
           <Txt size={14} color={c.secondary}>
             {label}
@@ -427,12 +426,12 @@ export function MoneyBreakdown({ price, compact = false, rewardPending = false }
       ))}
       <Divider />
       <Row style={{ justifyContent: 'space-between' }}>
-        <Txt weight="700">{rewardPending ? '보상 제외 금액' : '총 결제금액'}</Txt>
+        <Txt weight="700">{rewardPending ? '상품·전달비' : '총 결제금액'}</Txt>
         <Txt size={26} weight="800" color={c.green}>
           {money(price.totalPrice)}
         </Txt>
       </Row>
-      {rewardPending && <Txt size={12} color={c.secondary}>여행자가 제안한 보상금은 결제 전에 확인해요.</Txt>}
+      {rewardPending && <Txt size={12} color={c.secondary}>보상이 정해지면 예상 결제금액에 합산해요.</Txt>}
       <Txt size={12} color={c.secondary}>
         {legacyFee
           ? '이전 체험 거래의 결제 기록이에요. 현재 국내 택배 예상비는 3,500원, 직거래는 0원이에요.'
@@ -490,93 +489,6 @@ export function Timeline({ transaction }: { transaction: Transaction }) {
           </Row>
         );
       })}
-    </View>
-  );
-}
-export function RouteMap({
-  places,
-  selected,
-  onSelect,
-}: {
-  places: Place[];
-  selected?: string;
-  onSelect: (p: Place) => void;
-}) {
-  const shown = places.slice(0, 4);
-  const pins = [
-    { x: 24, y: 44 },
-    { x: 59, y: 25 },
-    { x: 76, y: 63 },
-    { x: 32, y: 76 },
-  ];
-  return (
-    <View
-      style={{
-        height: 270,
-        backgroundColor: '#EDF4FF',
-        borderRadius: 22,
-        overflow: 'hidden',
-        borderWidth: 1,
-        borderColor: c.border,
-      }}
-    >
-      <Svg width="100%" height="100%" viewBox="0 0 600 270" preserveAspectRatio="none">
-        <Path
-          d="M-20 85L640 170M-20 200L630 95M145-20L65 300M300-20L225 300M480-20L410 300"
-          stroke="#FFFFFF"
-          strokeWidth="23"
-        />
-        <Path d="M410-30Q370 100 560 170T510 300" stroke="#C9DCF8" strokeWidth="27" fill="none" />
-        <Path
-          d="M130 118Q250 120 345 66T470 170"
-          stroke="#6B9DE7"
-          strokeWidth="3"
-          fill="none"
-          strokeDasharray="8 7"
-        />
-        <Rect x="290" y="184" width="92" height="52" rx="12" fill="#D9E7FA" />
-        <Rect x="34" y="29" width="77" height="33" rx="12" fill="#D9E7FA" />
-      </Svg>
-      <View style={{ position: 'absolute', left: 14, top: 12 }}>
-        <Badge bg={c.paper} color={c.secondary}>
-          위치 미리보기 · 예시
-        </Badge>
-      </View>
-      {shown.map((p, i) => (
-        <Pressable
-          key={p.id}
-          accessibilityRole="button"
-          accessibilityLabel={`${p.name} 지도에서 선택`}
-          onPress={() => onSelect(p)}
-          style={{
-            position: 'absolute',
-            left: `${pins[i].x}%`,
-            top: `${pins[i].y}%`,
-            transform: [{ translateX: -34 }],
-            backgroundColor: selected === p.id ? c.green : c.paper,
-            borderRadius: 12,
-            paddingHorizontal: 11,
-            paddingVertical: 9,
-            borderWidth: 1,
-            borderColor: selected === p.id ? c.green : '#D4E0F1',
-          }}
-        >
-          <Row style={{ gap: 5 }}>
-            <MapPin size={14} color={selected === p.id ? 'white' : c.green} />
-            <Txt size={12} weight="700" color={selected === p.id ? 'white' : c.ink}>
-              {p.region}
-            </Txt>
-            <Txt size={11} color={selected === p.id ? c.lime : c.secondary}>
-              {p.visitors}명
-            </Txt>
-          </Row>
-        </Pressable>
-      ))}
-      <View style={{ position: 'absolute', right: 12, bottom: 10 }}>
-        <Txt size={10} color={c.secondary}>
-          실제 길찾기·이동시간 아님
-        </Txt>
-      </View>
     </View>
   );
 }

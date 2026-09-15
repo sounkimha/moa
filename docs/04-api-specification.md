@@ -26,6 +26,8 @@ Base URL: `http://localhost:4000/api`. 기계가 읽을 수 있는 상세 규격
 | POST   | /auth/logout              | 로그인        | 세션 폐기                             |
 | GET    | /snapshot                 | 로그인        | 공개 데이터 + 거래 참여 범위 데이터   |
 | GET    | /places                   | 로그인        | 장소 목록                             |
+| GET    | /meetup/status            | 로그인        | 장소명 검색 설정 여부·지원 국가 (`searchAvailable`, `countries`) |
+| GET    | /meetup/search?q=검색어    | 로그인        | 카카오 국내 장소 검색·좌표 반환, 2~100자 |
 | POST   | /metadata                 | 로그인        | 외부 상품 URL의 JSON-LD/Open Graph 자동 추출·오류 식별 |
 | POST   | /recognize                | 로그인        | 사진 OCR·상품 시각 인식·카탈로그 매칭 |
 | POST   | /favorites/:placeId       | 로그인        | 관심 장소 토글                        |

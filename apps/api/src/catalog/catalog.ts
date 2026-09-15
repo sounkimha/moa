@@ -635,7 +635,10 @@ export class CatalogController {
         ? db.addresses.find((item) => item.id === data.id && item.userId === r.actorId)
         : undefined;
       if (data.id && !existing) throw new BadRequestException('수정할 배송지를 찾지 못했어요.');
-      const shouldDefault = data.isDefault || !db.addresses.some((item) => item.userId === r.actorId);
+      // Editing the current default must not leave the account without one.
+      // Changing defaults uses another address, not an unchecked edit toggle.
+      const shouldDefault = data.isDefault || existing?.isDefault === true ||
+        !db.addresses.some((item) => item.userId === r.actorId && item.isDefault);
       if (shouldDefault)
         db.addresses.filter((item) => item.userId === r.actorId).forEach((item) => (item.isDefault = false));
       const address = { ...(existing || base()), ...data, userId: r.actorId, isDefault: shouldDefault };

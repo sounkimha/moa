@@ -9,18 +9,20 @@ const strings = [
 ] as const;
 
 export function clearDraft(storage: SessionStorage) {
-  try { storage.removeItem(key); } catch { /* Private browsing can disable storage. */ }
+  try { storage.removeItem(key); return true; } catch { return false; }
 }
 
 export function readDraft(storage: SessionStorage, ownerId: string): RequestDraft | null {
   try {
     const raw = storage.getItem(key);
-    if (!raw || raw.length > 4_000_000) return null;
+    if (!raw) return null;
+    if (raw.length > 4_000_000) { clearDraft(storage); return null; }
     const saved = JSON.parse(raw), draft = saved.draft;
     if (saved.ownerId !== ownerId || !draft || ![1, 2].includes(draft.step) ||
       !['link', 'photo'].includes(draft.method) ||
       !Number.isInteger(draft.quantity) || draft.quantity < 1 || draft.quantity > 100 ||
       !strings.every((field) => typeof draft[field] === 'string') ||
+      (draft.requestedReward !== undefined && typeof draft.requestedReward !== 'string') ||
       !['CHARACTER', 'GAME', 'POPUP', 'LOCAL', 'FASHION', 'CONCERT'].includes(draft.category) ||
       !['keyring', 'plush', 'pouch', 'tshirt', 'pin', 'bag'].includes(draft.art) ||
       !['KR', 'JP', 'TW', 'HK', 'CN', 'TH', 'VN', 'SG', 'MY', 'ID'].includes(draft.deliveryCountry) ||
@@ -34,6 +36,7 @@ export function readDraft(storage: SessionStorage, ownerId: string): RequestDraf
       return null;
     }
     // Optional nested metadata is not necessary to resume a draft safely.
+    if (draft.sampleFilled !== undefined && typeof draft.sampleFilled !== 'boolean') delete draft.sampleFilled;
     if (draft.meetupPoint && (!Number.isFinite(draft.meetupPoint.latitude) ||
       !Number.isFinite(draft.meetupPoint.longitude) ||
       Math.abs(draft.meetupPoint.latitude) > 90 || Math.abs(draft.meetupPoint.longitude) > 180 ||
@@ -50,7 +53,7 @@ export function readDraft(storage: SessionStorage, ownerId: string): RequestDraf
 
 // Web tab-session only. Never persist tickets, account tokens or drafts in localStorage.
 export function writeDraft(storage: SessionStorage, ownerId: string, draft: RequestDraft | null): boolean {
-  if (!draft) { clearDraft(storage); return true; }
+  if (!draft) return clearDraft(storage);
   try {
     const serialized = JSON.stringify({ ownerId, draft });
     if (serialized.length > 4_000_000) throw new Error('Draft too large');

@@ -1,25 +1,17 @@
 import React, { useState } from 'react';
 import * as Location from 'expo-location';
-import { Image, Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
+import { Image, Platform, Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
 import {
   ArrowRight,
   Bell,
-  Check,
   ChevronRight,
-  Compass,
   Heart,
-  Layers,
   Link,
-  MapPin,
-  Navigation,
   Plane,
-  Plus,
   ScanLine,
   ShoppingBag,
-  Ticket,
-  Wallet,
 } from 'lucide-react-native';
-import { groupForTrip, money, Place, shortDate, countryName, quote } from '@moa/domain';
+import { groupForTrip, money, Place, shortDate, countryName } from '@moa/domain';
 import { DestinationPicker, DestinationCountry } from '../components/DestinationPicker';
 import { useApp } from '../state/AppContext';
 import { colors as c } from '../theme/tokens';
@@ -30,16 +22,31 @@ import {
   Chip,
   Divider,
   Empty,
-  Field,
   IconButton,
   Notice,
   Page,
   Row,
   Section,
+  SearchField,
+  SectionTabs,
   Stack,
   Txt,
 } from '../components/ui';
-import { Avatar, AvatarStack, Logo, PlaceCard, ProductArt, ProductRow, RouteMap } from '../components/visuals';
+import { Avatar, Logo, PlaceCard, PlaceCover, ProductRow } from '../components/visuals';
+import RouteMap from '../components/RouteMap';
+import { getPlacePhoto } from '../lib/place-photos';
+import { PhotoCredit } from '../components/PhotoCredit';
+
+function readRecentPlaces(): string[] {
+  try {
+    const saved = Platform.OS === 'web' ? JSON.parse(sessionStorage.getItem('moa.recentPlaces') || '[]') : [];
+    return Array.isArray(saved) ? saved.filter((id): id is string => typeof id === 'string').slice(0, 5) : [];
+  } catch { return []; }
+}
+function rememberPlace(id: string) {
+  if (Platform.OS !== 'web') return;
+  try { sessionStorage.setItem('moa.recentPlaces', JSON.stringify([id, ...readRecentPlaces().filter((value) => value !== id)].slice(0, 5))); } catch { /* Optional session history. */ }
+}
 
 const travelerPresence = [
   { userId: 'u-min', latitude: 37.5461, longitude: 127.0548 },
@@ -103,11 +110,9 @@ export function Onboarding() {
                   <Plane size={24} color={c.darkGreen} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Txt size={12} color={c.secondary}>
-                    서울에서 여행지로 가는 길
-                  </Txt>
+                  <Txt size={12} color={c.secondary}>가는 길에 만난 부탁</Txt>
                   <Txt size={compact ? 15 : 17} weight="700">
-                    부탁을 싣고 떠나요
+                    여행 동선 그대로 가져와요
                   </Txt>
                 </View>
                 {!compact && <ShoppingBag size={24} color={c.green} />}
@@ -115,57 +120,46 @@ export function Onboarding() {
             </View>
           </View>
           <Stack gap={8}>
-            <Txt size={compact ? 32 : 36} weight="800" style={{ lineHeight: compact ? 40 : 45 }}>
-              여행과 부탁이{'\n'}만나는 가장 쉬운 방법
-            </Txt>
-            <Txt size={15} color={c.secondary}>
-              갖고 싶은 물건을 부탁하고, 원래 가던 여행에서 보상을 받아요.
-            </Txt>
+            <Txt size={30} weight="800">가는 김에, 하나 더.</Txt>
+            <Txt size={15} color={c.secondary}>그곳에 가는 사람에게, 갖고 싶은 것을 부탁해요.</Txt>
           </Stack>
           <Stack gap={10}>
-            <Card style={{ padding: 16 }}>
+            <Pressable accessibilityRole="button" accessibilityLabel="사고 싶어요" onPress={() => { a.setRole('buyer'); setStage('login'); }} style={{ padding: 16, borderRadius: 18, backgroundColor: c.paper }}>
               <Row style={{ alignItems: 'flex-start' }}>
                 <View style={{ padding: 9, borderRadius: 13, backgroundColor: c.mint }}>
                   <ShoppingBag size={20} color={c.green} />
                 </View>
                 <Stack gap={2} style={{ flex: 1 }}>
                   <Txt size={16} weight="700">부탁할게요</Txt>
-                  <Txt size={12} color={c.secondary}>상품을 올리고 여행자의 일정과 보상 제안을 비교해요.</Txt>
+                  <Txt size={12} color={c.secondary}>원하는 물건을 부탁해요</Txt>
                 </Stack>
               </Row>
-            </Card>
-            <Card style={{ padding: 16 }}>
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="가져올게요" onPress={() => { a.setRole('traveler'); setStage('login'); }} style={{ padding: 16, borderRadius: 18, backgroundColor: c.paper }}>
               <Row style={{ alignItems: 'flex-start' }}>
                 <View style={{ padding: 9, borderRadius: 13, backgroundColor: c.lilac }}>
                   <Plane size={20} color={c.darkGreen} />
                 </View>
                 <Stack gap={2} style={{ flex: 1 }}>
                   <Txt size={16} weight="700">가져올게요</Txt>
-                  <Txt size={12} color={c.secondary}>내 여행 동선의 부탁을 고르고 원하는 보상을 제안해요.</Txt>
+                  <Txt size={12} color={c.secondary}>가는 길의 부탁을 받아요</Txt>
                 </Stack>
               </Row>
-            </Card>
+            </Pressable>
             <Button label="모아 시작하기" icon={ArrowRight} onPress={() => setStage('login')} />
             <Txt size={12} color={c.secondary} style={{ textAlign: 'center' }}>
-              역할을 고정하지 않아요. 로그인 후 언제든 바꿀 수 있어요.
+              이용 모드는 설정에서 바꿀 수 있어요.
             </Txt>
           </Stack>
         </>
       ) : (
         <>
           <Stack gap={10}>
-            <Badge>한 계정으로 두 가지 모두</Badge>
-            <Txt size={31} weight="800">
-              어디서 시작할지는{'\n'}로그인 후 골라요.
-            </Txt>
-            <Txt color={c.secondary}>부탁도 여행도 같은 계정에서 이어집니다.</Txt>
+            <Txt size={31} weight="800">모아 시작하기</Txt>
+            <Txt color={c.secondary}>한 계정으로 부탁과 여행을 이어가요.</Txt>
           </Stack>
-          <Notice>
-            체험 계정은 개인정보 없이 바로 시작해요. 카카오·Google·네이버는 서버에 OAuth 키가 설정된 경우 실제 계정으로 연결됩니다.
-          </Notice>
           {a.error && (
             <Notice tone="error">
-              로그인하지 못했어요. 서버 설정과 네트워크를 확인한 뒤 다시 시도해주세요.{`\n`}
               {a.error}
             </Notice>
           )}
@@ -192,7 +186,7 @@ export function Onboarding() {
               />
             ))}
             <Txt size={12} color={c.secondary} style={{ textAlign: 'center' }}>
-              소셜 로그인 키는 앱에 넣지 않고 API 서버에서만 관리해요.
+              소셜 로그인은 서비스 연결 후 이용할 수 있어요.
             </Txt>
           </Stack>
           <Button label="처음으로" kind="ghost" onPress={() => setStage('intro')} />
@@ -202,464 +196,107 @@ export function Onboarding() {
   );
 }
 export function Home() {
-  const a = useApp(),
-    d = a.data!;
-  const [country, setCountry] = useState<DestinationCountry>('ALL'),
-    [cities, setCities] = useState<string[]>([]),
-    [nearbyDismissed, setNearbyDismissed] = useState(false),
-    [buyerLocation, setBuyerLocation] = useState({ latitude: 37.5445, longitude: 127.0557 }),
-    [locationLabel, setLocationLabel] = useState('성수동 예시 위치');
-  const wide = useWindowDimensions().width >= 750;
-  const places = d.places.filter((p) => (country === 'ALL' || p.country === country) && (!cities.length || cities.includes(p.city)));
-  const trips = d.trips.filter((t) => t.travelerId === d.me.id),
-    trip = trips.find((t) => t.id === a.route.tripId) || trips.at(-1);
+  const a = useApp(), d = a.data!;
+  const [buyerLocation, setBuyerLocation] = useState({ latitude: 37.5445, longitude: 127.0557 });
+  const [locationLabel, setLocationLabel] = useState('성수동');
+  const places = d.places.slice().sort((left, right) => right.visitors - left.visitors);
+  const cities = [...new Set(places.map((place) => place.city))].slice(0, 8).map((city) => ({
+    city,
+    place: places.find((place) => place.city === city)!,
+    travelers: new Set(d.trips.filter((trip) => trip.endDate >= new Date().toISOString().slice(0, 10) && (trip.destinationAreas?.includes(city) || trip.destinationCity === city || trip.placeIds.some((id) => d.places.find((p) => p.id === id)?.city === city))).map((trip) => trip.travelerId)).size,
+  }));
+  const trips = d.trips.filter((item) => item.travelerId === d.me.id);
+  const trip = trips.find((item) => item.id === a.route.tripId) || trips.at(-1);
   const bundles = trip ? groupForTrip(d, trip) : [];
-  const availableRequests = bundles.reduce((s, b) => s + b.requests.length, 0);
-  const featured =
-    d.requests.find((request) => request.productName.includes('치이카와')) || d.requests[0];
-  const featuredKrw = featured
-    ? quote({ ...featured, quantity: 1 }, 0, featured.transport).productPrice
-    : 0;
-  const nearby = bundles[0];
-  const tripCities = trip ? [...new Set(trip.placeIds.map((id) => d.places.find((place) => place.id === id)?.city).filter(Boolean))] : [];
+  const availableRequests = bundles.reduce((sum, bundle) => sum + bundle.requests.length, 0);
+  const availableReward = bundles.reduce((sum, bundle) => sum + bundle.requests.reduce((amount, request) => amount + (request.requestedReward || 0), 0), 0);
+  const pendingRewards = bundles.some((bundle) => bundle.requests.some((request) => request.requestedReward === undefined));
+  const tripCities = trip ? trip.destinationAreas || [...new Set(trip.placeIds.map((id) => d.places.find((place) => place.id === id)?.city).filter(Boolean))] : [];
+  const featured = d.requests.find((request) => request.productName.includes('치이카와'));
   const nearbyTravelers = travelerPresence.map((presence) => ({
-    ...presence,
-    distance: kmBetween(buyerLocation, presence),
+    ...presence, distance: kmBetween(buyerLocation, presence),
     user: d.users.find((user) => user.id === presence.userId),
-    trip: d.trips.find((item) => item.travelerId === presence.userId),
-  })).filter((item) => item.user && item.trip && item.distance <= 2).sort((x, y) => x.distance - y.distance);
+    trip: d.trips.find((item) => item.travelerId === presence.userId && item.endDate >= new Date().toISOString().slice(0, 10)),
+  })).filter((item) => item.user && item.trip && item.distance <= 2).sort((left, right) => left.distance - right.distance);
   const locate = async () => {
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
-      if (permission.status !== 'granted') { a.notify('위치 권한을 허용하면 반경 2km의 여행자를 찾아드려요.'); return; }
+      if (permission.status !== 'granted') return a.notify('위치 권한을 허용하면 가까운 여행을 찾을 수 있어요.');
       const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      setBuyerLocation(current.coords);
-      setLocationLabel('현재 위치');
-    } catch {
-      a.notify('현재 위치를 확인하지 못했어요. 잠시 후 다시 시도해주세요.');
-    }
+      setBuyerLocation(current.coords); setLocationLabel('현재 위치');
+    } catch { a.notify('현재 위치를 확인하지 못했어요. 위치 권한을 확인해주세요.'); }
   };
-  return (
-    <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 36, gap: 26 }}>
-      <Row style={{ justifyContent: 'space-between' }}>
-        <Row style={{ gap: 9 }}>
-          <Logo size={34} />
-          <Txt size={28} weight="800" color={c.green}>
-            모아
-          </Txt>
-        </Row>
-        <Row style={{ gap: 2 }}>
-          <Badge bg={c.paper} color={c.secondary}>
-            체험 모드
-          </Badge>
-          <View>
-            <IconButton icon={Bell} label="알림" onPress={() => a.nav('notifications')} />
-            {d.notifications.some((n) => !n.read) && (
-              <View
-                style={{
-                  position: 'absolute',
-                  right: 11,
-                  top: 9,
-                  width: 6,
-                  height: 6,
-                  borderRadius: 3,
-                  backgroundColor: c.green,
-                }}
-              />
-            )}
-          </View>
-        </Row>
-      </Row>
-      <Row style={{ backgroundColor: c.mint, padding: 5, borderRadius: 18, gap: 5 }}>
-        {[
-          ['buyer', '부탁할게요', ShoppingBag],
-          ['traveler', '가져올게요', Plane],
-        ].map(([role, label, Icon]) => {
-          const I = Icon as typeof Plane;
-          return (
-            <Pressable
-              key={role as string}
-              accessibilityRole="button"
-              accessibilityState={{ selected: a.role === role }}
-              onPress={() => a.setRole(role as 'buyer' | 'traveler')}
-              style={{
-                flex: 1,
-                minHeight: 45,
-                justifyContent: 'center',
-                alignItems: 'center',
-                borderRadius: 14,
-                backgroundColor: a.role === role ? c.paper : 'transparent',
-              }}
-            >
-              <Row style={{ gap: 8 }}>
-                <I size={17} color={a.role === role ? c.green : c.secondary} />
-                <Txt size={15} weight="700" color={a.role === role ? c.ink : c.secondary}>
-                  {label as string}
-                </Txt>
-              </Row>
-            </Pressable>
-          );
+  const recentPlaces = readRecentPlaces().map((id) => d.places.find((place) => place.id === id)).filter((place): place is Place => Boolean(place));
+  const openPlace = (place: Place) => { rememberPlace(place.id); a.nav('place', { id: place.id }); };
+  return <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20, paddingBottom: 32, gap: 28 }}>
+    <Row style={{ justifyContent: 'space-between' }}>
+      <Row style={{ gap: 8 }}><Logo size={32} /><Txt size={23} weight="800">모아</Txt><Badge bg={c.lilac} color={c.secondary}>체험</Badge></Row>
+      <Row style={{ gap: 4 }}><Txt size={12} color={c.secondary}>{a.role === 'buyer' ? '부탁하기 모드' : '여행하기 모드'}</Txt><IconButton icon={Bell} label="알림" onPress={() => a.nav('notifications')} /></Row>
+    </Row>
+    {a.role === 'buyer' ? <>
+      <View style={{ gap: 6 }}><Txt size={28} weight="800">어디에서 가져다드릴까요?</Txt><Txt size={14} color={c.secondary}>그곳에 가는 여행자에게 부탁해보세요.</Txt></View>
+      <View>
+        <Section title="요즘 떠나는 곳" action="모두 보기" onPress={() => a.tab('search')} />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+          {cities.map(({ city, place, travelers }) => {
+            const photo = getPlacePhoto(place);
+            return <View key={city} style={{ width: 154 }}>
+              <Pressable accessibilityRole="button" accessibilityLabel={city + ' 여행 둘러보기'} onPress={() => a.nav('search', { placeId: place.id })} style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}>
+                <View style={{ height: 132, borderRadius: 18, overflow: 'hidden', backgroundColor: c.mint }}>{photo && <Image source={photo.source} accessibilityLabel={photo.label + ' 대표 풍경 사진'} style={{ width: '100%', height: '100%' }} />}</View>
+                <Txt size={18} weight="700" style={{ marginTop: 10 }}>{city}</Txt>
+                <Txt size={12} color={c.secondary}>{travelers ? travelers + '명 여행 예정 · 예시' : '장소 둘러보기'}</Txt>
+              </Pressable>
+              {photo && <PhotoCredit place={place} />}
+            </View>;
+          })}
+        </ScrollView>
+      </View>
+      <View style={{ padding: 18, gap: 12, borderRadius: 18, backgroundColor: c.paper }}>
+        <Row><View style={{ flex: 1 }}><Txt size={17} weight="700">찾는 물건이 있나요?</Txt><Txt size={13} color={c.secondary}>링크나 사진만 보내주세요.</Txt></View><ShoppingBag size={24} color={c.green} /></Row>
+        <Row><Button label="링크로 찾기" icon={Link} style={{ flex: 1 }} onPress={() => a.nav('request-form', { method: 'link' })} /><Button label="사진으로 찾기" icon={ScanLine} kind="secondary" style={{ flex: 1 }} onPress={() => a.nav('request-form', { method: 'photo' })} /></Row>
+      </View>
+      <View>
+        <Section title="우리 동네에서 출발해요" subtitle={locationLabel + ' · 반경 2km · 여행자 위치 예시'} action="위치 확인" onPress={() => void locate()} />
+        {nearbyTravelers.map(({ user, trip: nearbyTrip, distance }) => user && nearbyTrip && <Pressable key={user.id} accessibilityRole="button" accessibilityLabel={user.nickname + '님의 여행 보기'} onPress={() => a.nav('profile', { id: user.id })} style={{ paddingVertical: 14, borderBottomWidth: 1, borderColor: c.border }}>
+          <Row><Avatar user={user} size={44} /><View style={{ flex: 1 }}><Txt size={16} weight="600">{user.nickname} · {nearbyTrip.destinationCity}</Txt><Txt size={13} color={c.secondary}>{shortDate(nearbyTrip.startDate)} – {shortDate(nearbyTrip.endDate)} · {distance.toFixed(1)}km 예시</Txt></View><ChevronRight size={18} color={c.muted} /></Row>
+        </Pressable>)}
+        {!nearbyTravelers.length && <Txt color={c.secondary}>이 위치 근처에는 공개된 예시 여행이 없어요.</Txt>}
+      </View>
+      <View>
+        <Section title="부탁이 모이는 장소" action="모두 보기" onPress={() => a.tab('search')} />
+        <Stack gap={12}>{places.slice(0, 3).map((place) => <PlaceCard key={place.id} variant="list" place={place} onPress={() => openPlace(place)} />)}</Stack>
+      </View>
+      {!!recentPlaces.length && <View><Section title="최근 본 장소" /><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>{recentPlaces.map((place) => <Chip key={place.id} label={place.name} onPress={() => openPlace(place)} />)}</ScrollView></View>}
+      {featured && <View><Section title="이런 부탁도 있어요" /><ProductRow request={featured} krw onPress={() => a.nav('request', { id: featured.id })} /></View>}
+    </> : trip ? <>
+      <View style={{ gap: 6 }}><Txt size={13} color={c.secondary}>{d.me.nickname}님의 이번 여행</Txt><Txt size={28} weight="800">{tripCities.join(' · ') || trip.destinationCity}</Txt><Row><Txt size={14} color={c.secondary}>{shortDate(trip.startDate)} – {shortDate(trip.endDate)}</Txt><Pressable accessibilityRole="button" accessibilityLabel="일정 관리" onPress={() => a.nav('trips')} style={{ padding: 10 }}><Txt size={13} color={c.darkGreen}>일정 관리</Txt></Pressable></Row></View>
+      <View style={{ padding: 22, borderRadius: 20, backgroundColor: c.mint, gap: 18 }}>
+        <Txt size={14} color={c.darkGreen}>가는 길에 받을 수 있는 보상</Txt>
+        <Txt size={30} weight="800">{availableReward ? money(availableReward) : '부탁에서 확인해요'}</Txt>
+        <Row style={{ justifyContent: 'space-between' }}><Txt size={14} color={c.secondary}>{bundles.length}곳 · 부탁 {availableRequests}건</Txt><Txt size={12} color={c.secondary}>{pendingRewards ? '보상 미정 부탁 포함' : '등록된 보상 합계'}</Txt></Row>
+        <Button label="내 동선의 부탁 보기" onPress={() => bundles[0] ? a.nav('bundle', { placeId: bundles[0].place.id, tripId: trip.id }) : a.tab('search')} />
+      </View>
+      <View><Section title="한 곳에서 한 번에" action="일정 추가" onPress={() => a.nav('trip-form')} />
+        {bundles.map((bundle) => {
+          const reward = bundle.requests.reduce((sum, request) => sum + (request.requestedReward || 0), 0);
+          return <Pressable key={bundle.place.id} accessibilityRole="button" accessibilityLabel={bundle.place.name + ' 부탁 ' + bundle.requests.length + '건 · 상품 ' + bundle.items + '개 보기'} onPress={() => a.nav('bundle', { placeId: bundle.place.id, tripId: trip.id })} style={({ pressed }) => ({ padding: 18, borderRadius: 18, backgroundColor: c.paper, marginBottom: 12, opacity: pressed ? 0.75 : 1 })}>
+            <Row><View style={{ flex: 1, gap: 5 }}><Txt size={17} weight="700">{bundle.place.name}</Txt><Txt size={13} color={c.secondary}>부탁 {bundle.requests.length}건 · 상품 {bundle.items}개</Txt></View><ChevronRight size={18} color={c.muted} /></Row>
+            <Row style={{ marginTop: 16, justifyContent: 'space-between', flexWrap: 'wrap' }}><Badge bg={c.lilac} color={c.secondary}>추가 이동 +{bundle.extraMinutes}분 · 예시</Badge><Txt size={16} weight="700" color={c.darkGreen}>{reward ? money(reward) : '보상 확인'}</Txt></Row>
+          </Pressable>;
         })}
-      </Row>
-      {a.role === 'buyer' ? (
-        <>
-          <View
-            style={{
-              backgroundColor: c.paper,
-              borderWidth: 1,
-              borderColor: c.border,
-              borderRadius: 26,
-              padding: 22,
-              gap: 16,
-            }}
-          >
-            <Stack gap={6}>
-              <Badge>AI 상품 찾기</Badge>
-              <Txt size={27} weight="800" style={{ lineHeight: 36 }}>
-                찾으시는 물건을{`\n`}바로 보내주세요
-              </Txt>
-              <Txt size={14} color={c.secondary}>
-                링크를 붙여넣거나 사진을 보내면 글자와 상품을 함께 인식해 찾아드려요.
-              </Txt>
-            </Stack>
-            <Row style={{ gap: 10 }}>
-              <Button
-                small
-                label="링크 붙여넣기"
-                icon={Link}
-                style={{ flex: 1 }}
-                onPress={() => a.nav('request-form', { method: 'link' })}
-              />
-              <Button
-                small
-                kind="secondary"
-                label="사진으로 찾기"
-                icon={ScanLine}
-                style={{ flex: 1 }}
-                onPress={() => a.nav('request-form', { method: 'photo' })}
-              />
-            </Row>
-          </View>
-          <Card style={{ backgroundColor: c.mint }}>
-            <Stack gap={14}>
-              <Row style={{ justifyContent: 'space-between' }}>
-                <View style={{ flex: 1 }}><Badge>내 주변 2km · {locationLabel}</Badge><Txt size={21} weight="800" style={{ marginTop: 8 }}>근처에 이런 여행을 가는 사람이 있어요</Txt></View>
-                <Navigation size={27} color={c.green} />
-              </Row>
-              {nearbyTravelers.slice(0, 2).map(({ user, trip: nearbyTrip, distance }) => user && nearbyTrip && (
-                <View key={user.id} style={{ backgroundColor: c.paper, borderRadius: 16, padding: 14, gap: 11 }}>
-                  <Pressable accessibilityRole="button" accessibilityLabel={`${user.nickname} 여행자 보기`} onPress={() => a.nav('profile', { id: user.id })}>
-                    <Row><Avatar user={user} size={44} /><View style={{ flex: 1 }}><Txt weight="700">{user.nickname} · {distance.toFixed(1)}km</Txt><Txt size={13} color={c.secondary}>{[...new Set(nearbyTrip.placeIds.map((id) => d.places.find((place) => place.id === id)?.city).filter(Boolean))].join(' · ')} 여행 예정</Txt></View><ChevronRight size={18} color={c.muted} /></Row>
-                  </Pressable>
-                  <Button small kind="secondary" label="이 여행에 부탁하기" onPress={() => a.nav('request-form', { method: 'link', placeId: nearbyTrip.placeIds[0] })} />
-                </View>
-              ))}
-              {!nearbyTravelers.length && <Txt size={13} color={c.secondary}>반경 2km 안에서 공개된 여행 일정을 찾지 못했어요.</Txt>}
-              <Button small kind="secondary" label="현재 위치로 다시 찾기" icon={Navigation} onPress={() => void locate()} />
-              <Txt size={11} color={c.secondary}>여행자가 주변 공개를 선택한 경우에만 보여요. 예시 위치는 실제 위치가 아니에요.</Txt>
-            </Stack>
-          </Card>
-          <Stack
-            gap={18}
-            style={{
-              backgroundColor: c.darkGreen,
-              borderRadius: 28,
-              padding: 22,
-              overflow: 'hidden',
-            }}
-          >
-            <Row style={{ alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-              <View style={{ flex: 1, gap: 6 }}>
-                <Badge bg="#2E5798" color="#EAF2FF">
-                  인기 많은 상품을 보여드릴게요
-                </Badge>
-                <Txt size={26} weight="800" color="white" style={{ lineHeight: 34 }}>
-                  {featured?.productName || '도쿄 한정 캐릭터 키링'}
-                </Txt>
-                <Txt size={20} weight="800" color={c.lime}>
-                  약 {money(featuredKrw)}
-                </Txt>
-                <Txt size={12} color="#C9D9F7">
-                  원화 환산 상품가 · 데모 환율 기준
-                </Txt>
-              </View>
-              <ProductArt art="keyring" featured size={112} />
-            </Row>
-            <Button
-              small
-              kind="lime"
-              label="이 상품 부탁하기"
-              icon={ShoppingBag}
-              onPress={() =>
-                a.nav('request-form', { id: featured?.id, placeId: featured?.placeId })
-              }
-            />
-          </Stack>
-          <View>
-            <Section
-              title="지금, 이곳으로 가요"
-              subtitle="당신의 위시리스트와 여행이 만나는 곳"
-              action="전체 보기"
-              onPress={() => a.tab('search')}
-            />
-            <View style={{ paddingBottom: 16 }}>
-              <DestinationPicker country={country} cities={cities} allowAll onChange={(next, selectedCities) => { setCountry(next); setCities(selectedCities); }} />
-            </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ gap: 14, paddingBottom: 3 }}
-            >
-              {places.map((p) => (
-                <View key={p.id} style={{ width: wide ? 280 : 260 }}>
-                  <PlaceCard
-                    place={p}
-                    onPress={() => a.nav('place', { id: p.id })}
-                    favorite={d.favorites.some((f) => f.placeId === p.id)}
-                    onFavorite={() => a.mutate(`/favorites/${p.id}`, {})}
-                  />
-                </View>
-              ))}
-            </ScrollView>
-          </View>
-          <View style={{ backgroundColor: c.lilac, padding: 21, borderRadius: 22 }}>
-            <Row style={{ alignItems: 'flex-start' }}>
-              <Layers size={26} color={c.green} />
-              <Stack gap={6} style={{ flex: 1 }}>
-                <Txt size={18} weight="700">
-                  한 번의 방문, 여러 개의 부탁.
-                </Txt>
-                <Txt size={13} color={c.secondary}>
-                  같은 장소의 요청을 모으면{'\n'}여행자도, 부탁한 사람도 더 가벼워져요.
-                </Txt>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => a.setRole('traveler')}
-                  style={{ paddingTop: 7 }}
-                >
-                  <Row style={{ gap: 4 }}>
-                    <Txt size={13} weight="700">
-                      내 여행으로 얼마나 벌 수 있을까?
-                    </Txt>
-                    <ArrowRight size={14} />
-                  </Row>
-                </Pressable>
-              </Stack>
-            </Row>
-          </View>
-          <View>
-            <Section title="요즘 모이는 부탁" subtitle="일반 상품 목록 대신, 가는 곳과 함께 봐요" />
-            {d.requests
-              .filter((r) => ['REQUESTED', 'OFFER_RECEIVED'].includes(r.status))
-              .slice(0, 4)
-              .map((r) => (
-                <ProductRow
-                  key={r.id}
-                  request={r}
-                  krw
-                  onPress={() => a.nav('request', { id: r.id })}
-                />
-              ))}
-          </View>
-        </>
-      ) : (
-        <>
-          {trip && nearby && !nearbyDismissed && (
-            <View
-              accessibilityRole="alert"
-              style={{
-                backgroundColor: c.green,
-                borderRadius: 28,
-                padding: 22,
-                gap: 18,
-                shadowColor: c.green,
-                shadowOpacity: 0.24,
-                shadowRadius: 16,
-                shadowOffset: { width: 0, height: 8 },
-                elevation: 4,
-              }}
-            >
-              <Row style={{ justifyContent: 'space-between' }}>
-                <Badge bg="#FFFFFF24" color="white">
-                  근처 심부름 알림 · 동선 +{nearby.extraMinutes}분
-                </Badge>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="근처 심부름 알림 나중에 보기"
-                  onPress={() => setNearbyDismissed(true)}
-                  style={{ minHeight: 44, justifyContent: 'center' }}
-                >
-                  <Txt size={13} color="#DCE8FF">
-                    나중에
-                  </Txt>
-                </Pressable>
-              </Row>
-              <Row style={{ alignItems: 'flex-start', gap: 14 }}>
-                <View style={{ backgroundColor: 'white', borderRadius: 18, padding: 13 }}>
-                  <Navigation size={27} color={c.green} fill={c.mint} />
-                </View>
-                <View style={{ flex: 1, gap: 5 }}>
-                  <Txt size={23} weight="800" color="white">
-                    {nearby.place.name} 근처를 지나가요
-                  </Txt>
-                  <Txt size={15} color="#EAF2FF">
-                    여기서 심부름 {nearby.requests.length}건을 할 수 있어요. 원하는 보상금을 제안해보세요.
-                  </Txt>
-                </View>
-              </Row>
-              <Button
-                kind="lime"
-                label="네, 심부름을 확인할게요"
-                onPress={() =>
-                  a.nav('bundle', { placeId: nearby.place.id, tripId: trip.id })
-                }
-              />
-              <Txt size={11} color="#DCE8FF" style={{ textAlign: 'center' }}>
-                현재 위치 기반 알림은 체험용 예시예요.
-              </Txt>
-            </View>
-          )}
-          <Stack gap={8}>
-            <Txt size={30} weight="800">
-              내가 가는 길에서,{'\n'}여행비를 가볍게.
-            </Txt>
-            <Txt color={c.secondary}>원래 가는 곳의 부탁을 한 번에 모아보세요.</Txt>
-          </Stack>
-          {trip ? (
-            <>
-              <View
-                style={{ backgroundColor: c.darkGreen, borderRadius: 26, padding: 24, gap: 20 }}
-              >
-                <Row style={{ justifyContent: 'space-between' }}>
-                  <Badge bg="#2E5798" color="#EAF2FF">
-                    나의 여행
-                  </Badge>
-                  <Pressable accessibilityRole="button" onPress={() => a.nav('trips')}>
-                    <Txt size={13} color="#D7E4FF">
-                      일정 보기 ›
-                    </Txt>
-                  </Pressable>
-                </Row>
-                <Row style={{ justifyContent: 'space-between' }}>
-                  <Txt size={23} weight="700" color="white">
-                    {trip.departureCity}
-                  </Txt>
-                  <Plane color={c.lime} size={24} />
-                  <Txt size={18} weight="700" color="white" style={{ textAlign: 'right', flex: 1 }}>
-                    {tripCities.join(' · ') || trip.destinationCity}
-                  </Txt>
-                </Row>
-                <Txt size={13} color="#C9D9F7">
-                  {shortDate(trip.startDate)} — {shortDate(trip.endDate)} · {trip.placeIds.length}곳
-                  방문 예정
-                </Txt>
-                <View style={{ height: 1, backgroundColor: '#31558D' }} />
-                <Stack gap={5}>
-                  <Txt size={13} color="#D7E4FF">
-                    동선에서 찾은 부탁
-                  </Txt>
-                  <Txt size={40} weight="800" color={c.lime}>
-                    {availableRequests}건
-                  </Txt>
-                  <Txt size={12} color="#C9D9F7">
-                    보상금은 부탁별로 직접 정해요
-                  </Txt>
-                </Stack>
-              </View>
-              <View>
-                <Section
-                  title="가는 김에, 묶어서"
-                  subtitle="같은 장소에서 여러 부탁을 한 번에"
-                  action="일정 추가"
-                  onPress={() => a.nav('trip-form')}
-                />
-                {bundles.length ? (
-                  bundles.map((b) => (
-                    <Pressable
-                      key={b.place.id}
-                      accessibilityRole="button"
-                      onPress={() => a.nav('bundle', { placeId: b.place.id, tripId: trip.id })}
-                      style={{
-                        backgroundColor: c.paper,
-                        borderRadius: 21,
-                        borderWidth: 1,
-                        borderColor: c.border,
-                        padding: 20,
-                        marginBottom: 13,
-                      }}
-                    >
-                      <Stack gap={15}>
-                        <Row>
-                          <View style={{ backgroundColor: c.mint, padding: 10, borderRadius: 13 }}>
-                            <MapPin size={22} color={c.green} />
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Txt size={17} weight="700">
-                              {b.place.name}
-                            </Txt>
-                            <Txt size={12} color={c.secondary}>
-                              동선 추가 +{b.extraMinutes}분 · 예시 추정
-                            </Txt>
-                          </View>
-                          <ChevronRight size={20} color={c.muted} />
-                        </Row>
-                        <Row style={{ justifyContent: 'space-between' }}>
-                          <Row>
-                            <Badge>{b.requests.length}건 묶음</Badge>
-                            <Txt size={12} color={c.secondary}>
-                              {b.items}개 상품
-                            </Txt>
-                          </Row>
-                          <Txt size={21} weight="800" color={c.green}>
-                            보상 직접 제안
-                          </Txt>
-                        </Row>
-                        <Txt size={12} color={c.secondary}>
-                          상품 선지출 {money(b.advance)} · 최대 {trip.maxItems}개 선택 가능
-                        </Txt>
-                      </Stack>
-                    </Pressable>
-                  ))
-                ) : (
-                  <Empty
-                    title="새로운 요청을 기다려요"
-                    body="이미 수락한 부탁은 중복 추천하지 않아요."
-                    action="수락한 부탁 보기"
-                    onPress={() => a.tab('trades')}
-                  />
-                )}
-              </View>
-              <RouteMap
-                places={bundles.map((b) => b.place)}
-                onSelect={(p) => a.nav('place', { id: p.id })}
-              />
-            </>
-          ) : (
-            <Empty
-              title="어디로 떠나세요?"
-              body="도시와 날짜를 알려주면 동선의 부탁을 모아드려요."
-              action="여행 일정 등록"
-              onPress={() => a.nav('trip-form')}
-            />
-          )}
-          <Notice>
-            상품가격은 먼저 지출하고 구매 확정 뒤 돌려받아요. 보상과 선지출 금액을 함께
-            확인해주세요.
-          </Notice>
-        </>
-      )}
-      <Txt size={11} color={c.secondary} style={{ textAlign: 'center' }}>
-        방문 인원·가격·거래 건수는 모두 예시 데이터예요.
-      </Txt>
-    </ScrollView>
-  );
+        {!bundles.length && <Empty title="일정에 맞는 부탁을 기다려요" body="방문 예정지를 더하면 다른 부탁도 찾을 수 있어요." action="여행 일정 보기" onPress={() => a.nav('trips')} />}
+      </View>
+    </> : <Stack gap={20}><Txt size={28} weight="800">다음 여행은 어디인가요?</Txt><Txt color={c.secondary}>방문할 곳을 알려주면 같은 장소의 부탁을 모아드려요.</Txt><Button label="여행 일정 등록" icon={Plane} onPress={() => a.nav('trip-form')} /></Stack>}
+  </ScrollView>;
 }
+
 export function SearchScreen() {
   const a = useApp(),
     d = a.data!;
+  const initialPlace = d.places.find((place) => place.id === a.route.placeId);
   const [query, setQuery] = useState(''),
-    [country, setCountry] = useState<DestinationCountry>('ALL'),
-    [cities, setCities] = useState<string[]>([]),
+    [country, setCountry] = useState<DestinationCountry>(initialPlace?.country || 'ALL'),
+    [cities, setCities] = useState<string[]>(initialPlace ? [initialPlace.city] : []),
     [view, setView] = useState('목록'),
     [resultsWidth, setResultsWidth] = useState(0),
     [selected, setSelected] = useState<Place | null>(null);
@@ -685,15 +322,16 @@ export function SearchScreen() {
   );
   const select = (p: Place) => {
     if (q) a.mutate('/searches', { query });
+    rememberPlace(p.id);
     a.nav('place', { id: p.id });
   };
   return (
-    <Page title="어디로 가볼까요?" backLabel="이전으로">
-      <Field
-        label="상품·도시·매장·여행 경로"
+    <Page title="둘러보기" backLabel="이전으로">
+      <SearchField
+        label="장소 또는 상품 검색"
         value={query}
         onChange={setQuery}
-        placeholder="일본, 타이베이, 방콕, 키링..."
+        placeholder="도시, 매장, 갖고 싶은 물건"
       />
       <DestinationPicker country={country} cities={cities} allowAll onChange={(next, selectedCities) => { setCountry(next); setCities(selectedCities); setSelected(null); }} />
       {!q && d.searches.length > 0 && (
@@ -713,16 +351,12 @@ export function SearchScreen() {
         <Txt size={20} weight="700">
           장소 {places.length}곳
         </Txt>
-        <Row>
-          {['목록', '지도'].map((v) => (
-            <Chip key={v} label={v} selected={view === v} onPress={() => setView(v)} />
-          ))}
-        </Row>
+        <SectionTabs items={['목록', '지도']} value={view} onChange={setView} />
       </Row>
       {view === '지도' ? (
         <>
-          <RouteMap places={places} selected={selected?.id} onSelect={setSelected} />
-          {selected && <PlaceCard variant="list" place={selected} onPress={() => select(selected)} />}
+          <RouteMap places={places} selected={(selected || places[0])?.id} onSelect={setSelected} />
+          {(selected || places[0]) && <PlaceCard variant="list" place={selected || places[0]} onPress={() => select(selected || places[0])} />}
         </>
       ) : (
         <View
@@ -789,88 +423,31 @@ export function SearchScreen() {
   );
 }
 export function PlaceScreen() {
-  const a = useApp(),
-    d = a.data!,
-    p = d.places.find((x) => x.id === a.route.id);
-  if (!p)
-    return (
-      <Page title="장소">
-        <Empty />
-      </Page>
-    );
-  return (
-    <Page
-      title={p.name}
-      footer={
-        <Button
-          label="여기에서 부탁하기"
-          icon={Plus}
-          onPress={() => a.nav('request-form', { placeId: p.id })}
-        />
-      }
-    >
-      <PlaceCard
-        place={p}
-        onPress={() => a.nav('request-form', { placeId: p.id })}
-        favorite={d.favorites.some((f) => f.placeId === p.id)}
-        onFavorite={() => a.mutate(`/favorites/${p.id}`, {})}
-      />
-      <Stack gap={12}>
-        <Txt size={27} weight="800">
-          {p.name}
-        </Txt>
-        <Txt color={c.secondary}>{p.description}</Txt>
-        <Row style={{ flexWrap: 'wrap' }}>
-          {p.tags.map((t) => (
-            <Badge key={t}>{t}</Badge>
-          ))}
-        </Row>
-      </Stack>
-      <Card>
-        <Row style={{ justifyContent: 'space-between' }}>
-          {[
-            ['방문 예정', `${p.visitors}명`],
-            ['최근 7일 거래', `${p.recentTrades}건`],
-            ['평균 보상', money(p.averageReward)],
-          ].map(([k, v]) => (
-            <Stack key={k} gap={5} style={{ alignItems: 'center' }}>
-              <Txt size={12} color={c.secondary}>
-                {k}
-              </Txt>
-              <Txt size={20} weight="700">
-                {v}
-              </Txt>
-            </Stack>
-          ))}
-        </Row>
-        <Txt size={11} color={c.secondary} style={{ marginTop: 12 }}>
-          위 수치는 서비스 흐름을 보여주기 위한 예시예요.
-        </Txt>
-      </Card>
-      <RouteMap
-        places={[p]}
-        selected={p.id}
-        onSelect={() => a.notify('실제 지도는 아직 연결되지 않았어요. 위치 미리보기예요.')}
-      />
-      <View>
-        <Section title="이곳에 모인 부탁" />
-        {d.requests
-          .filter((r) => r.placeId === p.id)
-          .map((r) => (
-            <ProductRow
-              key={r.id}
-              request={r}
-              krw={a.role === 'buyer'}
-              onPress={() => a.nav('request', { id: r.id })}
-            />
-          ))}
-      </View>
-      <Notice tone="warning">
-        현장 재고·매장 구매 제한은 방문 전에 확인해요. 표시된 장소가 상품 판매나 재고를 보증하지
-        않아요.
-      </Notice>
-    </Page>
-  );
+  const a = useApp(), d = a.data!, p = d.places.find((item) => item.id === a.route.id);
+  if (!p) return <Page title="장소"><Empty title="이 장소를 찾지 못했어요" action="장소 둘러보기" onPress={() => a.tab('search')} /></Page>;
+  const requests = d.requests.filter((request) => request.placeId === p.id);
+  const trips = d.trips.filter((trip) => trip.placeIds.includes(p.id) && trip.endDate >= new Date().toISOString().slice(0, 10));
+  const myTrip = trips.find((trip) => trip.travelerId === d.me.id);
+  const primary = () => a.role === 'buyer' ? a.nav('request-form', { placeId: p.id }) : myTrip ? a.nav('bundle', { placeId: p.id, tripId: myTrip.id }) : a.nav('trip-form', { placeId: p.id });
+  return <Page title={p.city + ' · ' + p.region} footer={<Button label={a.role === 'buyer' ? '여기에서 부탁하기' : myTrip ? '이곳의 부탁 가져오기' : '방문 일정 등록하기'} onPress={primary} />}>
+    <View style={{ borderRadius: 18, overflow: 'hidden' }}><PlaceCover place={p} /><PhotoCredit place={p} /></View>
+    <Stack gap={10}>
+      <Row><Txt size={25} weight="800" style={{ flex: 1 }}>{p.name}</Txt><IconButton icon={Heart} label={d.favorites.some((favorite) => favorite.placeId === p.id) ? '관심 장소 해제' : '관심 장소 저장'} onPress={() => a.mutate('/favorites/' + p.id, {})} /></Row>
+      <Txt size={14} color={c.secondary}>{p.description}</Txt>
+      <Row style={{ flexWrap: 'wrap', gap: 6 }}>{p.tags.map((tag) => <Badge key={tag} bg={c.paper} color={c.secondary}>{tag}</Badge>)}</Row>
+    </Stack>
+    <View style={{ paddingVertical: 16, borderTopWidth: 1, borderBottomWidth: 1, borderColor: c.border }}>
+      <Row style={{ justifyContent: 'space-between' }}>{[['방문 예정', p.visitors + '명'], ['모인 부탁', p.requestCount + '건'], ['평균 보상', money(p.averageReward)]].map(([label, value]) => <View key={label} style={{ gap: 6 }}><Txt size={12} color={c.secondary}>{label}</Txt><Txt size={18} weight="700">{value}</Txt></View>)}</Row>
+      <Txt size={11} color={c.muted} style={{ marginTop: 12 }}>체험용 예시 수치예요.</Txt>
+    </View>
+    {!!trips.length && <View><Section title="이곳에 가는 여행자" /><Stack gap={8}>{trips.slice(0, 3).map((trip) => {
+      const user = d.users.find((person) => person.id === trip.travelerId);
+      return user ? <Pressable key={trip.id} accessibilityRole="button" accessibilityLabel={user.nickname + '님의 일정 보기'} onPress={() => a.nav('profile', { id: user.id })} style={{ paddingVertical: 10 }}><Row><Avatar user={user} /><View style={{ flex: 1 }}><Txt size={15} weight="600">{user.nickname}</Txt><Txt size={13} color={c.secondary}>{shortDate(trip.startDate)} – {shortDate(trip.endDate)}</Txt></View><Txt size={13} color={c.darkGreen}>일정 보기</Txt></Row></Pressable> : null;
+    })}</Stack></View>}
+    <View><Section title="한 곳에 모인 부탁" />{requests.map((request) => <ProductRow key={request.id} request={request} krw onPress={() => a.nav('request', { id: request.id })} />)}{!requests.length && <Empty title="아직 이 장소의 부탁이 없어요" body="첫 번째 부탁을 남겨보세요." />}</View>
+    <View><Section title="찾아가는 곳" /><RouteMap places={[p]} selected={p.id} onSelect={() => {}} /></View>
+    <Txt size={13} color={c.secondary}>재고와 구매 제한은 방문 전 매장에 확인해주세요.</Txt>
+  </Page>;
 }
 export function CreateScreen() {
   const a = useApp();

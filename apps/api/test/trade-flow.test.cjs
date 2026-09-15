@@ -62,7 +62,12 @@ async function createMatch() {
 async function act(t, action, actor, extra = {}, key) {
   const response = await call(
     `/transactions/${t.id}/actions`,
-    { action, expectedRevision: t.revision, ...extra },
+    {
+      action,
+      expectedRevision: t.revision,
+      ...(action === 'PAY' ? { paymentMethod: 'CARD', paymentReference: '카드 끝 4242' } : {}),
+      ...extra,
+    },
     actor,
     key,
   );
@@ -96,6 +101,26 @@ after(async () => {
 });
 test('unauthenticated clients cannot read private snapshots', async () => {
   assert.equal((await call('/snapshot', undefined, 'anonymous')).status, 401);
+});
+test('traveler identity verification stores only the result and gates offer creation', async () => {
+  const before = await app.get(Store).read((db) => db.verifications.some((item) => item.userId === 'u-me' && item.kind === 'IDENTITY'));
+  assert.equal(before, false);
+  const request = (await call('/requests', requestBody(), 'u-sora')).data;
+  const blocked = await call(`/requests/${request.id}/offers`, offerBody({ tripId: 'trip-u-me' }), 'u-me');
+  assert.equal(blocked.status, 409);
+  assert.match(blocked.data.message, /본인인증/);
+  const verified = await call('/auth/identity/verify', {
+    name: '인증테스트', phone: '01099998888', birthDate: '950101', consent: true,
+  });
+  assert.equal(verified.status, 201);
+  assert.equal(verified.data.maskedPhone, '010-****-8888');
+  const snapshot = (await call('/snapshot')).data;
+  assert.ok(snapshot.me.verificationLabels.includes('본인 인증'));
+  const raw = await readFile(path.join(temp, 'state.json'), 'utf8');
+  assert.ok(!raw.includes('인증테스트'));
+  assert.ok(!raw.includes('01099998888'));
+  assert.ok(!raw.includes('950101'));
+  assert.equal((await call(`/requests/${request.id}/offers`, offerBody({ tripId: 'trip-u-me' }), 'u-me')).status, 201);
 });
 test('Codespaces web origin can preflight the demo login endpoint', async () => {
   const origin = 'https://glowing-space-garbanzo-g4q9g5qqvwrgfv6w6-8081.app.github.dev';
@@ -167,6 +192,25 @@ test('Asian cities, local currencies, decimal prices and multiple Japanese citie
   assert.notEqual((await call('/trips', { ...tripBody, destinationCity: '도쿄' }, 'u-joon')).status, 201);
   const sapporo = state.places.find((p) => p.city === '삿포로');
   assert.equal((await call('/trips', { ...tripBody, destinationCountry: 'JP', destinationCity: '도쿄', placeIds: ['p-station', sapporo.id] }, 'u-joon')).status, 201);
+  const islandTrip = await call('/trips', {
+    ...tripBody,
+    destinationCountry: 'JP', destinationCity: '이시가키섬', placeIds: [],
+    customStops: ['이시가키섬 · 유글레나 몰'],
+  }, 'u-joon');
+  assert.equal(islandTrip.status, 201);
+  assert.deepEqual(islandTrip.data.customStops, ['이시가키섬 · 유글레나 몰']);
+  assert.notEqual((await call('/trips', {
+    ...tripBody,
+    destinationCountry: 'JP', destinationCity: '이시가키섬', placeIds: ['p-station'],
+    customStops: ['이시가키섬'],
+  }, 'u-joon')).status, 201);
+  const mixedRoute = await call('/trips', {
+    ...tripBody,
+    destinationCountry: 'JP', destinationCity: '도쿄', destinationAreas: ['도쿄', '이시가키섬'],
+    placeIds: ['p-station'], customStops: ['이시가키섬 · 유글레나 몰'],
+  }, 'u-joon');
+  assert.equal(mixedRoute.status, 201);
+  assert.deepEqual(mixedRoute.data.destinationAreas, ['도쿄', '이시가키섬']);
 });
 test('metadata has a deterministic catalog and safe manual fallback', async () => {
   assert.equal(
@@ -210,6 +254,16 @@ test('addresses can be added and selected as default', async () => {
   const snapshot = (await call('/snapshot')).data;
   assert.equal(snapshot.addresses.find((item) => item.id === added.data.id).isDefault, true);
   assert.equal(snapshot.addresses.filter((item) => item.userId === 'u-me' && item.isDefault).length, 1);
+  const edited = await call('/addresses', {
+    id: added.data.id, label: '회사', recipient: '테스트 구매자', phone: '010-9999-8888', postalCode: '06236',
+    address1: '서울 강남구 테헤란로 1', address2: '11층', isDefault: false,
+  });
+  assert.equal(edited.status, 201);
+  assert.equal(edited.data.isDefault, true, 'editing a default with false cannot remove the only default');
+  const updated = (await call('/snapshot')).data;
+  assert.equal(updated.addresses.filter((item) => item.isDefault).length, 1);
+  assert.equal(updated.addresses.find((item) => item.isDefault).id, added.data.id);
+  assert.equal(updated.addresses.find((item) => item.isDefault).address2, '11층');
 });
 test('one trip can include multiple cities in the same country', async () => {
   const trip = await call('/trips', {
@@ -458,7 +512,7 @@ test('mock payment failure has no ledger write, duplicate success is idempotent'
   assert.equal(snapshot.payments.filter((p) => p.transactionId === t.id).length, 1);
   const mismatch = await call(
     `/transactions/${t.id}/actions`,
-    { action: 'PAY', expectedRevision: 99 },
+    { action: 'PAY', expectedRevision: 99, paymentMethod: 'CARD', paymentReference: '카드 끝 4242' },
     'u-me',
     k,
   );

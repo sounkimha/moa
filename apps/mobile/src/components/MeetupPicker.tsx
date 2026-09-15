@@ -17,12 +17,20 @@ export function MeetupPicker({ value, onChange, history, legacyName, country = '
   const [searched, setSearched] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [searchAvailable, setSearchAvailable] = useState<boolean | undefined>();
+  const mapCanPick = Boolean(process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY?.trim());
   const [candidate, setCandidate] = useState<MeetupPoint | undefined>(value);
   const [center, setCenter] = useState({ latitude: value?.latitude ?? (country === 'JP' ? 35.6812 : 37.5665), longitude: value?.longitude ?? (country === 'JP' ? 139.7671 : 126.978), zoom: value ? 18 : 12 });
   const run = useRef(0);
   useEffect(() => () => { run.current++; }, []);
+  useEffect(() => {
+    let active = true;
+    api<{ searchAvailable: boolean }>('/meetup/status').then((status) => { if (active) setSearchAvailable(status.searchAvailable); }).catch(() => { /* Search still permits retry if capability lookup fails. */ });
+    return () => { active = false; };
+  }, []);
   const search = async () => {
     const current = ++run.current;
+    if (searchAvailable === false) { setError('이 환경에서는 장소 이름 검색이 아직 연결되지 않았어요. 지도에서 만날 위치를 지정해주세요.'); return; }
     if (country !== 'KR') { setError('현재 이름 검색은 국내 장소만 지원해요. 일본 수령은 지도에서 위치를 직접 지정해주세요.'); return; }
     if (query.trim().length < 2) { setError('장소 이름을 두 글자 이상 입력해주세요.'); return; }
     setBusy(true); setError(''); setSearched(false); setResults([]);
@@ -38,10 +46,11 @@ export function MeetupPicker({ value, onChange, history, legacyName, country = '
     setResults([]); setSearched(false); onChange(undefined);
   };
   return <Stack gap={12}>
-    <Txt size={17} weight="700">직거래 희망 장소</Txt>
-    <Txt size={13} color={c.secondary}>장소를 검색하고, 지도를 움직여 정확히 만날 지점을 맞춰주세요.</Txt>
+    <Txt size={13} color={c.secondary}>{mapCanPick ? '지도를 움직여 만날 위치를 맞춰주세요.' : '장소를 검색해 고르면 지도에서 위치를 확인할 수 있어요.'}</Txt>
     <Field label="장소 검색" value={query} onSubmit={search} onChange={(text) => { run.current++; setBusy(false); setQuery(text); setError(''); setResults([]); setSearched(false); }} placeholder="역, 동네, 건물 이름으로 검색" />
-    <Button label="장소 검색하기" icon={Search} onPress={search} loading={busy} kind="secondary" />
+    <Button label="장소 검색하기" icon={Search} onPress={search} loading={busy} disabled={searchAvailable === false || country !== 'KR'} kind="secondary" />
+    {searchAvailable === false && <Notice>이 환경에서는 장소 이름 검색이 아직 연결되지 않았어요. 아래 지도에서 위치를 지정할 수 있어요.</Notice>}
+    {country !== 'KR' && <Notice>현재 장소 이름 검색은 한국만 지원해요. 지도에서 만날 위치를 지정해주세요.</Notice>}
     {error !== '' && <Notice tone="error">{error}</Notice>}
     {searched && results.length === 0 && <Notice>검색 결과가 없어요. 지역명을 함께 넣거나 지도에서 직접 위치를 지정해주세요.</Notice>}
     {results.length > 0 && <Stack gap={8}>
@@ -61,7 +70,7 @@ export function MeetupPicker({ value, onChange, history, legacyName, country = '
         onChange(undefined);
       }} />
     </View>
-    <Txt size={12} color={c.secondary}>지도를 좌우·위아래로 움직이거나 눌러 파란 핀을 맞춰주세요. + 버튼으로 더 자세히 볼 수 있어요.</Txt>
+    {mapCanPick ? <Txt size={12} color={c.secondary}>지도를 좌우·위아래로 움직이거나 눌러 파란 핀을 맞춰주세요. + 버튼으로 더 자세히 볼 수 있어요.</Txt> : <Notice>지도를 움직여 위치를 확인할 수 있어요. 정확한 좌표 저장은 장소 검색 결과를 고르거나 Google 지도 키를 연결하면 사용할 수 있어요.</Notice>}
     {candidate && <Stack gap={8}>
       <Txt weight="700">{candidate.name}</Txt>
       {!!candidate.address && <Txt size={12} color={c.secondary}>검색한 장소 주소 · {candidate.address}</Txt>}

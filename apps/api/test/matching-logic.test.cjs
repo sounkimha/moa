@@ -11,7 +11,7 @@ function fixture() {
   Object.assign(trip, { startDate: future(4), endDate: future(7), departureCountry: 'KR', departureCity: '서울', maxItems: 10 });
   db.requests = [0, 1].map((index) => ({ ...db.requests[0], id: `audit-${index}`, requesterId: 'u-me',
     placeId: 'p-station', country: 'JP', deliveryCountry: 'KR', deliveryCity: '서울',
-    status: 'REQUESTED', revision: 0, quantity: 1, desiredDate: future(12),
+    status: 'REQUESTED', revision: 0, quantity: 1, requestedReward: index ? 8000 : 5000, desiredDate: future(12),
     transport: index ? 'MEETUP' : 'DOMESTIC_PARCEL', meetupLocation: index ? '서울역' : undefined }));
   db.offers = []; db.transactions = [];
   const service = new RequestsService({ transaction: async (fn) => {
@@ -29,7 +29,7 @@ test('traveler net reward plus commission equals gross, including half-won round
     assert.equal(result.platformCommission, Math.round(reward * 0.1));
   }
 });
-test('same-place bundle retains each buyer delivery choice and traveler-proposed reward', async () => {
+test('same-place bundle retains each buyer delivery choice and buyer-set reward', async () => {
   const f = fixture();
   const result = await f.service.claimBundle('u-min', randomUUID(), f.body);
   assert.equal(result.transactions.length, 2);

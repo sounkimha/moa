@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { apiErrorMessage } from './api-errors';
 function defaultApiUrl() {
   if (Platform.OS === 'android') return 'http://10.0.2.2:4000';
   if (Platform.OS !== 'web') return 'http://localhost:4000';
@@ -52,11 +53,9 @@ export async function api<T>(path: string, body?: unknown): Promise<T> {
     if (!response.ok) {
       if (response.status < 500) forget();
       if (response.status === 404 && ['/metadata', '/recognize'].includes(path))
-        throw new ApiError('연결된 서버에 인식 기능이 반영되지 않았어요. 개발 서버를 다시 실행한 뒤 새로고침해주세요.', 404);
+        throw new ApiError('지금은 자동 인식을 이용할 수 없어요. 잠시 후 다시 시도하거나 직접 입력해주세요.', 404);
       throw new ApiError(
-        Array.isArray(data?.message)
-          ? data.message.join('\n')
-          : data?.message || '요청을 처리하지 못했어요.',
+        apiErrorMessage(data?.message, response.status),
         response.status,
       );
     }
@@ -73,7 +72,7 @@ export async function api<T>(path: string, body?: unknown): Promise<T> {
       throw new ApiError(recognition
         ? '분석 응답이 늦어지고 있어요. 사진이나 링크를 확인한 뒤 다시 시도해주세요.'
         : '서버 응답이 늦어지고 있어요. 거래 상태를 새로고침해 확인한 뒤 다시 시도해주세요.', 408);
-    throw new ApiError('연결이 잠시 끊겼어요. 서버 실행 상태를 확인하고 다시 시도해주세요.', 0);
+    throw new ApiError('연결이 잠시 끊겼어요. 인터넷 연결을 확인하고 다시 시도해주세요.', 0);
   } finally {
     clearTimeout(timer);
   }
