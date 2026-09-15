@@ -326,14 +326,14 @@ test('valid bundle produces individual offers and rejects duplicate IDs', async 
   );
   assert.equal(result.status, 201);
   assert.equal(result.data.offerIds.length, 2);
-  assert.equal(result.data.totalReward, 4550);
+  assert.equal(result.data.totalReward, 14000);
 });
 test('traveler acceptance immediately opens a matched transaction and chat', async () => {
   const request = (await call('/requests', requestBody())).data;
   const result = await call(`/requests/${request.id}/claim`, offerBody(), 'u-min');
   assert.equal(result.status, 201);
   assert.equal(result.data.status, 'MATCHED');
-  assert.equal(result.data.travelerReward, 2275);
+  assert.equal(result.data.travelerReward, 7000);
   const snapshot = (await call('/snapshot', undefined, 'u-min')).data;
   assert.ok(snapshot.rooms.some((room) => room.transactionId === result.data.id));
 });
@@ -351,22 +351,22 @@ test('concurrent offer selection creates exactly one transaction', async () => {
   const snapshot = (await call('/snapshot')).data;
   assert.equal(snapshot.transactions.filter((t) => t.requestId === r.id).length, 1);
 });
-test('server replaces a client reward with the fixed 10% reward and persists it', async () => {
+test('traveler-proposed rewards survive offer acceptance, payment and file reload', async () => {
   const r = (await call('/requests', requestBody({ quantity: 2 }))).data;
   const key = randomUUID();
   const body = offerBody({ reward: 150005, tripId: 'trip-u-haru' });
   const offer = await call(`/requests/${r.id}/offers`, body, 'u-haru', key);
   assert.equal(offer.status, 201);
-  assert.equal(offer.data.reward, 4550);
+  assert.equal(offer.data.reward, 150005);
   assert.equal((await call(`/requests/${r.id}/offers`, body, 'u-haru', key)).data.id, offer.data.id);
   let t = (await call(`/offers/${offer.data.id}/accept`, { expectedRevision: 1 })).data;
-  assert.equal(t.travelerReward, 4550);
-  assert.equal(t.totalPrice, 53546);
+  assert.equal(t.travelerReward, 150005);
+  assert.equal(t.totalPrice, 199001);
   t = await act(t, 'PAY', 'u-me');
   assert.equal(t.status, 'PAYMENT_HELD');
   const reloaded = new Store();
-  assert.equal(await reloaded.read((db) => db.offers.find((o) => o.id === offer.data.id).reward), 4550);
-  assert.equal(await reloaded.read((db) => db.payments.find((p) => p.transactionId === t.id).amount), 53546);
+  assert.equal(await reloaded.read((db) => db.offers.find((o) => o.id === offer.data.id).reward), 150005);
+  assert.equal(await reloaded.read((db) => db.payments.find((p) => p.transactionId === t.id).amount), 199001);
 });
 test('purchase proof accepts either a product photo or receipt while preserving the missing attachment', async () => {
   let t = await createMatch();
@@ -412,38 +412,38 @@ test('out-of-stock evidence cancels the trade, refunds escrow and keeps a retrya
   assert.ok(snapshot.notifications.some((item) => item.transactionId === t.id && item.title.includes('품절')));
   assert.equal((await call('/requests', requestBody({ retryOfRequestId: t.requestId }))).status, 201);
 });
-test('both bundle paths calculate each request reward at fixed 10% and reject custom reward maps', async () => {
+test('both bundle paths retain different traveler-proposed rewards and reject incomplete maps atomically', async () => {
   const trip = { id: 'trip-u-haru' };
   for (const endpoint of ['/bundles/offers', '/bundles/claim']) {
     const a = (await call('/requests', requestBody())).data;
     const b = (await call('/requests', requestBody({ quantity: 2 }))).data;
     const common = { ...offerBody({ tripId: trip.id }), requestIds: [b.id, a.id] };
-    assert.equal((await call(endpoint, { ...common, rewards: { [a.id]: 1005, [b.id]: 0 } }, 'u-haru')).status, 400);
+    for (const rewards of [{ [a.id]: 1005 }, { [a.id]: 1005, [b.id]: 0, unrelated: 5000 }]) {
+      assert.equal((await call(endpoint, { ...common, rewards }, 'u-haru')).status, 400);
+    }
     assert.equal(await app.get(Store).read((db) => db.offers.filter((o) => [a.id, b.id].includes(o.requestId)).length), 0);
-    const body = common;
+    const body = { ...common, rewards: { [a.id]: 1005, [b.id]: 0 } };
     const key = randomUUID();
     const result = await call(endpoint, body, 'u-haru', key);
     assert.equal(result.status, 201);
-    assert.equal(result.data.totalReward, 6825);
+    assert.equal(result.data.totalReward, 1005);
     const snapshot = (await call('/snapshot', undefined, 'u-haru')).data;
-    assert.equal(snapshot.offers.find((o) => o.requestId === a.id).reward, 2275);
-    assert.equal(snapshot.offers.find((o) => o.requestId === b.id).reward, 4550);
+    assert.equal(snapshot.offers.find((o) => o.requestId === a.id).reward, 1005);
+    assert.equal(snapshot.offers.find((o) => o.requestId === b.id).reward, 0);
     if (endpoint.endsWith('/claim')) {
-      assert.equal(result.data.transactions.find((t) => t.requestId === a.id).travelerReward, 2275);
-      assert.equal(result.data.transactions.find((t) => t.requestId === b.id).travelerReward, 4550);
+      assert.equal(result.data.transactions.find((t) => t.requestId === a.id).travelerReward, 1005);
+      assert.equal(result.data.transactions.find((t) => t.requestId === b.id).travelerReward, 0);
     }
     assert.equal((await call(endpoint, body, 'u-haru', key)).data.id, result.data.id);
-    assert.equal((await call(endpoint, { ...body, reward: 1006 }, 'u-haru', key)).status, 409);
+    assert.equal((await call(endpoint, { ...body, rewards: { [a.id]: 1006, [b.id]: 0 } }, 'u-haru', key)).status, 409);
   }
 });
-test('legacy reward input is optional but must be a non-negative whole-won value when supplied', async () => {
+test('rewards require explicit whole-won values within the demo amount range', async () => {
   const r = (await call('/requests', requestBody())).data;
-  for (const reward of [-1, 12.5, '5000', null]) {
+  for (const reward of [-1, 12.5, '5000', null, undefined, 2000001]) {
     assert.equal((await call(`/requests/${r.id}/offers`, offerBody({ reward }), 'u-min')).status, 400);
   }
-  const accepted = await call(`/requests/${r.id}/offers`, { ...offerBody(), reward: undefined }, 'u-min');
-  assert.equal(accepted.status, 201);
-  assert.equal(accepted.data.reward, 2275);
+  assert.equal(await app.get(Store).read((db) => db.offers.filter((o) => o.requestId === r.id).length), 0);
 });
 test('mock payment failure has no ledger write, duplicate success is idempotent', async () => {
   let t = await createMatch();
@@ -466,8 +466,8 @@ test('mock payment failure has no ledger write, duplicate success is idempotent'
 });
 test('full buyer/traveler flow settles once and separates reimbursement from reward', async () => {
   let t = await createMatch();
-  assert.equal(t.travelerReward, 2275);
-  assert.equal(t.totalPrice, 28523);
+  assert.equal(t.travelerReward, 7000);
+  assert.equal(t.totalPrice, 33248);
   t = await act(t, 'PAY', 'u-me');
   assert.equal((await act(t, 'SETTLE', 'u-min')).status, 409);
   assert.equal(
@@ -507,11 +507,11 @@ test('full buyer/traveler flow settles once and separates reimbursement from rew
   assert.equal((await act(before, 'SETTLE', 'u-min', {}, key)).status, 'SETTLED');
   const snap = (await call('/snapshot', undefined, 'u-min')).data,
     p = snap.payouts.find((p) => p.transactionId === t.id);
-  assert.equal(p.reward, 2275);
-  assert.equal(p.platformCommission, 228);
-  assert.equal(p.netReward, 2047);
+  assert.equal(p.reward, 7000);
+  assert.equal(p.platformCommission, 700);
+  assert.equal(p.netReward, 6300);
   assert.equal(p.reimbursement, 22748);
-  assert.equal(p.amount, 28295);
+  assert.equal(p.amount, 32548);
   assert.equal(snap.payouts.filter((p) => p.transactionId === t.id).length, 1);
   assert.equal(
     (await call(`/transactions/${t.id}/reviews`, { rating: 5, text: '꼼꼼하게 전달해주셨어요.' }))

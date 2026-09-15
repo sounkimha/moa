@@ -19,7 +19,8 @@ function fixture() {
   } });
   return { service, trip, snapshot: () => db, body: { tripId: trip.id, reward: 1000,
     estimatedPurchaseDate: future(5), estimatedDeliveryDate: future(9),
-    message: '원래 가는 길에 가져올게요.', transport: 'DOMESTIC_PARCEL', requestIds: ['audit-0', 'audit-1'] } };
+    message: '원래 가는 길에 가져올게요.', transport: 'DOMESTIC_PARCEL', requestIds: ['audit-0', 'audit-1'],
+    rewards: { 'audit-0': 5000, 'audit-1': 8000 } } };
 }
 test('traveler net reward plus commission equals gross, including half-won rounding', () => {
   for (const reward of [0, 5, 15, 1015, 2275, 50000]) {
@@ -28,12 +29,13 @@ test('traveler net reward plus commission equals gross, including half-won round
     assert.equal(result.platformCommission, Math.round(reward * 0.1));
   }
 });
-test('same-place bundle retains each buyer domestic parcel/meetup choice and matching fee', async () => {
+test('same-place bundle retains each buyer delivery choice and traveler-proposed reward', async () => {
   const f = fixture();
   const result = await f.service.claimBundle('u-min', randomUUID(), f.body);
   assert.equal(result.transactions.length, 2);
   assert.deepEqual(result.transactions.map((t) => t.shippingFee), [3500, 0]);
   assert.deepEqual(f.snapshot().offers.map((o) => o.transport), ['DOMESTIC_PARCEL', 'MEETUP']);
+  assert.deepEqual(f.snapshot().offers.map((o) => o.reward), [5000, 8000]);
 });
 test('acceptance rejects delivery before return; recommendations exclude incompatible return locations', async () => {
   const f = fixture();

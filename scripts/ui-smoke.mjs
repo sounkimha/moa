@@ -232,8 +232,10 @@ try {
   );
   proposal.click();
   await expectText('묶음 부탁 수락하기');
-  assert.equal(document.querySelectorAll('input[aria-label$="보상금 (원)"]').length, 0);
-  await expectText('보상은 각 상품 원화 환산가의 10%로 자동 계산해요.');
+  const rewardInputs = [...document.querySelectorAll('input[aria-label$="보상금 (원)"]')];
+  assert.ok(rewardInputs.length > 0);
+  for (const [index, input] of rewardInputs.entries()) await fill(input, String(5000 + index * 1000));
+  await expectText('보상금은 직접 정하세요');
   await expectText('예상 순보상');
   await click('상품대금을 먼저 지출하고 구매 확정 후 상환받는다는 점을 확인했어요.', 'checkbox');
   const send = await wait(

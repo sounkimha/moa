@@ -16,6 +16,7 @@ export type Status =
   | 'DISPUTED';
 export type Transport = 'DOMESTIC_PARCEL' | 'MEETUP';
 export const DOMESTIC_PARCEL_FEE = 3500;
+export const MAX_DEMO_REWARD = 2_000_000;
 export const rewardCommission = (reward: number) => Math.round(reward * 0.1);
 /** Compatibility for old saved requests; never exposes a cross-border shipping option. */
 export const normalizeTransport = (value: unknown): Transport =>
@@ -409,14 +410,6 @@ export function quote(
     fxRate,
     priceSource: 'DEMO_FIXED',
   };
-}
-export function recommendedReward(
-  request: Pick<ProductRequest, 'localPrice' | 'quantity' | 'currency'>,
-) {
-  const productPrice = Math.round(
-    request.localPrice * request.quantity * DEMO_FX_RATES[request.currency],
-  );
-  return Math.round(productPrice * 0.1);
 }
 /** Round the commission per transaction, then subtract; never round both sides independently. */
 export function travelerEarnings(reward: number) {
