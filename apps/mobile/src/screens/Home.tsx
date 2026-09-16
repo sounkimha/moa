@@ -234,7 +234,7 @@ export function Home() {
         </View>
       </View>
       <View>
-        <Section title="부탁이 모이는 장소" action="모두 보기" onPress={() => a.tab('search')} />
+        <Section title="부탁이 많은 장소" action="모두 보기" onPress={() => a.tab('search')} />
         <Stack gap={12}>{places.slice(0, 3).map((place, index) => <PlaceCard key={place.id} variant={index === 0 ? 'card' : 'list'} place={place} onPress={() => openPlace(place)} />)}</Stack>
       </View>
       {!!recentPlaces.length && <View><Section title="최근 본 장소" /><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>{recentPlaces.map((place) => <Chip key={place.id} label={place.name} onPress={() => openPlace(place)} />)}</ScrollView></View>}
