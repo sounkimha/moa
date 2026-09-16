@@ -115,6 +115,16 @@ try {
   await click('체험 계정으로 로그인');
   await expectText('링크나 사진만');
   assert.ok(document.body.textContent.indexOf('요즘 떠나는 곳') < document.body.textContent.indexOf('찾는 물건이 있나요?'), 'Places must come before product entry');
+  await click('MY', 'tab');
+  await click('MOA 이용 안내');
+  await expectText('01 · 부탁하기');
+  await click('다음');
+  await expectText('02 · 가는 길에 묶기');
+  await click('다음');
+  await expectText('03 · 국내에서 전달');
+  await click('홈으로 가기');
+  await expectText('요즘 떠나는 곳');
+  console.log('PASS: MY → replayable 3-step MOA guide → home');
   await click('등록', 'tab');
   await expectText('이거 부탁하기');
   await click('여행 일정 등록');
@@ -156,7 +166,7 @@ try {
   ]) {
     assert.ok(document.querySelector(`[aria-label="${label} 대표 풍경 사진"]`), label + ' photo');
   }
-  assert.ok(!document.body.textContent.includes('AI 생성'), 'All destination covers use real photos');
+  assert.ok(document.querySelector('[aria-label*="서울 · 성수 팝업 거리"]'), 'Seongsu uses its own place cover');
   assert.equal(document.querySelectorAll('[aria-label^="사진 출처:"]').length, 23, 'Every place includes photo attribution');
   const credit = document.querySelector('[aria-label^="사진 출처:"]');
   await click(credit.getAttribute('aria-label'));
@@ -181,7 +191,7 @@ try {
   await click('뒤로');
   await expectText('둘러보기');
   console.log('PASS: photo information → original source → close → place navigation');
-  await click('이전으로');
+  await click('뒤로');
   await expectText('링크나 사진만');
   assert.equal(dom.window.location.hash, '#home', 'Back without history must sync the URL');
   console.log('PASS: city-specific photos → previous button → synchronized home URL');

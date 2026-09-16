@@ -192,6 +192,70 @@ export function Onboarding() {
     </ScrollView>
   );
 }
+
+const guideSlides = [
+  {
+    eyebrow: '01 · 부탁하기',
+    title: '링크나 사진만 보내세요',
+    body: '상품명과 가격, 구매 장소는 MOA가 먼저 정리해요. 필요한 내용만 확인하면 돼요.',
+    detail: '구매 장소가 정해지면 그곳에 갈 예정인 사람에게 부탁이 보여요.',
+    icon: Link,
+  },
+  {
+    eyebrow: '02 · 가는 길에 묶기',
+    title: '내 여행 동선의 부탁을 모아요',
+    body: '여행지와 들를 곳을 등록하면 같은 장소의 부탁을 한 번에 확인할 수 있어요.',
+    detail: '추가 이동과 예상 보상을 보고, 가능한 부탁만 골라요.',
+    icon: Plane,
+  },
+  {
+    eyebrow: '03 · 국내에서 전달',
+    title: '돌아온 뒤 안전하게 만나요',
+    body: '국내 배송 또는 직거래 중 편한 방법을 선택하고, 거래 채팅으로 시간을 맞춰요.',
+    detail: '여행자 본인·일정 인증과 거래 상태를 차례로 확인할 수 있어요.',
+    icon: ShoppingBag,
+  },
+] as const;
+
+/** A concise, replayable walkthrough. It is separate from the first-login gate. */
+export function GuideScreen() {
+  const a = useApp();
+  const [index, setIndex] = useState(0);
+  const slide = guideSlides[index];
+  const Icon = slide.icon;
+  const last = index === guideSlides.length - 1;
+  return (
+    <Page title="MOA 이용 안내">
+      <Stack gap={24}>
+        <Row style={{ justifyContent: 'space-between' }}>
+          <Badge bg={c.lilac} color={c.green}>{index + 1} / {guideSlides.length}</Badge>
+          <Txt size={13} color={c.secondary}>가는 김에, 하나 더.</Txt>
+        </Row>
+        <View style={{ minHeight: 208, borderRadius: 24, padding: 24, justifyContent: 'space-between', backgroundColor: index === 1 ? c.mint : c.lilac }}>
+          <View style={{ width: 58, height: 58, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: c.paper }}>
+            <Icon size={29} color={c.green} strokeWidth={1.8} />
+          </View>
+          <Stack gap={6}>
+            <Txt size={13} weight="700" color={c.secondary}>{slide.eyebrow}</Txt>
+            <Txt size={28} weight="800">{slide.title}</Txt>
+          </Stack>
+        </View>
+        <Stack gap={10}>
+          <Txt size={17} weight="600">{slide.body}</Txt>
+          <Txt size={14} color={c.secondary} style={{ lineHeight: 22 }}>{slide.detail}</Txt>
+        </Stack>
+        <Row style={{ justifyContent: 'center', gap: 7 }}>
+          {guideSlides.map((item, dot) => <View key={item.eyebrow} style={{ width: dot === index ? 22 : 7, height: 7, borderRadius: 4, backgroundColor: dot === index ? c.green : c.border }} />)}
+        </Row>
+        <Button
+          label={last ? '홈으로 가기' : '다음'}
+          icon={ArrowRight}
+          onPress={() => last ? a.tab('home') : setIndex((current) => current + 1)}
+        />
+      </Stack>
+    </Page>
+  );
+}
 export function Home() {
   const a = useApp(), d = a.data!;
   const [buyerLocation, setBuyerLocation] = useState({ latitude: 37.5445, longitude: 127.0557 });
@@ -250,7 +314,10 @@ export function Home() {
       </View>
       <View style={{ padding: 18, gap: 12, borderRadius: 18, backgroundColor: c.paper }}>
         <Row><View style={{ flex: 1 }}><Txt size={17} weight="700">찾는 물건이 있나요?</Txt><Txt size={13} color={c.secondary}>링크나 사진만 보내주세요.</Txt></View><ShoppingBag size={24} color={c.green} /></Row>
-        <Row><Button label="링크로 찾기" icon={Link} style={{ flex: 1 }} onPress={() => a.nav('request-form', { method: 'link' })} /><Button label="사진으로 찾기" icon={ScanLine} kind="secondary" style={{ flex: 1 }} onPress={() => a.nav('request-form', { method: 'photo' })} /></Row>
+        <Row style={{ gap: 8 }}>
+          <Button label="링크로 찾기" icon={Link} small singleLine style={{ flex: 1, minHeight: 54, paddingHorizontal: 10, gap: 6 }} onPress={() => a.nav('request-form', { method: 'link' })} />
+          <Button label="사진으로 찾기" icon={ScanLine} kind="secondary" small singleLine style={{ flex: 1, minHeight: 54, paddingHorizontal: 10, gap: 6 }} onPress={() => a.nav('request-form', { method: 'photo' })} />
+        </Row>
       </View>
       <View>
         <Section title="우리 동네에서 출발해요" subtitle={locationLabel + ' · 반경 2km · 여행자 위치 예시'} action="위치 확인" onPress={() => void locate()} />
@@ -323,7 +390,7 @@ export function SearchScreen() {
     a.nav('place', { id: p.id });
   };
   return (
-    <Page title="둘러보기" backLabel="이전으로">
+    <Page title="둘러보기">
       <SearchField
         label="장소 또는 상품 검색"
         value={query}

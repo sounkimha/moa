@@ -53,6 +53,13 @@ const photos: Record<string, PlacePhoto> = {
     license: 'CC BY-SA 3.0',
     url: 'https://commons.wikimedia.org/wiki/File:Hokkaido_Sapporo_Odori_Park.jpg',
   },
+  'p-seongsu': {
+    source: require('../../assets/seoul-seongsu-popup-street.jpg'),
+    label: '서울 · 성수 팝업 거리',
+    author: 'MOA',
+    license: 'AI 생성 이미지 · 체험용',
+    url: 'https://openai.com/policies/terms-of-use/',
+  },
   seoul: { ...landmarks.seoul, source: require('../../assets/seoul-gyeongbokgung.jpg') },
   jeju: { ...landmarks.jeju, source: require('../../assets/jeju-seongsan.jpg') },
   taipei: { ...landmarks.taipei, source: require('../../assets/taipei-101.jpg') },

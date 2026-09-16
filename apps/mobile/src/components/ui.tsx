@@ -134,6 +134,7 @@ export function Button({
   loading = false,
   disabled = false,
   small = false,
+  singleLine = false,
   style,
   testID,
 }: {
@@ -144,6 +145,8 @@ export function Button({
   loading?: boolean;
   disabled?: boolean;
   small?: boolean;
+  /** Keep compact, side-by-side CTA labels readable on narrow mobile screens. */
+  singleLine?: boolean;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }) {
@@ -198,7 +201,7 @@ export function Button({
       ) : Icon ? (
         <Icon size={19} color={fg} strokeWidth={1.8} />
       ) : null}
-      <Txt size={small ? 14 : 16} weight="700" color={fg} style={{ flexShrink: 1, textAlign: 'center' }}>
+      <Txt size={small ? 14 : 16} weight="700" color={fg} lines={singleLine ? 1 : undefined} style={{ flexShrink: 1, textAlign: 'center' }}>
         {label}
       </Txt>
     </Pressable>

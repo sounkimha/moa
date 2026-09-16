@@ -18,7 +18,7 @@ import { AppProvider, Screen, useApp } from './src/state/AppContext';
 import { colors as c } from './src/theme/tokens';
 import { Badge, Button, Row, Stack, Txt } from './src/components/ui';
 import { Logo } from './src/components/visuals';
-import { CreateScreen, Home, Onboarding, PlaceScreen, SearchScreen } from './src/screens/Home';
+import { CreateScreen, GuideScreen, Home, Onboarding, PlaceScreen, SearchScreen } from './src/screens/Home';
 import { RequestForm } from './src/screens/Forms';
 import { TripForm } from './src/screens/TripForm';
 import { FlightProofScreen } from './src/screens/FlightProof';
@@ -84,7 +84,7 @@ const screens: Record<Screen, React.ComponentType> = {
   settings: SettingsScreen,
   addresses: AddressesScreen,
   help: HelpScreen,
-  guide: HelpScreen,
+  guide: GuideScreen,
 };
 const tabs: [Screen, string, typeof HomeIcon][] = [
   ['home', '홈', HomeIcon],
