@@ -13,7 +13,7 @@ import {
 import { randomBytes } from 'node:crypto';
 import { Request } from 'express';
 import { z } from 'zod';
-import { parse, get } from '../common/validation';
+import { base, parse, get } from '../common/validation';
 import { Store } from '../infrastructure/store';
 export interface ActorRequest extends Request {
   actorId: string;
@@ -61,7 +61,7 @@ export class AuthController {
       z
         .object({
           userId: z.enum(['u-me', 'u-min', 'u-haru', 'u-joon', 'u-sora']).default('u-me'),
-          provider: z.enum(['DEMO', 'PHONE', 'APPLE', 'GOOGLE', 'KAKAO']).default('DEMO'),
+          provider: z.enum(['DEMO', 'PHONE', 'APPLE', 'GOOGLE', 'KAKAO', 'NAVER']).default('DEMO'),
           reset: z.boolean().default(false),
         })
         .strict(),
@@ -73,7 +73,14 @@ export class AuthController {
       await this.store.resetDemo();
       this.sessions.clear();
     }
-    await this.store.read((db) => get(db.users, userId));
+    await this.store.transaction((db) => {
+      get(db.users, userId);
+      const providerUserId = `demo:${provider}:${userId}`;
+      if (!db.authIdentities.some((identity) => identity.provider === provider && identity.providerUserId === providerUserId))
+        db.authIdentities.push({
+          ...base(), userId, provider, providerUserId, status: 'DEMO_LINKED',
+        });
+    });
     return {
       ...this.sessions.create(userId),
       provider,

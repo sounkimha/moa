@@ -253,6 +253,11 @@ export function OffersScreen() {
       </Row>
       {offers.map((o, i) => {
         const u = d.users.find((x) => x.id === o.travelerId)!;
+        const trip = d.trips.find((item) => item.id === o.tripId);
+        const reviews = d.reviews.filter((review) => review.targetId === u.id);
+        const rating = reviews.length
+          ? (reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length).toFixed(1)
+          : '신규';
         return (
           <Card key={o.id} style={i === 0 ? { borderColor: c.green, borderWidth: 1.5 } : undefined}>
             <Stack gap={17}>
@@ -269,7 +274,7 @@ export function OffersScreen() {
                       {u.nickname}
                     </Txt>
                     <Txt size={12} color={c.secondary}>
-                      거래 완료 {u.completed}건 · 응답 {u.responseMinutes}분
+                      거래 완료 {u.completed}건 · 성공률 {u.successRate ?? 0}% · 평점 {rating} · 후기 {reviews.length}개
                     </Txt>
                   </View>
                   <ChevronRight size={18} color={c.secondary} />
@@ -284,11 +289,15 @@ export function OffersScreen() {
               <Row style={{ justifyContent: 'space-between' }}>
                 <Stack gap={4}>
                   <Txt size={12} color={c.secondary}>
-                    예상 수령일
+                    예상 구매일
                   </Txt>
                   <Txt size={22} weight="700">
-                    {shortDate(o.estimatedDeliveryDate)}
+                    {shortDate(o.estimatedPurchaseDate)}
                   </Txt>
+                </Stack>
+                <Stack gap={4} style={{ alignItems: 'center' }}>
+                  <Txt size={12} color={c.secondary}>예상 귀국</Txt>
+                  <Txt size={18} weight="700">{shortDate(trip?.endDate || o.estimatedDeliveryDate)}</Txt>
                 </Stack>
                 <Stack gap={4} style={{ alignItems: 'flex-end' }}>
                   <Txt size={12} color={c.secondary}>
@@ -302,6 +311,12 @@ export function OffersScreen() {
               <Txt size={14} color={c.secondary}>
                 {o.message}
               </Txt>
+              <Button
+                kind="secondary"
+                icon={Calendar}
+                label="이 사람의 일정 보기"
+                onPress={() => a.nav('trip-route', { id: o.tripId, placeId: r.placeId })}
+              />
               <Divider />
               <Row style={{ justifyContent: 'space-between' }}>
                 <Txt size={13} color={c.secondary}>
@@ -394,6 +409,13 @@ export function ProfileScreen() {
                 <Txt size={13}>
                   {t.placeIds.map((id) => d.places.find((p) => p.id === id)?.name).join(' · ')}
                 </Txt>
+                <Button
+                  small
+                  kind="secondary"
+                  icon={Calendar}
+                  label="경로와 시간 보기"
+                  onPress={() => a.nav('trip-route', { id: t.id })}
+                />
               </Stack>
             </Card>
           ))}

@@ -18,9 +18,11 @@ import { AppProvider, Screen, useApp } from './src/state/AppContext';
 import { colors as c } from './src/theme/tokens';
 import { Badge, Button, Row, Stack, Txt } from './src/components/ui';
 import { Logo } from './src/components/visuals';
-import { CreateScreen, Home, Onboarding, PlaceScreen, SearchScreen } from './src/screens/Home';
+import { CreateScreen, GuideScreen, Home, Onboarding, PlaceScreen, SearchScreen } from './src/screens/Home';
 import { RequestForm, TripForm } from './src/screens/Forms';
 import { FlightProofScreen } from './src/screens/FlightProof';
+import { TripRouteScreen } from './src/screens/TripRoute';
+import { IdentityScreen, PaymentMethodsScreen, TopUpScreen, WalletScreen, WithdrawalScreen } from './src/screens/Wallet';
 import {
   BundleScreen,
   OfferForm,
@@ -58,6 +60,7 @@ const screens: Record<Screen, React.ComponentType> = {
   'request-form': RequestForm,
   'trip-form': TripForm,
   'flight-proof': FlightProofScreen,
+  'trip-route': TripRouteScreen,
   offers: OffersScreen,
   profile: ProfileScreen,
   'offer-form': OfferForm,
@@ -68,6 +71,11 @@ const screens: Record<Screen, React.ComponentType> = {
   receipt: ReceiptScreen,
   receive: ReceiveScreen,
   payouts: PayoutsScreen,
+  wallet: WalletScreen,
+  'wallet-topup': TopUpScreen,
+  'wallet-withdraw': WithdrawalScreen,
+  identity: IdentityScreen,
+  'payment-methods': PaymentMethodsScreen,
   notifications: NotificationsScreen,
   favorites: FavoritesScreen,
   trips: TripsScreen,
@@ -75,6 +83,7 @@ const screens: Record<Screen, React.ComponentType> = {
   settings: SettingsScreen,
   addresses: AddressesScreen,
   help: HelpScreen,
+  guide: GuideScreen,
 };
 const tabs: [Screen, string, typeof HomeIcon][] = [
   ['home', '홈', HomeIcon],
@@ -189,7 +198,7 @@ function Shell() {
           flex: 1,
           height,
           alignItems: 'center',
-          backgroundColor: desktop ? '#EEF4FF' : c.canvas,
+            backgroundColor: desktop ? c.desktopBackground : c.canvas,
         }}
       >
         <View
@@ -314,7 +323,7 @@ function Shell() {
                   backgroundColor: c.ink,
                   borderRadius: 15,
                   padding: 16,
-                  shadowColor: '#000',
+                  shadowColor: c.shadow,
                   shadowOpacity: 0.1,
                   shadowRadius: 8,
                   elevation: 3,

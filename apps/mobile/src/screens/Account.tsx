@@ -5,8 +5,10 @@ import {
   Calendar,
   CheckCircle2,
   ChevronRight,
+  CreditCard,
   Heart,
   HelpCircle,
+  Landmark,
   LogOut,
   MapPin,
   Plane,
@@ -57,19 +59,24 @@ export function MyScreen() {
       </Pressable>
       <Row style={{ flexWrap: 'wrap' }}>
         <Badge>✓ 휴대폰 예시 인증</Badge>
-        <Badge>✓ 계좌 예시 인증</Badge>
+        <Badge>{d.verificationSummary.identity ? '✓ 본인확인 체험 완료' : '본인확인 필요'}</Badge>
         <Badge bg={c.lilac}>체험 계정</Badge>
       </Row>
-      <Card style={{ backgroundColor: c.lime, borderWidth: 0 }}>
+      <Card style={{ backgroundColor: c.primaryDeep, borderWidth: 0 }}>
         <Stack gap={10}>
-          <Txt weight="600">여행으로 모은 보상</Txt>
-          <Txt size={32} weight="800">
-            {money(d.payouts.reduce((s, p) => s + (p.netReward ?? p.reward - Math.round(p.reward * 0.1)), 0))}
+          <Txt weight="600" color={c.navyText}>MOA 포인트 보관함 · 체험</Txt>
+          <Txt size={32} weight="800" color={c.onPrimary}>
+            {money(d.wallets[0]?.availableBalance || 0)}
           </Txt>
-          <Button small kind="secondary" label="정산 내역 보기" onPress={() => a.nav('payouts')} />
+          <Txt size={11} color={c.navyText}>정산금과 충전금이 분리된 원장에 기록돼요.</Txt>
+          <Button small kind="secondary" label="보관함 확인" onPress={() => a.nav('wallet')} />
         </Stack>
       </Card>
       <View>
+        <ListItem title="MOA 포인트 보관함" icon={Wallet} onPress={() => a.nav('wallet')} right={money(d.wallets[0]?.availableBalance || 0)} />
+        <ListItem title="결제수단" icon={CreditCard} onPress={() => a.nav('payment-methods')} right={`${d.paymentMethods.length}개`} />
+        <ListItem title="본인확인" icon={ShieldCheck} onPress={() => a.nav('identity')} right={d.verificationSummary.identity ? '체험 완료' : '필요'} />
+        <ListItem title="정산계좌" icon={Landmark} onPress={() => a.nav('wallet-withdraw')} right={d.payoutAccounts.length ? `•••• ${d.payoutAccounts[0].accountLast4}` : '등록 전'} />
         <ListItem
           title="배송지 관리"
           icon={MapPin}
@@ -99,7 +106,7 @@ export function MyScreen() {
         <ListItem title="모아 이용 안내" icon={HelpCircle} onPress={() => a.nav('help')} />
       </View>
       <Txt size={12} color={c.secondary}>
-        모아 0.1.0 · 가칭{'\n'}실제 결제·본인인증이 발생하지 않는 프로토타입이에요.
+        MOA 0.1.0 · 모아{'\n'}실제 결제·본인인증·은행 출금이 발생하지 않는 프로토타입이에요.
       </Txt>
     </Page>
   );
@@ -361,6 +368,7 @@ export function SettingsScreen() {
             .catch((e) => a.notify(e.message))
         }
       />
+      <Button label="첫 이용 가이드 다시 보기" kind="secondary" onPress={() => a.nav('guide')} />
       <Button label="체험 로그아웃" kind="ghost" icon={LogOut} onPress={a.logout} />
     </Page>
   );
@@ -454,7 +462,7 @@ export function HelpScreen() {
           가는 사람과,{'\n'}갖고 싶은 사람.
         </Txt>
         <Txt color={c.secondary}>
-          새로운 심부름 동선을 만들기보다, 이미 예정된 방문에서 부탁을 모아요.
+          새로운 이동을 만들기보다, 이미 예정된 방문에서 부탁을 모아요.
         </Txt>
       </Stack>
       {[

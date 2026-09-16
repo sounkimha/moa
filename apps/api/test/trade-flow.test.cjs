@@ -464,7 +464,70 @@ test('mock payment failure has no ledger write, duplicate success is idempotent'
   );
   assert.equal(mismatch.status, 409);
 });
+test('wallet payment debits once and cancellation restores the exact balance', async () => {
+  const before = (await call('/snapshot')).data;
+  const wallet = before.wallets[0];
+  const method = before.paymentMethods.find((item) => item.type === 'WALLET');
+  let t = await createMatch(3100);
+  const key = randomUUID();
+  const paid = await call(`/transactions/${t.id}/actions`, {
+    action: 'PAY', expectedRevision: t.revision, paymentMethodId: method.id,
+  }, 'u-me', key);
+  assert.equal(paid.status, 201);
+  t = paid.data;
+  let snapshot = (await call('/snapshot')).data;
+  assert.equal(snapshot.wallets[0].availableBalance, wallet.availableBalance - t.totalPrice);
+  assert.equal(snapshot.walletTransactions.filter((entry) => entry.transactionId === t.id && entry.type === 'PAYMENT').length, 1);
+  assert.equal((await call(`/transactions/${t.id}/actions`, {
+    action: 'PAY', expectedRevision: 0, paymentMethodId: method.id,
+  }, 'u-me', key)).data.id, t.id);
+  t = await act(t, 'CANCEL', 'u-me');
+  assert.equal(t.status, 'CANCELLED');
+  snapshot = (await call('/snapshot')).data;
+  assert.equal(snapshot.wallets[0].availableBalance, wallet.availableBalance);
+  assert.equal(snapshot.walletTransactions.filter((entry) => entry.transactionId === t.id && entry.type === 'REFUND').length, 1);
+});
+test('identity, top-up, payout account and withdrawal use isolated idempotent demo ledgers', async () => {
+  let snapshot = (await call('/snapshot', undefined, 'u-min')).data;
+  assert.equal(snapshot.authIdentities, undefined);
+  assert.equal(snapshot.verifications, undefined);
+  assert.equal(snapshot.verificationSummary.identity, false);
+  assert.equal((await call('/wallet/payout-account', {
+    bankName: '테스트은행', accountLast4: '1234', holderName: '민트로드',
+  }, 'u-min')).status, 409);
+  assert.equal((await call('/identity/verify', { method: 'PASS' }, 'u-min')).status, 201);
+  const account = await call('/wallet/payout-account', {
+    bankName: '테스트은행', accountLast4: '1234', holderName: '민트로드',
+  }, 'u-min');
+  assert.equal(account.status, 201);
+  snapshot = (await call('/snapshot', undefined, 'u-min')).data;
+  const card = snapshot.paymentMethods.find((item) => item.type === 'CARD');
+  const topupKey = randomUUID();
+  const topup = await call('/wallet/top-up', { amount: 30000, paymentMethodId: card.id }, 'u-min', topupKey);
+  assert.equal(topup.status, 201);
+  assert.equal((await call('/wallet/top-up', { amount: 30000, paymentMethodId: card.id }, 'u-min', topupKey)).data.id, topup.data.id);
+  assert.equal((await call('/wallet/withdrawals', {
+    amount: 30001, payoutAccountId: account.data.id, simulateProcessing: false,
+  }, 'u-min')).status, 409);
+  const withdrawKey = randomUUID();
+  const withdrawal = await call('/wallet/withdrawals', {
+    amount: 5000, payoutAccountId: account.data.id, simulateProcessing: false,
+  }, 'u-min', withdrawKey);
+  assert.equal(withdrawal.status, 201);
+  assert.equal(withdrawal.data.status, 'MOCK_COMPLETED');
+  assert.equal((await call('/wallet/withdrawals', {
+    amount: 5000, payoutAccountId: account.data.id, simulateProcessing: false,
+  }, 'u-min', withdrawKey)).data.id, withdrawal.data.id);
+  const pending = await call('/wallet/withdrawals', {
+    amount: 1000, payoutAccountId: account.data.id, simulateProcessing: true,
+  }, 'u-min');
+  assert.equal(pending.data.status, 'PROCESSING');
+  assert.equal((await call('/wallet/withdrawals', {
+    amount: 1000, payoutAccountId: account.data.id, simulateProcessing: false,
+  }, 'u-min')).status, 409);
+});
 test('full buyer/traveler flow settles once and separates reimbursement from reward', async () => {
+  const walletBefore = (await call('/snapshot', undefined, 'u-min')).data.wallets[0].availableBalance;
   let t = await createMatch();
   assert.equal(t.travelerReward, 7000);
   assert.equal(t.totalPrice, 33248);
@@ -512,7 +575,10 @@ test('full buyer/traveler flow settles once and separates reimbursement from rew
   assert.equal(p.netReward, 6300);
   assert.equal(p.reimbursement, 22748);
   assert.equal(p.amount, 32548);
+  assert.equal(snap.walletTransactions.filter((entry) => entry.payoutId === p.id).length, 1);
+  assert.equal(snap.wallets[0].availableBalance, walletBefore + p.amount);
   assert.equal(snap.payouts.filter((p) => p.transactionId === t.id).length, 1);
+  assert.ok(snap.notifications.some((notification) => notification.title.includes('포인트 보관함')));
   assert.equal(
     (await call(`/transactions/${t.id}/reviews`, { rating: 5, text: '꼼꼼하게 전달해주셨어요.' }))
       .status,
@@ -597,6 +663,7 @@ test('PostgreSQL schema loads seed and rejects invalid totals and foreign keys',
   try {
     await db.exec(await readFile(path.resolve('../../database/001_initial.sql'), 'utf8'));
     await db.exec(await readFile(path.resolve('../../database/002_asia_currency.sql'), 'utf8'));
+    await db.exec(await readFile(path.resolve('../../database/003_auth_wallet.sql'), 'utf8'));
     const data = seedDatabase();
     await db.exec('BEGIN; SET CONSTRAINTS ALL DEFERRED;');
     for (const [table, rows] of Object.entries(data))

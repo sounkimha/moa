@@ -55,11 +55,13 @@ export class TripsController {
         };
         db.trips.push(trip);
         db.destinations.push(
-          ...trip.placeIds.map((placeId) => ({
+          ...trip.placeIds.map((placeId, sequence) => ({
             ...base(),
             tripId: trip.id,
             placeId,
             visitDate: trip.startDate,
+            visitTime: String(11 + sequence * 2).padStart(2, '0') + ':00',
+            sequence,
           })),
         );
         return trip;

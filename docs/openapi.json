@@ -1327,6 +1327,73 @@
         }
       }
     },
+    "/payment-methods/{id}/default": {
+      "post": {
+        "summary": "기본 Mock 결제수단 변경",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "201": { "description": "Default payment method updated" } }
+      }
+    },
+    "/wallet/top-up": {
+      "post": {
+        "summary": "Mock 보관함 충전",
+        "parameters": [{ "name": "Idempotency-Key", "in": "header", "required": true, "schema": { "type": "string", "minLength": 8, "maxLength": 100 } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {
+            "type": "object", "additionalProperties": false,
+            "properties": { "amount": { "type": "integer", "minimum": 1, "maximum": 10000000 }, "paymentMethodId": { "type": "string" } },
+            "required": ["amount", "paymentMethodId"]
+          } } }
+        },
+        "responses": { "201": { "description": "Demo wallet credited" }, "409": { "description": "Business rule conflict", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } } }
+      }
+    },
+    "/identity/verify": {
+      "post": {
+        "summary": "PASS 또는 SMS Mock 본인확인",
+        "parameters": [{ "name": "Idempotency-Key", "in": "header", "required": true, "schema": { "type": "string", "minLength": 8, "maxLength": 100 } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {
+            "type": "object", "additionalProperties": false,
+            "properties": { "method": { "type": "string", "enum": ["PASS", "SMS"] } },
+            "required": ["method"]
+          } } }
+        },
+        "responses": { "201": { "description": "Demo identity verified" } }
+      }
+    },
+    "/wallet/payout-account": {
+      "post": {
+        "summary": "Mock 정산계좌 표시정보 등록",
+        "parameters": [{ "name": "Idempotency-Key", "in": "header", "required": true, "schema": { "type": "string", "minLength": 8, "maxLength": 100 } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {
+            "type": "object", "additionalProperties": false,
+            "properties": { "bankName": { "type": "string" }, "accountLast4": { "type": "string", "pattern": "^[0-9]{4}$" }, "holderName": { "type": "string" } },
+            "required": ["bankName", "accountLast4", "holderName"]
+          } } }
+        },
+        "responses": { "201": { "description": "Demo payout account stored" }, "409": { "description": "Identity verification required", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } } }
+      }
+    },
+    "/wallet/withdrawals": {
+      "post": {
+        "summary": "Mock 출금 요청",
+        "parameters": [{ "name": "Idempotency-Key", "in": "header", "required": true, "schema": { "type": "string", "minLength": 8, "maxLength": 100 } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {
+            "type": "object", "additionalProperties": false,
+            "properties": { "amount": { "type": "integer", "minimum": 1, "maximum": 10000000 }, "payoutAccountId": { "type": "string" }, "simulateProcessing": { "type": "boolean", "default": false } },
+            "required": ["amount", "payoutAccountId"]
+          } } }
+        },
+        "responses": { "201": { "description": "Mock withdrawal recorded; no bank transfer" }, "409": { "description": "Insufficient balance or another withdrawal is processing", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } } }
+      }
+    },
     "/transactions/{id}/actions": {
       "post": {
         "summary": "권한과 버전 검증 상태 명령",
@@ -1682,7 +1749,8 @@
               "PHONE",
               "APPLE",
               "GOOGLE",
-              "KAKAO"
+              "KAKAO",
+              "NAVER"
             ]
           },
           "reset": {
@@ -2427,7 +2495,7 @@
       },
       "Snapshot": {
         "type": "object",
-        "description": "See packages/domain/src/index.ts Snapshot. Private tables are participant-filtered; commands/verifications excluded.",
+        "description": "See packages/domain/src/index.ts Snapshot. Private tables are participant-filtered; commands/verifications/authIdentities excluded.",
         "properties": {
           "mode": {
             "type": "string",
@@ -2531,6 +2599,30 @@
               "type": "object"
             }
           },
+          "paymentMethods": {
+            "type": "array",
+            "items": { "type": "object" }
+          },
+          "wallets": {
+            "type": "array",
+            "items": { "type": "object" }
+          },
+          "walletTransactions": {
+            "type": "array",
+            "items": { "type": "object" }
+          },
+          "payoutAccounts": {
+            "type": "array",
+            "items": { "type": "object" }
+          },
+          "withdrawals": {
+            "type": "array",
+            "items": { "type": "object" }
+          },
+          "verificationSummary": {
+            "type": "object",
+            "description": "민감한 인증 레코드 대신 현재 사용자의 boolean 요약만 반환"
+          },
           "disputes": {
             "type": "array",
             "items": {
@@ -2599,6 +2691,10 @@
           "simulateFailure": {
             "type": "boolean",
             "default": false
+          },
+          "paymentMethodId": {
+            "type": "string",
+            "description": "본인 소유의 Mock 결제수단 ID. 생략하면 기본 결제수단을 사용합니다."
           }
         },
         "required": [

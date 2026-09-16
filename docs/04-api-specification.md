@@ -38,6 +38,11 @@ Base URL: `http://localhost:4000/api`. 기계가 읽을 수 있는 상세 규격
 | POST   | /transactions/:id/actions | 거래 참여자   | 허용 명령과 주체에 따른 상태 변경     |
 | POST   | /transactions/:id/reviews | 거래 참여자   | 구매 확정 후 후기 1개 작성            |
 | POST   | /rooms/:id/messages       | 대화방 참여자 | 텍스트 메시지 저장                    |
+| POST   | /payment-methods/:id/default | 로그인     | 기본 Mock 결제수단 변경                |
+| POST   | /wallet/top-up            | 로그인        | Mock 보관함 충전                       |
+| POST   | /identity/verify          | 로그인        | PASS/SMS Mock 본인확인                 |
+| POST   | /wallet/payout-account    | 본인확인      | 끝 4자리만 저장하는 Mock 정산계좌 등록 |
+| POST   | /wallet/withdrawals       | 본인확인      | Mock 출금 요청                         |
 
 ## 로그인
 
@@ -45,7 +50,7 @@ Base URL: `http://localhost:4000/api`. 기계가 읽을 수 있는 상세 규격
 { "userId": "u-me", "provider": "DEMO", "reset": true }
 ```
 
-지원 체험 userId: u-me(소운), u-min(민트로드), u-haru(하루), u-joon(준의 여행), u-sora(소라). `provider`는 DEMO/PHONE/APPLE/GOOGLE/KAKAO 중 선택하며 모든 경우 가상 로그인이다. 외부 ID token을 실제 검증하는 API가 아니다. 파일 저장소에서 온보딩으로 새 체험을 시작할 때만 `reset: true`를 보내며, 이후 역할 전환은 이 값을 생략해 현재 거래 상태를 유지한다. 공유 PostgreSQL에서는 공개 로그인 요청으로 데이터를 지우지 못하도록 `reset: true`를 거부한다.
+지원 체험 userId: u-me(소운), u-min(민트로드), u-haru(하루), u-joon(준의 여행), u-sora(소라). `provider`는 DEMO/PHONE/APPLE/GOOGLE/KAKAO/NAVER 중 선택하며 모든 경우 가상 로그인이다. User와 AuthIdentity를 분리해 같은 체험 사용자의 공급자 연결이 별도 회원을 만들지 않게 했다. 외부 ID token을 실제 검증하는 API가 아니다. 파일 저장소에서 온보딩으로 새 체험을 시작할 때만 `reset: true`를 보내며, 이후 역할 전환은 이 값을 생략해 현재 거래 상태를 유지한다. 공유 PostgreSQL에서는 공개 로그인 요청으로 데이터를 지우지 못하도록 `reset: true`를 거부한다.
 
 ## 구매 요청
 
@@ -100,7 +105,7 @@ Base URL: `http://localhost:4000/api`. 기계가 읽을 수 있는 상세 규격
 
 | action   | 추가 body                                                                     | 주체   | 조건                              |
 | -------- | ----------------------------------------------------------------------------- | ------ | --------------------------------- |
-| PAY      | simulateFailure?: boolean                                                     | 구매자 | MATCHED                           |
+| PAY      | paymentMethodId?, simulateFailure?: boolean                                   | 구매자 | MATCHED                           |
 | PURCHASE | productImage, receiptImage, storeName, purchasedAt, localAmount, locationNote | 여행자 | PAYMENT_HELD                      |
 | OUT_OF_STOCK | evidenceImage, storeName, checkedAt, locationNote, reason, note?       | 여행자 | PAYMENT_HELD                      |
 | TRAVEL   | 없음                                                                          | 여행자 | PURCHASED                         |
@@ -115,10 +120,14 @@ Base URL: `http://localhost:4000/api`. 기계가 읽을 수 있는 상세 규격
 모든 명령은 `expectedRevision` 필수. PURCHASE는 `productImage`와 `receiptImage` 중 하나 이상을 JPG·PNG·WebP data URL로 보내며, 각 이미지는 최대 약 2MB다. `localAmount`는 합의한 현지 가격×수량과 같아야 한다. 가격이 달라졌을 때 자동 추가 청구하지 않고 거절한다. OUT_OF_STOCK은 품절 안내·빈 매대 등 방문 증빙이 필수이며 `reason`은 `OUT_OF_STOCK`, `STORE_CLOSED`, `PRODUCT_NOT_FOUND`, `PURCHASE_LIMIT` 중 하나다. 성공하면 거래와 제안을 취소하고 보관된 결제금을 전액 환불하며 구매자는 이전 요청을 다시 등록할 수 있다. `RECEIVE_AND_CONFIRM`은 배송 완료 기록과 구매 확정을 한 트랜잭션으로 저장한다. 기존 RECEIVE·CONFIRM은 호환 및 중간 상태 복구용이다.
 
 ```json
-{ "action": "PAY", "expectedRevision": 0, "simulateFailure": false }
+{ "action": "PAY", "expectedRevision": 0, "paymentMethodId": "payment-u-me-card", "simulateFailure": false }
 ```
 
-MockPaymentGateway만 연결되어 있으므로 카드번호·계좌번호·실제 PG 승인키를 이 API로 전송하지 않는다.
+MockPaymentProvider만 연결되어 있으므로 카드번호·계좌번호·실제 PG 승인키를 이 API로 전송하지 않는다. 보관함 결제는 정수 원 단위 원장에서 차감되며 취소·품절 시 같은 보관함으로 정확히 환불한다. SETTLE은 상품 선지출 상환과 순보상을 여행자의 Mock 보관함에 한 번만 적립한다.
+
+## 보관함·본인확인·출금
+
+충전, 본인확인, 정산계좌, 출금은 모두 `Idempotency-Key`를 사용한다. 금액은 양의 정수 원이며 잔액 초과 출금과 처리 중 중복 출금을 거절한다. 정산계좌 API는 전체 계좌번호를 받지 않고 화면 표시용 끝 4자리만 저장한다. 실제 서비스에서는 PG·본인인증·지급대행사가 발급한 토큰과 webhook 대사 구조로 교체해야 한다. 현재 `MOCK_COMPLETED`는 체험 원장 결과이며 실제 은행 이체 완료가 아니다.
 
 ## Snapshot과 프런트 갱신
 

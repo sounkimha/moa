@@ -103,9 +103,8 @@ const fill = async (element, value) => {
 };
 try {
   dom.window.eval(bundle);
-  await expectText('부탁할게요');
-  await expectText('가져올게요');
-  await click('모아 시작하기');
+  await expectText('갖고 싶은 게');
+  await click('건너뛰기');
   await click('체험 계정으로 로그인');
   await expectText('찾으시는 물건을');
   await click('찾아보기', 'tab');
@@ -165,7 +164,7 @@ try {
   await expectText('찾으시는 물건을');
   assert.equal(dom.window.location.hash, '#home', 'Back without history must sync the URL');
   console.log('PASS: city-specific photos → previous button → synchronized home URL');
-  await click('사진으로 찾기');
+  await click('사진 찾기');
   await click('치이카와 샘플로 인식 체험');
   await expectText('인식 신뢰도');
   await expectText('예시 상품을 채웠어요');
@@ -179,7 +178,7 @@ try {
   assert.equal(recognizedName.value, '치이카와 도쿄역 한정 키링');
   await click('홈', 'tab');
   await expectText('지금, 이곳으로 가요');
-  await click('링크 붙여넣기');
+  await click('링크로 찾기');
   await click('예시 링크로 빠르게 채우기');
   await expectText('예시 정보예요.');
   await click('수령 방법 정하기');
@@ -261,6 +260,10 @@ try {
     'seed offers',
   );
   offers.click();
+  await click('이 사람의 일정 보기');
+  await expectText('시간별 공개 일정');
+  await expectText('지도 스타일 일정 · 실제 GPS 아님');
+  await click('여행자 비교로');
   await click('민트로드님과 함께하기');
   await expectText('안전하게 부탁해요');
   await click('모의 결제와 금액 확인', 'checkbox');
@@ -301,14 +304,26 @@ try {
   await click('받았어요 · 구매 확정');
   await click('민트로드님 계정으로 바꾸기');
   await click('보상 정산 체험하기');
-  await expectText('모의 정산 완료');
+  await expectText('MOA 포인트 보관함');
+  await expectText('여행 정산');
+  await click('계좌로 받기');
+  await click('체험 본인확인');
+  await click('PASS로 체험 확인');
+  await click('뒤로');
+  const withdrawalAmount = await wait(
+    () => document.querySelector('[aria-label="출금 금액"]'),
+    'withdrawal amount',
+  );
+  await fill(withdrawalAmount, '1000');
+  await click('₩1,000 출금 체험');
+  await expectText('내 계좌로 받기 · 체험');
   dom.window.history.replaceState({}, '', '#request-form');
   dom.window.dispatchEvent(new dom.window.PopStateEvent('popstate', { state: null }));
   await expectText('링크나 사진을 보내주세요');
   assert.equal(dom.window.location.hash, '#request-form');
   console.log('PASS: direct #request-form URL restores the request form');
   console.log(
-    'PASS: offer selection → payment → purchase proof → shipping → receipt → confirmation → payout',
+    'PASS: route → payment → purchase proof → shipping → receipt → wallet settlement → withdrawal',
   );
   const unexpected = errors.filter(
     (e) =>

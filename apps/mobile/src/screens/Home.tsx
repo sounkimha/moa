@@ -7,11 +7,13 @@ import {
   Check,
   ChevronRight,
   Compass,
+  CreditCard,
   Heart,
   Layers,
   Link,
   MapPin,
   Navigation,
+  PackageCheck,
   Plane,
   Plus,
   ScanLine,
@@ -40,6 +42,7 @@ import {
   Txt,
 } from '../components/ui';
 import { Avatar, AvatarStack, Logo, PlaceCard, ProductArt, ProductRow, RouteMap } from '../components/visuals';
+import { PlaneRouteAnimation } from '../components/travel-route';
 
 const travelerPresence = [
   { userId: 'u-min', latitude: 37.5461, longitude: 127.0548 },
@@ -53,148 +56,54 @@ const kmBetween = (a: { latitude: number; longitude: number }, b: { latitude: nu
   return earth * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
 };
 
+function Guide({ onDone, doneLabel = 'MOA 시작하기' }: { onDone: () => void; doneLabel?: string }) {
+  const [page, setPage] = useState(0);
+  const compact = useWindowDimensions().width < 360;
+  const copy = [
+    ['구매자', '갖고 싶은 게\n멀리 있나요?', '내가 못 가는 곳의 상품을 그곳에 가는 여행자에게 부탁해요.'],
+    ['여행자', '여행이\n수익이 돼요', '원래 가려던 장소의 부탁을 함께 해결하고 원하는 보상을 제안해요.'],
+    ['안전한 거래', '결제부터 수령까지\n안전하게', '상품을 받은 뒤 여행자 정산으로 이어지는 과정을 한눈에 확인해요.'],
+  ];
+  return (
+    <ScrollView contentContainerStyle={{ flexGrow: 1, width: '100%', maxWidth: 760, alignSelf: 'center', padding: compact ? 20 : 28, paddingTop: compact ? 30 : 42, gap: 22, justifyContent: 'center' }}>
+      <Row><Logo /><Txt size={30} weight="800" color={c.primary}>모아</Txt><Badge>체험 모드</Badge></Row>
+      <View style={{ minHeight: compact ? 205 : 230, justifyContent: 'center' }}>
+        {page === 0 && <View style={{ height: compact ? 205 : 230, borderRadius: 28, overflow: 'hidden', backgroundColor: c.primarySoft }}><Image source={require('../../assets/japan.jpg')} style={{ height: '100%', width: '100%' }} /><View style={{ position: 'absolute', inset: 0, backgroundColor: c.translucentWhite }} /><View style={{ position: 'absolute', left: 16, right: 16, bottom: 16, padding: 14, borderRadius: 16, backgroundColor: c.softOverlay }}><Row><ShoppingBag size={24} color={c.primary} /><Txt weight="700" style={{ flex: 1 }}>원하는 상품을 실제 방문 일정과 연결해요</Txt></Row></View></View>}
+        {page === 1 && <PlaneRouteAnimation departure="SEOUL" destination="TOKYO" />}
+        {page === 2 && <Card style={{ padding: 20 }}><Stack gap={15}>{[[CreditCard, '결제', '모의 안전결제에 보관'], [ShoppingBag, '구매', '사진 또는 영수증 확인'], [PackageCheck, '수령', '받은 뒤 구매 확정'], [Wallet, '정산', '여행자 보관함 적립']].map(([Icon, title, body]) => { const StepIcon = Icon as typeof CreditCard; return <Row key={title as string}><View style={{ width: 42, height: 42, borderRadius: 14, backgroundColor: c.primarySoft, alignItems: 'center', justifyContent: 'center' }}><StepIcon size={20} color={c.primary} /></View><Stack gap={1} style={{ flex: 1 }}><Txt weight="800">{title as string}</Txt><Txt size={12} color={c.secondary}>{body as string}</Txt></Stack></Row>; })}</Stack></Card>}
+      </View>
+      <Stack gap={8}><Badge>{copy[page][0]}</Badge><Txt size={compact ? 31 : 36} weight="800" style={{ lineHeight: compact ? 39 : 45 }}>{copy[page][1]}</Txt><Txt color={c.secondary}>{copy[page][2]}</Txt></Stack>
+      <Row style={{ justifyContent: 'center', gap: 7 }}>{copy.map((_, index) => <View key={index} style={{ width: index === page ? 24 : 7, height: 7, borderRadius: 4, backgroundColor: index === page ? c.primary : c.border }} />)}</Row>
+      <Stack gap={8}><Button label={page === 2 ? doneLabel : '다음'} icon={ArrowRight} onPress={() => page === 2 ? onDone() : setPage(page + 1)} /><Button label="건너뛰기" kind="ghost" onPress={onDone} /></Stack>
+    </ScrollView>
+  );
+}
+
+export function GuideScreen() {
+  const a = useApp();
+  return <Guide doneLabel="MOA로 돌아가기" onDone={a.back} />;
+}
+
 export function Onboarding() {
   const a = useApp();
-  const [stage, setStage] = useState<'intro' | 'login'>('intro');
+  const [loginStage, setLoginStage] = useState(false);
+  const [moreLogin, setMoreLogin] = useState(false);
   const compact = useWindowDimensions().width < 360;
+  if (!loginStage) return <Guide onDone={() => setLoginStage(true)} />;
   return (
-    <ScrollView
-      contentContainerStyle={{
-        flexGrow: 1,
-        width: '100%',
-        maxWidth: 760,
-        alignSelf: 'center',
-        padding: compact ? 20 : 28,
-        paddingTop: compact ? 32 : 44,
-        gap: compact ? 20 : 24,
-        justifyContent: 'center',
-      }}
-    >
-      <Row style={{ gap: 10 }}>
-        <Logo />
-        <Txt size={30} weight="800" color={c.green}>
-          모아
-        </Txt>
-        <Badge>체험 모드</Badge>
-      </Row>
-      {stage === 'intro' ? (
-        <>
-          <View
-            style={{ height: compact ? 205 : 220, borderRadius: 28, overflow: 'hidden', backgroundColor: c.mint }}
-          >
-            <Image
-              source={require('../../assets/japan.jpg')}
-              style={{ height: '100%', width: '100%' }}
-            />
-            <View style={{ position: 'absolute', inset: 0, backgroundColor: '#17366F24' }} />
-            <View
-              style={{
-                position: 'absolute',
-                left: 16,
-                bottom: 16,
-                right: 16,
-                padding: 14,
-                borderRadius: 16,
-                backgroundColor: '#FFFFFFF2',
-              }}
-            >
-              <Row>
-                <View style={{ padding: 10, backgroundColor: c.lime, borderRadius: 14 }}>
-                  <Plane size={24} color={c.darkGreen} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Txt size={12} color={c.secondary}>
-                    서울에서 여행지로 가는 길
-                  </Txt>
-                  <Txt size={compact ? 15 : 17} weight="700">
-                    부탁을 싣고 떠나요
-                  </Txt>
-                </View>
-                {!compact && <ShoppingBag size={24} color={c.green} />}
-              </Row>
-            </View>
-          </View>
-          <Stack gap={8}>
-            <Txt size={compact ? 32 : 36} weight="800" style={{ lineHeight: compact ? 40 : 45 }}>
-              여행과 부탁이{'\n'}만나는 가장 쉬운 방법
-            </Txt>
-            <Txt size={15} color={c.secondary}>
-              갖고 싶은 물건을 부탁하고, 원래 가던 여행에서 보상을 받아요.
-            </Txt>
-          </Stack>
-          <Stack gap={10}>
-            <Card style={{ padding: 16 }}>
-              <Row style={{ alignItems: 'flex-start' }}>
-                <View style={{ padding: 9, borderRadius: 13, backgroundColor: c.mint }}>
-                  <ShoppingBag size={20} color={c.green} />
-                </View>
-                <Stack gap={2} style={{ flex: 1 }}>
-                  <Txt size={16} weight="700">부탁할게요</Txt>
-                  <Txt size={12} color={c.secondary}>상품을 올리고 여행자의 일정과 보상 제안을 비교해요.</Txt>
-                </Stack>
-              </Row>
-            </Card>
-            <Card style={{ padding: 16 }}>
-              <Row style={{ alignItems: 'flex-start' }}>
-                <View style={{ padding: 9, borderRadius: 13, backgroundColor: c.lilac }}>
-                  <Plane size={20} color={c.darkGreen} />
-                </View>
-                <Stack gap={2} style={{ flex: 1 }}>
-                  <Txt size={16} weight="700">가져올게요</Txt>
-                  <Txt size={12} color={c.secondary}>내 여행 동선의 부탁을 고르고 원하는 보상을 제안해요.</Txt>
-                </Stack>
-              </Row>
-            </Card>
-            <Button label="모아 시작하기" icon={ArrowRight} onPress={() => setStage('login')} />
-            <Txt size={12} color={c.secondary} style={{ textAlign: 'center' }}>
-              역할을 고정하지 않아요. 로그인 후 언제든 바꿀 수 있어요.
-            </Txt>
-          </Stack>
-        </>
-      ) : (
-        <>
-          <Stack gap={10}>
-            <Badge>한 계정으로 두 가지 모두</Badge>
-            <Txt size={31} weight="800">
-              어디서 시작할지는{'\n'}로그인 후 골라요.
-            </Txt>
-            <Txt color={c.secondary}>부탁도 여행도 같은 계정에서 이어집니다.</Txt>
-          </Stack>
-          <Notice>
-            지금은 예시 계정으로 시작해요. 실제 휴대폰 인증·소셜 로그인·결제는 발생하지 않아요.
-          </Notice>
-          {a.error && (
-            <Notice tone="error">
-              체험 계정에 연결하지 못했어요. API 서버가 실행 중인지 확인한 뒤 다시 시도해주세요.{`\n`}
-              {a.error}
-            </Notice>
-          )}
-          <Stack gap={12}>
-            <Button
-              testID="start-demo"
-              label="체험 계정으로 로그인"
-              loading={a.busy}
-              onPress={() => a.login('DEMO', 'u-me', true)}
-            />
-            <Divider />
-            {[
-              ['KAKAO', '카카오로 계속하기'],
-              ['APPLE', 'Apple로 계속하기'],
-              ['GOOGLE', 'Google로 계속하기'],
-              ['PHONE', '휴대폰으로 계속하기'],
-            ].map(([provider, label]) => (
-              <Button
-                key={provider}
-                label={`${label} 체험`}
-                kind="secondary"
-                loading={a.busy}
-                onPress={() => a.login(provider, 'u-me', true)}
-              />
-            ))}
-          </Stack>
-          <Button label="처음으로" kind="ghost" onPress={() => setStage('intro')} />
-        </>
-      )}
+    <ScrollView contentContainerStyle={{ flexGrow: 1, width: '100%', maxWidth: 760, alignSelf: 'center', padding: compact ? 20 : 28, gap: 24, justifyContent: 'center' }}>
+      <Row><Logo /><Txt size={30} weight="800" color={c.primary}>모아</Txt><Badge>체험 모드</Badge></Row>
+      <Stack gap={10}><Badge>한 계정으로 두 가지 모두</Badge><Txt size={31} weight="800">어디서 시작할지는{'\n'}로그인 후 골라요.</Txt><Txt color={c.secondary}>부탁도 여행도 같은 계정에서 이어집니다.</Txt></Stack>
+      <Notice>지금은 예시 계정으로 시작해요. 실제 휴대폰 인증·소셜 로그인·결제는 발생하지 않아요.</Notice>
+      {!!a.error && <Notice tone="error">체험 계정에 연결하지 못했어요. API 서버가 실행 중인지 확인한 뒤 다시 시도해주세요.{`\n`}{a.error}</Notice>}
+      <Stack gap={12}>
+        <Button testID="start-demo" label="체험 계정으로 로그인" loading={a.busy} onPress={() => a.login('DEMO', 'u-me', true)} />
+        <Divider />
+        {([['KAKAO', '카카오로 계속하기'], ['APPLE', 'Apple로 계속하기']] as const).map(([provider, label]) => <Button key={provider} label={`${label} 체험`} kind="secondary" loading={a.busy} onPress={() => a.login(provider, 'u-me', true)} />)}
+        <Button label="다른 방법으로 로그인" kind="ghost" onPress={() => setMoreLogin(!moreLogin)} />
+        {moreLogin && ([['NAVER', '네이버로 계속하기'], ['GOOGLE', 'Google로 계속하기'], ['PHONE', '휴대폰으로 계속하기']] as const).map(([provider, label]) => <Button key={provider} label={`${label} 체험`} kind="secondary" loading={a.busy} onPress={() => a.login(provider, 'u-me', true)} />)}
+      </Stack>
+      <Button label="가이드 다시 보기" kind="ghost" onPress={() => setLoginStage(false)} />
     </ScrollView>
   );
 }
@@ -322,7 +231,7 @@ export function Home() {
             <Row style={{ gap: 10 }}>
               <Button
                 small
-                label="링크 붙여넣기"
+                label="링크로 찾기"
                 icon={Link}
                 style={{ flex: 1 }}
                 onPress={() => a.nav('request-form', { method: 'link' })}
@@ -330,7 +239,7 @@ export function Home() {
               <Button
                 small
                 kind="secondary"
-                label="사진으로 찾기"
+                label="사진 찾기"
                 icon={ScanLine}
                 style={{ flex: 1 }}
                 onPress={() => a.nav('request-form', { method: 'photo' })}
@@ -367,7 +276,7 @@ export function Home() {
           >
             <Row style={{ alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
               <View style={{ flex: 1, gap: 6 }}>
-                <Badge bg="#2E5798" color="#EAF2FF">
+                <Badge bg={c.navyBadge} color={c.navyTextBright}>
                   인기 많은 상품을 보여드릴게요
                 </Badge>
                 <Txt size={26} weight="800" color="white" style={{ lineHeight: 34 }}>
@@ -376,7 +285,7 @@ export function Home() {
                 <Txt size={20} weight="800" color={c.lime}>
                   약 {money(featuredKrw)}
                 </Txt>
-                <Txt size={12} color="#C9D9F7">
+                <Txt size={12} color={c.navyTextSoft}>
                   원화 환산 상품가 · 데모 환율 기준
                 </Txt>
               </View>
@@ -477,16 +386,16 @@ export function Home() {
               }}
             >
               <Row style={{ justifyContent: 'space-between' }}>
-                <Badge bg="#FFFFFF24" color="white">
-                  근처 심부름 알림 · 동선 +{nearby.extraMinutes}분
+                <Badge bg={c.translucentWhite} color={c.onPrimary}>
+                  근처 부탁 알림 · 동선 +{nearby.extraMinutes}분
                 </Badge>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="근처 심부름 알림 나중에 보기"
+                  accessibilityLabel="근처 부탁 알림 나중에 보기"
                   onPress={() => setNearbyDismissed(true)}
                   style={{ minHeight: 44, justifyContent: 'center' }}
                 >
-                  <Txt size={13} color="#DCE8FF">
+                  <Txt size={13} color={c.navyText}>
                     나중에
                   </Txt>
                 </Pressable>
@@ -499,19 +408,19 @@ export function Home() {
                   <Txt size={23} weight="800" color="white">
                     {nearby.place.name} 근처를 지나가요
                   </Txt>
-                  <Txt size={15} color="#EAF2FF">
-                    여기서 심부름 {nearby.requests.length}건을 할 수 있어요. 원하는 보상금을 제안해보세요.
+                  <Txt size={15} color={c.navyTextBright}>
+                    여기서 부탁 {nearby.requests.length}건을 확인할 수 있어요. 원하는 보상금을 제안해보세요.
                   </Txt>
                 </View>
               </Row>
               <Button
                 kind="lime"
-                label="네, 심부름을 확인할게요"
+                label="네, 부탁을 확인할게요"
                 onPress={() =>
                   a.nav('bundle', { placeId: nearby.place.id, tripId: trip.id })
                 }
               />
-              <Txt size={11} color="#DCE8FF" style={{ textAlign: 'center' }}>
+              <Txt size={11} color={c.navyText} style={{ textAlign: 'center' }}>
                 현재 위치 기반 알림은 체험용 예시예요.
               </Txt>
             </View>
@@ -528,11 +437,11 @@ export function Home() {
                 style={{ backgroundColor: c.darkGreen, borderRadius: 26, padding: 24, gap: 20 }}
               >
                 <Row style={{ justifyContent: 'space-between' }}>
-                  <Badge bg="#2E5798" color="#EAF2FF">
+                  <Badge bg={c.navyBadge} color={c.navyTextBright}>
                     나의 여행
                   </Badge>
-                  <Pressable accessibilityRole="button" onPress={() => a.nav('trips')}>
-                    <Txt size={13} color="#D7E4FF">
+                  <Pressable accessibilityRole="button" onPress={() => a.nav('trip-route', { id: trip.id })}>
+                    <Txt size={13} color={c.navyText}>
                       일정 보기 ›
                     </Txt>
                   </Pressable>
@@ -546,19 +455,19 @@ export function Home() {
                     {tripCities.join(' · ') || trip.destinationCity}
                   </Txt>
                 </Row>
-                <Txt size={13} color="#C9D9F7">
+                <Txt size={13} color={c.navyTextSoft}>
                   {shortDate(trip.startDate)} — {shortDate(trip.endDate)} · {trip.placeIds.length}곳
                   방문 예정
                 </Txt>
-                <View style={{ height: 1, backgroundColor: '#31558D' }} />
+                <View style={{ height: 1, backgroundColor: c.navyDivider }} />
                 <Stack gap={5}>
-                  <Txt size={13} color="#D7E4FF">
+                  <Txt size={13} color={c.navyText}>
                     동선에서 찾은 부탁
                   </Txt>
                   <Txt size={40} weight="800" color={c.lime}>
                     {availableRequests}건
                   </Txt>
-                  <Txt size={12} color="#C9D9F7">
+                  <Txt size={12} color={c.navyTextSoft}>
                     보상금은 부탁별로 직접 정해요
                   </Txt>
                 </Stack>
@@ -891,7 +800,7 @@ export function CreateScreen() {
       </Card>
       <Card style={{ backgroundColor: c.lilac }}>
         <Stack>
-          <Plane size={38} color="#6B598E" />
+          <Plane size={38} color={c.accent} />
           <Txt size={23} weight="700">
             가는 김에 가져올게요
           </Txt>

@@ -4,19 +4,20 @@
 
 맑은 여행 서비스와 신뢰도 높은 거래 앱 사이. 밝은 쿨 그레이 바탕, 선명한 블루 CTA, 옅은 스카이 블루 선택 영역과 네이비 정보 카드를 사용한다. 이동 경로와 티켓 형태를 유지하되, 안전결제와 진행 상태가 한눈에 읽히는 파란색 정보 위계를 만든다.
 
-| 토큰      | 값      | 용도                       |
-| --------- | ------- | -------------------------- |
-| canvas    | #F7F9FC | 밝은 앱 배경               |
-| paper     | #FFFFFF | 폼·정보 영역               |
-| ink       | #14213D | 기본 텍스트                |
-| secondary | #5E6C84 | 보조 텍스트                |
-| green     | #3478F6 | 흰 글자 CTA·활성 탐색      |
-| lime      | #CFE0FF | 네이비 위 보상 강조        |
-| mint      | #EAF2FF | 선택 상태·인증             |
-| lilac     | #F1F5FF | 여행/장소 보조 배경        |
-| butter    | #FFF3D6 | 현장 확인 필요 안내        |
-| border    | #DFE7F2 | 최소 구분선                |
-| danger    | #D64550 | 오류·분쟁                  |
+| 토큰          | 값      | 용도                       |
+| ------------- | ------- | -------------------------- |
+| background    | #F8FAFD | 밝은 앱 배경               |
+| surface       | #FFFFFF | 폼·정보 영역               |
+| textPrimary   | #172033 | 기본 텍스트                |
+| textSecondary | #667085 | 보조 텍스트                |
+| primary       | #4F8DF7 | 흰 글자 CTA·활성 탐색      |
+| primaryStrong | #2F6FE4 | 현재 위치·중요 방문 지점   |
+| primarySoft   | #EAF2FF | 선택 상태·인증·경로 배경   |
+| primaryTint   | #CFE0FF | 네이비 위 금액 강조        |
+| accentSoft    | #F1F5FF | 여행/장소 보조 배경        |
+| warningSoft   | #FFF3D6 | 현장 확인 필요 안내        |
+| border        | #E7ECF3 | 최소 구분선                |
+| danger        | #D64550 | 오류·분쟁                  |
 
 옅은 파랑 위 흰색 작은 글자를 사용하지 않는다. 본문 15~~16, 보조 최소 12~~13, 제목 24~~32, 금액 24~~34. 터치 영역 최소 44×44. 가격은 KRW 정수 단위, 엔화 기호와 원화 기호를 분리한다.
 
@@ -28,7 +29,9 @@
 
 ## 공통 컴포넌트
 
-Page, Heading, AppText, Button, IconButton, Chip, Field, Notice, PlaceCard, ProductArt, ProductRow, TravelerAvatar, MoneyBreakdown, StatusTimeline, RouteMap, EmptyState, LoadingState, ErrorBoundary, Toast, Sheet.
+Page, Heading, AppText, Button, IconButton, Chip, Field, Notice, PlaceCard, ProductArt, ProductRow, TravelerAvatar, MoneyBreakdown, StatusTimeline, TravelRouteMap, PlaneRouteAnimation, LocalRoutePath, TripTimeline, EmptyState, LoadingState, ErrorBoundary, Toast, Sheet.
+
+국제 이동은 약 1.5초의 곡선 비행기 Motion, 현지 이동은 Point와 Route Line을 사용한다. 운영체제 Reduced Motion 설정이 켜져 있으면 비행기는 도착 위치에 정적으로 표시한다. 경로·날짜·시간 텍스트는 애니메이션과 무관하게 즉시 읽을 수 있어야 한다.
 
 ## 상태 UX
 

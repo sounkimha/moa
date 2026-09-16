@@ -4,17 +4,37 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { randomUUID } from 'node:crypto';
 
-export interface PaymentGateway {
-  hold(transactionId: string, amount: number): { providerRef: string };
+export interface PaymentProvider {
+  hold(transactionId: string, amount: number, method: 'CARD' | 'EASY_PAY' | 'WALLET'): { providerRef: string };
   refund(providerRef: string): void;
 }
-export class MockPaymentGateway implements PaymentGateway {
-  hold(transactionId: string, amount: number) {
+@Injectable()
+export class MockPaymentProvider implements PaymentProvider {
+  hold(transactionId: string, amount: number, method: 'CARD' | 'EASY_PAY' | 'WALLET') {
     if (!Number.isSafeInteger(amount) || amount <= 0) throw new Error('Invalid payment amount');
-    return { providerRef: `mock-hold-${transactionId}` };
+    return { providerRef: `mock-${method.toLowerCase()}-hold-${transactionId}` };
   }
   refund(_providerRef: string) {
     /* No funds leave this process. */
+  }
+}
+export interface PayoutProvider {
+  request(userId: string, amount: number): { providerRef: string; status: 'MOCK_COMPLETED' };
+}
+@Injectable()
+export class MockPayoutProvider implements PayoutProvider {
+  request(userId: string, amount: number) {
+    if (!Number.isSafeInteger(amount) || amount <= 0) throw new Error('Invalid payout amount');
+    return { providerRef: `mock-payout-${userId}-${randomUUID()}`, status: 'MOCK_COMPLETED' as const };
+  }
+}
+export interface IdentityProvider {
+  verify(userId: string, method: 'PASS' | 'SMS'): { providerRef: string; status: 'DEMO_VERIFIED' };
+}
+@Injectable()
+export class MockIdentityProvider implements IdentityProvider {
+  verify(userId: string, method: 'PASS' | 'SMS') {
+    return { providerRef: `mock-${method.toLowerCase()}-${userId}`, status: 'DEMO_VERIFIED' as const };
   }
 }
 @Injectable()

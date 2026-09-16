@@ -15,6 +15,7 @@
     "dev:api": "npm run dev -w @moa/api",
     "build": "npm run build -w @moa/domain && npm run build -w @moa/api && npm run export -w @moa/mobile",
     "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "node scripts/lint.mjs",
     "test": "npm run build -w @moa/domain && npm run test -w @moa/api",
     "test:ui": "npm run build -w @moa/domain && npm run build -w @moa/api && npm run export -w @moa/mobile && node scripts/ui-smoke.mjs",
     "db:migrate": "node scripts/migrate.mjs",

@@ -14,12 +14,19 @@ function proxy(req, res, targetPort) {
     headers: { ...req.headers, host: `127.0.0.1:${targetPort}` },
   }, (upstreamResponse) => {
     res.writeHead(upstreamResponse.statusCode || 502, upstreamResponse.headers);
+    upstreamResponse.on('error', () => {
+      if (!res.destroyed) res.destroy();
+    });
     upstreamResponse.pipe(res);
   });
   upstream.on('error', () => {
+    if (res.destroyed) return;
     if (!res.headersSent) res.writeHead(502, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ message: '개발 서버를 준비하고 있어요. 잠시 후 다시 시도해주세요.' }));
   });
+  req.on('aborted', () => upstream.destroy());
+  req.on('error', () => upstream.destroy());
+  res.on('error', () => upstream.destroy());
   req.pipe(upstream);
 }
 
@@ -33,11 +40,14 @@ function proxyUpgrade(req, socket, head) {
     socket.pipe(upstream).pipe(socket);
   });
   upstream.on('error', () => socket.destroy());
+  socket.on('error', () => upstream.destroy());
+  socket.on('close', () => upstream.destroy());
 }
 
 const server = http.createServer((req, res) =>
   proxy(req, res, req.url?.startsWith('/api/') || req.url === '/health' ? apiPort : metroPort),
 );
+server.on('clientError', (_error, socket) => socket.destroy());
 server.on('upgrade', proxyUpgrade);
 server.listen(port, '0.0.0.0', () =>
   console.log(`MOA web proxy: http://localhost:${port} → Expo ${metroPort}, API ${apiPort}`),

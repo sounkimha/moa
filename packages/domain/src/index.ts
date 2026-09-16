@@ -41,8 +41,15 @@ export interface User extends Entity {
 export interface UserVerification extends Entity {
   userId: string;
   kind: 'PHONE' | 'ACCOUNT' | 'IDENTITY' | 'TRIP';
-  status: 'DEMO_VERIFIED' | 'PENDING';
+  status: 'DEMO_VERIFIED' | 'PENDING' | 'EXPIRED';
   providerRef: string;
+}
+export type AuthProvider = 'DEMO' | 'PHONE' | 'KAKAO' | 'NAVER' | 'GOOGLE' | 'APPLE';
+export interface AuthIdentity extends Entity {
+  userId: string;
+  provider: AuthProvider;
+  providerUserId: string;
+  status: 'DEMO_LINKED' | 'LINKED' | 'DISABLED';
 }
 export interface Place extends Entity {
   name: string;
@@ -107,6 +114,8 @@ export interface TripDestination extends Entity {
   tripId: string;
   placeId: string;
   visitDate: string;
+  visitTime: string;
+  sequence: number;
 }
 export interface Product extends Entity {
   name: string;
@@ -220,9 +229,20 @@ export interface Payment extends Entity {
   transactionId: string;
   buyerId: string;
   amount: number;
-  provider: 'MOCK';
+  provider: 'MOCK_CARD' | 'MOCK_EASY_PAY' | 'MOCK_WALLET';
+  paymentMethodId: string;
   status: 'HELD' | 'REFUNDED' | 'RELEASED';
   providerRef: string;
+}
+export type PaymentMethodType = 'CARD' | 'EASY_PAY' | 'WALLET';
+export interface PaymentMethod extends Entity {
+  userId: string;
+  type: PaymentMethodType;
+  provider: 'MOCK_CARD' | 'MOCK_KAKAO_PAY' | 'MOA_WALLET';
+  label: string;
+  last4?: string;
+  isDefault: boolean;
+  status: 'DEMO_ONLY';
 }
 export interface Escrow extends Entity {
   transactionId: string;
@@ -288,6 +308,49 @@ export interface Payout extends Entity {
   status: 'MOCK_SETTLED';
   providerRef: string;
 }
+export interface Wallet extends Entity {
+  userId: string;
+  availableBalance: number;
+  pendingBalance: number;
+  withdrawalPending: number;
+  currency: 'KRW';
+  mode: 'DEMO';
+}
+export type WalletTransactionType =
+  | 'TOP_UP'
+  | 'PAYMENT'
+  | 'TRAVELER_REWARD'
+  | 'REFUND'
+  | 'WITHDRAWAL'
+  | 'ADJUSTMENT';
+export interface WalletTransaction extends Entity {
+  walletId: string;
+  userId: string;
+  type: WalletTransactionType;
+  amount: number;
+  balanceAfter: number;
+  title: string;
+  status: 'COMPLETED' | 'PROCESSING' | 'FAILED';
+  transactionId?: string;
+  payoutId?: string;
+  withdrawalId?: string;
+}
+export interface PayoutAccount extends Entity {
+  userId: string;
+  bankName: string;
+  accountLast4: string;
+  holderName: string;
+  status: 'DEMO_VERIFIED' | 'PENDING';
+  providerRef: string;
+}
+export interface Withdrawal extends Entity {
+  userId: string;
+  walletId: string;
+  payoutAccountId: string;
+  amount: number;
+  status: 'PROCESSING' | 'MOCK_COMPLETED' | 'FAILED';
+  providerRef: string;
+}
 export interface Dispute extends Entity {
   transactionId: string;
   openedBy: string;
@@ -319,6 +382,7 @@ export interface Command extends Entity {
 }
 export interface Database {
   users: User[];
+  authIdentities: AuthIdentity[];
   addresses: UserAddress[];
   verifications: UserVerification[];
   places: Place[];
@@ -330,6 +394,7 @@ export interface Database {
   offers: TravelerOffer[];
   bundles: BundleRequest[];
   transactions: Transaction[];
+  paymentMethods: PaymentMethod[];
   payments: Payment[];
   escrows: Escrow[];
   receipts: Receipt[];
@@ -339,14 +404,25 @@ export interface Database {
   reviews: Review[];
   notifications: Notification[];
   payouts: Payout[];
+  wallets: Wallet[];
+  walletTransactions: WalletTransaction[];
+  payoutAccounts: PayoutAccount[];
+  withdrawals: Withdrawal[];
   disputes: Dispute[];
   favorites: FavoritePlace[];
   searches: SearchHistory[];
   events: AuditEvent[];
   commands: Command[];
 }
-export type Snapshot = Omit<Database, 'commands' | 'verifications'> & {
+export type Snapshot = Omit<Database, 'commands' | 'verifications' | 'authIdentities'> & {
   recognition?: { image: boolean; sample: boolean; link: boolean };
+  verificationSummary: {
+    phone: boolean;
+    identity: boolean;
+    account: boolean;
+    trip: boolean;
+    demoOnly: boolean;
+  };
   me: User;
   mode: 'demo';
   serverDate: string;
@@ -373,7 +449,7 @@ export const STATUS_LABEL: Record<Status, string> = {
   MATCHED: '결제를 기다려요',
   PAYMENT_HELD: '결제금 보관 중',
   PURCHASED: '구매를 마쳤어요',
-  TRAVELING: '전달을 준비해요',
+  TRAVELING: '한국으로 오고 있어요',
   SHIPPED: '배송 중이에요',
   DELIVERED: '수령했어요',
   CONFIRMED: '구매가 확정됐어요',
@@ -463,3 +539,13 @@ export const TIMELINE: Status[] = [
   'CONFIRMED',
   'SETTLED',
 ];
+export const TIMELINE_LABEL: Partial<Record<Status, string>> = {
+  MATCHED: '여행자가 정해졌어요',
+  PAYMENT_HELD: '결제금을 안전하게 보관했어요',
+  PURCHASED: '상품을 구매했어요',
+  TRAVELING: '한국으로 오고 있어요',
+  SHIPPED: '상품이 배송 중이에요',
+  DELIVERED: '상품을 수령했어요',
+  CONFIRMED: '수령과 구매를 확정했어요',
+  SETTLED: '여행자 정산이 완료됐어요',
+};

@@ -11,7 +11,8 @@
 | 캐시        | Redis/ioredis 선택 연결                                     | 메타데이터 캐시만 담당, 금액·거래의 원장으로 사용하지 않음     |
 | 이미지      | 프로토타입: 크기 제한 data URL, 확장: S3 서명 업로드 어댑터 | 로컬 데모는 외부 키 불필요, 운영 시 private 객체 저장소로 이동 |
 | 인증        | 24시간 무작위 bearer 토큰·가상 사용자                       | 외부 인증을 가장하지 않는 명시적 데모 로그인                   |
-| 결제        | MockPaymentGateway                                          | 실제 금전 없이 결제·환불·정산 흐름 검증                        |
+| 결제·지급   | PaymentProvider / PayoutProvider + Mock 구현                | 실제 금전 없이 결제·환불·보관함·출금 흐름 검증                 |
+| 본인확인    | IdentityProvider + Mock 구현                                | PASS/SMS 연결 지점을 분리하고 데모 상태를 명시                 |
 
 SDK를 최신이라고 주장하지 않는다. 호환 버전과 `package-lock.json`을 고정해 재현 가능하게 구성했다. SDK 업그레이드는 공식 호환표에 맞춰 한 세트로 진행한다.
 
@@ -62,6 +63,7 @@ TRAVELING은 여행자가 구매를 마치고 자신의 원래 복귀 동선으�
 - Request당 Transaction, Transaction당 Payment/Escrow/Payout은 unique다.
 - 총금액 = 상품가격+보상+수수료+운송비+세금 예치액. DB CHECK도 동일한 정합성을 검증한다.
 - 구매 확정 전 지급 불가. 분쟁이면 Escrow가 FROZEN으로 바뀌고 정산은 실패한다.
+- 카드·간편결제·보관함은 PaymentMethod로 분리한다. 보관함 원장은 정수 원만 사용하고 SETTLE/환불/출금은 Command 멱등키와 함께 한 트랜잭션으로 기록한다.
 - 파일 모드에서 다른 프로세스가 같은 파일에 동시에 쓰면 보호되지 않는다. 다중 인스턴스는 반드시 PostgreSQL 모드를 사용한다.
 
 ## Entity 매핑
@@ -69,6 +71,7 @@ TRAVELING은 여행자가 구매를 마치고 자신의 원래 복귀 동선으�
 | 도메인           | 실제 테이블   | 주요 관계                                   |
 | ---------------- | ------------- | ------------------------------------------- |
 | User             | users         | 사용자 공개 프로필                          |
+| AuthIdentity     | authIdentities | 공급자별 로그인 식별자, User와 분리         |
 | UserVerification | verifications | user_id                                     |
 | Trip             | trips         | traveler_id                                 |
 | TripDestination  | destinations  | trip_id, place_id                           |
@@ -80,6 +83,7 @@ TRAVELING은 여행자가 구매를 마치고 자신의 원래 복귀 동선으�
 | BundleRequest    | bundles       | trip_id, place_id, requestIds/offerIds      |
 | Transaction      | transactions  | request_id, offer_id, buyer_id, traveler_id |
 | Payment          | payments      | transaction_id unique                       |
+| PaymentMethod    | paymentMethods | 사용자별 Mock 결제수단, 전체 카드번호 없음  |
 | Escrow           | escrows       | transaction_id unique                       |
 | Receipt          | receipts      | transaction_id unique                       |
 | Shipment         | shipments     | transaction_id unique                       |
@@ -88,6 +92,8 @@ TRAVELING은 여행자가 구매를 마치고 자신의 원래 복귀 동선으�
 | Review           | reviews       | transaction_id + author_id unique           |
 | Notification     | notifications | user_id, request_id 또는 transaction_id     |
 | Payout           | payouts       | transaction_id unique                       |
+| Wallet/WalletTransaction | wallets/walletTransactions | 사용자별 잔액과 append 방식 체험 원장 |
+| PayoutAccount/Withdrawal | payoutAccounts/withdrawals | 끝 4자리 계좌 표시와 Mock 출금 상태 |
 | Dispute          | disputes      | transaction_id, opened_by                   |
 | FavoritePlace    | favorites     | user_id + place_id unique                   |
 | SearchHistory    | searches      | user_id, query                              |
@@ -118,7 +124,7 @@ erDiagram
 
 Snapshot은 공개 장소·상품 요청과 현재 거래 참여자가 접근할 수 있는 주문·증빙·대화만 합친다. 타인의 비공개 거래, 증빙, 대화, 알림, 정산, 멱등성 결과는 내려보내지 않는다. 토큰은 native SecureStore, 웹은 체험용 sessionStorage에 저장한다. 세션은 서버 재시작 시 만료된다.
 
-지도는 `RouteMap` 예시 컴포넌트다. 좌표는 Place에 있으나 길찾기는 호출하지 않는다. 실운영에서는 국내 Naver/Kakao, 해외 지도 공급자를 adapter로 분리하고 API키 제한·이용약관·국가별 coverage를 확인한다. 실제 동선 시간은 경로 API 결과와 산정 시각을 저장하고, 예시 추정값과 구분한다.
+여행 일정은 `TravelRouteMap`, `PlaneRouteAnimation`, `LocalRoutePath`, `TripTimeline`으로 분리한다. 국제 이동만 비행기 Motion으로 표현하고 현지 방문은 좌표 기반 Point/Route Line으로 구분한다. Reduced Motion이면 비행기를 도착 위치에 정적으로 표시하며 텍스트 일정은 항상 즉시 제공한다. 좌표는 Place에 있으나 실제 길찾기·항공편·GPS는 호출하지 않는다. 실운영에서는 국내 Naver/Kakao, 해외 지도 공급자를 adapter로 분리하고 API키 제한·이용약관·국가별 coverage를 확인한다.
 
 ## 유지보수와 디버깅
 

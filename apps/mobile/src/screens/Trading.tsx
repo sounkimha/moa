@@ -7,6 +7,7 @@ import {
   Check,
   CheckCircle2,
   ChevronRight,
+  CreditCard,
   FileText,
   ImagePlus,
   LockKeyhole,
@@ -44,6 +45,7 @@ import {
   Txt,
 } from '../components/ui';
 import { Avatar, MoneyBreakdown, ProductArt, ProductRow, Timeline } from '../components/visuals';
+import { PlaneRouteAnimation } from '../components/travel-route';
 const optimizedRoute = (places: Place[]) => {
   if (places.length < 2) return places;
   const remaining = places.slice(1), ordered = [places[0]];
@@ -234,7 +236,10 @@ export function PaymentScreen() {
     d = a.data!,
     t = d.transactions.find((x) => x.id === a.route.id);
   const [agreed, setAgreed] = useState(false),
-    [fail, setFail] = useState(false);
+    [fail, setFail] = useState(false),
+    [paymentMethodId, setPaymentMethodId] = useState(
+      d.paymentMethods.find((method) => method.isDefault)?.id || d.paymentMethods[0]?.id || '',
+    );
   if (!t)
     return (
       <Page title="결제">
@@ -246,7 +251,7 @@ export function PaymentScreen() {
   const pay = async () => {
     const result = await a.mutate<Transaction>(
       `/transactions/${t.id}/actions`,
-      { action: 'PAY', expectedRevision: t.revision, simulateFailure: fail },
+      { action: 'PAY', expectedRevision: t.revision, paymentMethodId, simulateFailure: fail },
       '결제 체험이 완료됐어요.',
     );
     if (result) a.nav('transaction', { id: t.id });
@@ -279,6 +284,28 @@ export function PaymentScreen() {
         </Row>
       </Card>
       <MoneyBreakdown price={t} />
+      <Stack gap={10}>
+        <Section title="결제수단 선택" subtitle="실제 카드번호는 MOA에 저장하지 않아요." />
+        {d.paymentMethods.map((method) => {
+          const selected = paymentMethodId === method.id;
+          const wallet = method.type === 'WALLET' ? d.wallets[0] : undefined;
+          return (
+            <Pressable key={method.id} accessibilityRole="radio" accessibilityState={{ selected }} onPress={() => setPaymentMethodId(method.id)}>
+              <Card style={{ borderColor: selected ? c.primary : c.border }}>
+                <Row>
+                  {method.type === 'WALLET' ? <Wallet size={22} color={c.primary} /> : <CreditCard size={22} color={c.primary} />}
+                  <Stack gap={2} style={{ flex: 1 }}>
+                    <Txt weight="700">{method.label} {method.last4 ? `•••• ${method.last4}` : ''}</Txt>
+                    <Txt size={11} color={c.secondary}>{method.type === 'WALLET' ? `사용 가능 ${money(wallet?.availableBalance || 0)}` : 'Mock Payment Provider · 실제 승인 없음'}</Txt>
+                  </Stack>
+                  <CheckCircle2 size={22} color={selected ? c.primary : c.muted} />
+                </Row>
+              </Card>
+            </Pressable>
+          );
+        })}
+        <Button small kind="ghost" label="결제수단 관리" onPress={() => a.nav('payment-methods')} />
+      </Stack>
       <Card style={{ backgroundColor: c.mint }}>
         <Stack gap={12}>
           <Row>
@@ -435,7 +462,7 @@ export function TransactionScreen() {
       label: '보상 정산 체험하기',
       run: async () => {
         const v = await action('SETTLE');
-        if (v) a.nav('payouts');
+        if (v) a.nav('wallet');
       },
     };
   const held = escrow?.status === 'HELD',
@@ -547,7 +574,7 @@ export function TransactionScreen() {
         <Txt size={30} weight="800" color={held ? c.lime : c.ink}>
           {money(t.totalPrice)}
         </Txt>
-        <Txt size={12} color={held ? '#D3E1FA' : c.secondary}>
+        <Txt size={12} color={held ? c.navyText : c.secondary}>
           실제 자금이 아닌 체험용 거래 상태예요.
         </Txt>
       </View>
@@ -562,6 +589,12 @@ export function TransactionScreen() {
       </Stack>
       {!['DISPUTED', 'CANCELLED'].includes(t.status) ? (
         <Card>
+          {t.status === 'TRAVELING' && trip && (
+            <Stack gap={8} style={{ marginBottom: 18 }}>
+              <PlaneRouteAnimation departure={trip.destinationCity} destination={trip.departureCity} />
+              <Txt size={11} color={c.secondary}>여행 일정 기준 귀국 단계 · 실제 항공편이나 GPS 위치가 아니에요.</Txt>
+            </Stack>
+          )}
           <Timeline transaction={t} />
         </Card>
       ) : (
@@ -580,6 +613,7 @@ export function TransactionScreen() {
           <Txt size={14} weight="700">수락한 부탁 기준 추천 동선</Txt>
           {routePlaces.map((place, index) => place && <Row key={place.id}><Badge>{index + 1}</Badge><View style={{ flex: 1 }}><Txt weight="600">{place.name}</Txt><Txt size={12} color={c.secondary}>{place.city} {place.region} · 동선 추가 약 {place.extraMinutes}분</Txt></View></Row>)}
           <Txt size={11} color={c.secondary}>좌표 기반 가까운 장소 순서의 예시 동선이에요. 실제 교통편·영업시간을 연결하면 다시 계산해요.</Txt>
+          <Button small kind="secondary" icon={Plane} label="여행 경로 전체 보기" onPress={() => a.nav('trip-route', { id: trip.id, placeId: r.placeId })} />
           <Button small kind="secondary" icon={MessageCircle} label="일정 이야기하기" onPress={() => a.nav('chat', { id: t.id })} />
         </Stack>
       </Card>}
@@ -824,7 +858,7 @@ export function ReceiptScreen() {
       {value ? (
         <>
           <Image source={{ uri: value }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-          <View style={{ position: 'absolute', right: 8, bottom: 8, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 10, backgroundColor: '#14213DCC' }}>
+          <View style={{ position: 'absolute', right: 8, bottom: 8, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 10, backgroundColor: c.overlay }}>
             <Txt size={11} color="white">다시 선택</Txt>
           </View>
         </>
@@ -1157,11 +1191,11 @@ export function PayoutsScreen() {
     <Page title="여행으로 모은 보상">
       <Card style={{ backgroundColor: c.darkGreen, borderWidth: 0 }}>
         <Stack gap={8}>
-          <Txt color="#D3E1FA">정산된 보상 수익</Txt>
+          <Txt color={c.navyText}>정산된 보상 수익</Txt>
           <Txt size={38} weight="800" color={c.lime}>
             {money(d.payouts.reduce((s, p) => s + (p.netReward ?? p.reward - Math.round(p.reward * 0.1)), 0))}
           </Txt>
-          <Txt size={12} color="#D3E1FA">
+          <Txt size={12} color={c.navyText}>
             상품대금 상환액을 제외한 보상 · 모의 정산
           </Txt>
         </Stack>
@@ -1177,13 +1211,14 @@ export function PayoutsScreen() {
             <Button
               label="정산 체험하기"
               loading={a.busy}
-              onPress={() =>
-                a.mutate(
+              onPress={async () => {
+                const result = await a.mutate(
                   `/transactions/${t.id}/actions`,
                   { action: 'SETTLE', expectedRevision: t.revision },
                   '모의 정산을 마쳤어요.',
-                )
-              }
+                );
+                if (result) a.nav('wallet');
+              }}
             />
           </Stack>
         </Card>
