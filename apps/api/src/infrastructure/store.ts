@@ -24,6 +24,11 @@ function hydrateTrustAndFinance(db: Database) {
         changed = true;
       }
   }
+  for (const account of db.payoutAccounts) {
+    if (account.bankName !== '모아은행 · 데모') continue;
+    account.bankName = 'MOA 데모은행';
+    changed = true;
+  }
   for (const destination of db.destinations) {
     if (typeof destination.sequence === 'number' && destination.visitTime) continue;
     const trip = db.trips.find((item) => item.id === destination.tripId);

@@ -103,10 +103,10 @@ export function MyScreen() {
         />
         <ListItem title="내가 남긴 후기" icon={Star} onPress={() => a.nav('reviews')} />
         <ListItem title="인증과 체험 설정" icon={Settings} onPress={() => a.nav('settings')} />
-        <ListItem title="모아 이용 안내" icon={HelpCircle} onPress={() => a.nav('help')} />
+        <ListItem title="MOA 이용 안내" icon={HelpCircle} onPress={() => a.nav('help')} />
       </View>
       <Txt size={12} color={c.secondary}>
-        MOA 0.1.0 · 모아{'\n'}실제 결제·본인인증·은행 출금이 발생하지 않는 프로토타입이에요.
+        MOA 0.1.0{'\n'}실제 결제·본인인증·은행 출금이 발생하지 않는 프로토타입이에요.
       </Txt>
     </Page>
   );
@@ -456,7 +456,7 @@ export function ReviewsScreen() {
 export function HelpScreen() {
   const a = useApp();
   return (
-    <Page title="모아, 이렇게 이용해요">
+    <Page title="MOA, 이렇게 이용해요">
       <Stack gap={10}>
         <Txt size={30} weight="800">
           가는 사람과,{'\n'}갖고 싶은 사람.

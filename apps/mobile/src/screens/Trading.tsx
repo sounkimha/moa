@@ -1126,7 +1126,7 @@ export function ChatScreen() {
       }
     >
       <Notice>
-        결제와 거래 대화는 모아 안에서 이어가요. 이 채팅은 5초마다 새 메시지를 확인해요.
+        결제와 거래 대화는 MOA 안에서 이어가요. 이 채팅은 5초마다 새 메시지를 확인해요.
       </Notice>
       {messages.map((m) =>
         m.system ? (

@@ -89,7 +89,7 @@ export function PaymentMethodsScreen() {
 
 export function WithdrawalScreen() {
   const a = useApp(), d = a.data!, wallet = d.wallets[0], account = d.payoutAccounts[0];
-  const [bankName, setBankName] = useState('모아은행 · 데모'), [last4, setLast4] = useState(''), [holder, setHolder] = useState(d.me.nickname), [amount, setAmount] = useState('');
+  const [bankName, setBankName] = useState('MOA 데모은행'), [last4, setLast4] = useState(''), [holder, setHolder] = useState(d.me.nickname), [amount, setAmount] = useState('');
   const save = async () => a.mutate('/wallet/payout-account', { bankName, accountLast4: last4, holderName: holder }, '체험 정산 계좌를 저장했어요.');
   const withdraw = async () => {
     const result = await a.mutate('/wallet/withdrawals', { amount: Number(amount), payoutAccountId: account.id, simulateProcessing: false }, '출금 체험을 완료했어요. 실제 은행 이체는 발생하지 않았어요.');

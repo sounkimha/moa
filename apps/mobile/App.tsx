@@ -117,7 +117,7 @@ function Shell() {
   const desktop = width >= 1060;
   const Current = screens[a.route.name] || Home;
   useEffect(() => {
-    if (Platform.OS === 'web') document.title = '모아 · 가는 김에, 하나 더.';
+    if (Platform.OS === 'web') document.title = 'MOA · 가는 김에, 하나 더.';
   }, []);
   const navigation = (vertical = false) => (
     <View
@@ -226,7 +226,7 @@ function Shell() {
               <Row style={{ gap: 10, marginTop: 13 }}>
                 <Logo size={42} />
                 <Txt size={33} weight="800" color={c.green}>
-                  모아
+                  MOA
                 </Txt>
               </Row>
               <Stack gap={8}>
@@ -262,7 +262,7 @@ function Shell() {
               <Button
                 small
                 kind="ghost"
-                label="모아 이용 안내"
+                label="MOA 이용 안내"
                 icon={HelpCircle}
                 onPress={() => a.nav('help')}
               />
@@ -276,7 +276,7 @@ function Shell() {
               <Stack style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
                 <Logo size={70} />
                 <Txt size={30} weight="800" color={c.green}>
-                  모아
+                  MOA
                 </Txt>
                 <Txt color={c.secondary}>가는 김에, 하나 더.</Txt>
                 <ActivityIndicator color={c.green} />

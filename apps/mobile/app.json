@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "모아",
+    "name": "MOA",
     "slug": "moa",
     "scheme": "moa",
     "version": "0.1.0",
@@ -8,14 +8,14 @@
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "ios": { "supportsTablet": true, "bundleIdentifier": "com.moa.prototype" },
-    "android": { "package": "com.moa.prototype", "adaptiveIcon": { "backgroundColor": "#F9FAF5" } },
+    "android": { "package": "com.moa.prototype", "adaptiveIcon": { "backgroundColor": "#F8FAFD" } },
     "web": {
       "bundler": "metro",
-      "name": "모아 · 가는 김에, 하나 더.",
-      "shortName": "모아",
+      "name": "MOA · 가는 김에, 하나 더.",
+      "shortName": "MOA",
       "lang": "ko",
-      "backgroundColor": "#F9FAF5",
-      "themeColor": "#147D4E"
+      "backgroundColor": "#F8FAFD",
+      "themeColor": "#4F8DF7"
     },
     "plugins": [
       [

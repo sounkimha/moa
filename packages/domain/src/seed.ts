@@ -377,7 +377,7 @@ export function seedDatabase(now = new Date()): Database {
     {
       ...base('payout-account-u-min'),
       userId: 'u-min',
-      bankName: '모아은행 · 데모',
+      bankName: 'MOA 데모은행',
       accountLast4: '2048',
       holderName: '민트로드',
       status: 'DEMO_VERIFIED' as const,
