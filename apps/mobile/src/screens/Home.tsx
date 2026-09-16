@@ -78,10 +78,7 @@ export function Onboarding() {
       }}
     >
       <Row style={{ gap: 10 }}>
-        <Logo />
-        <Txt size={30} weight="800" color={c.green}>
-          모아
-        </Txt>
+        <Logo size={42} />
         <Badge>체험 모드</Badge>
       </Row>
       {stage === 'intro' ? (
@@ -230,7 +227,7 @@ export function Home() {
   const openPlace = (place: Place) => { rememberPlace(place.id); a.nav('place', { id: place.id }); };
   return <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20, paddingBottom: 32, gap: 28 }}>
     <Row style={{ justifyContent: 'space-between' }}>
-      <Row style={{ gap: 8 }}><Logo size={32} /><Txt size={23} weight="800">모아</Txt><Badge bg={c.lilac} color={c.secondary}>체험</Badge></Row>
+      <Row style={{ gap: 8 }}><Logo size={38} /><Badge bg={c.lilac} color={c.secondary}>체험</Badge></Row>
       <Row style={{ gap: 4 }}><Txt size={12} color={c.secondary}>{a.role === 'buyer' ? '부탁하기 모드' : '여행하기 모드'}</Txt><IconButton icon={Bell} label="알림" onPress={() => a.nav('notifications')} /></Row>
     </Row>
     {a.role === 'buyer' ? <>

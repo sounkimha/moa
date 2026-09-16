@@ -1,9 +1,12 @@
 import 'reflect-metadata';
 import 'dotenv/config';
+import express from 'express';
 import { NestFactory } from '@nestjs/core';
 import { json, Request, Response, NextFunction } from 'express';
 import type { CustomOrigin } from '@nestjs/common/interfaces/external/cors-options.interface';
 import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 const localOrigins = ['http://localhost:8081', 'http://127.0.0.1:8081'];
@@ -13,7 +16,8 @@ const isCodespacesWebOrigin = (origin: string) =>
 const permittedOrigin: CustomOrigin = (origin, callback) =>
   callback(null, !origin || allowedOrigins.includes(origin) || isCodespacesWebOrigin(origin));
 export async function bootstrap() {
-  if (process.env.NODE_ENV === 'production')
+  const demoPreview = process.env.MOA_DEMO_PREVIEW === '1';
+  if (process.env.NODE_ENV === 'production' && !demoPreview)
     throw new Error(
       'Production startup is disabled until payment, account lifecycle, provider secrets and policy gates are fully configured.',
     );
@@ -48,8 +52,16 @@ export async function bootstrap() {
     .get('/health', (_req: Request, res: Response) => res.json({
       status: 'ok', mode: 'demo', apiVersion: 'recognition-v2',
       capabilities: { metadata: true, recognizeSample: true, recognizeImage: Boolean(process.env.OPENAI_API_KEY) },
-    }));
+  }));
   app.setGlobalPrefix('api');
+  if (process.env.MOA_SERVE_WEB === '1') {
+    const webDirectory = join(process.cwd(), 'apps', 'mobile', 'dist');
+    const index = join(webDirectory, 'index.html');
+    if (!existsSync(index)) throw new Error('Web preview build is missing. Run the mobile web export first.');
+    const server = app.getHttpAdapter().getInstance();
+    server.use(express.static(webDirectory, { index: 'index.html', fallthrough: true }));
+    server.get(/^(?!\/api(?:\/|$)|\/health$).*/, (_req: Request, res: Response) => res.sendFile(index));
+  }
   app.enableShutdownHooks();
   await app.listen(Number(process.env.PORT || 4000), process.env.HOST || '0.0.0.0');
   return app;

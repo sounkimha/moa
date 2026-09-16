@@ -61,6 +61,7 @@ import {
   Notice,
   Page,
   Row,
+  SearchField,
   Section,
   SectionTabs,
   Sheet,
@@ -68,6 +69,13 @@ import {
   Txt,
 } from '../components/ui';
 import { ProductArt, MoneyBreakdown } from '../components/visuals';
+
+const CATEGORY_PATHS: Array<{ name: string; description: string; values: Category[] }> = [
+  { name: '굿즈·취미', description: '캐릭터, 게임·애니 관련 상품', values: ['CHARACTER', 'GAME'] },
+  { name: '라이프스타일', description: '패션 잡화와 지역 한정 상품', values: ['FASHION', 'LOCAL'] },
+  { name: '행사·공연', description: '팝업과 콘서트 현장 상품', values: ['POPUP', 'CONCERT'] },
+];
+
 const future = (n: number) => {
   const date = new Date(); date.setDate(date.getDate() + n);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -161,6 +169,10 @@ function RequestFormContent() {
         ? 'CHECK_REQUIRED'
         : preset?.inventoryStatus || draft?.inventoryStatus || 'CHECK_REQUIRED',
     );
+  const [placeSearchOpen, setPlaceSearchOpen] = useState(false);
+  const [placeQuery, setPlaceQuery] = useState('');
+  const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
+  const [categoryPath, setCategoryPath] = useState<typeof CATEGORY_PATHS[number] | null>(null);
   // A retry already has confirmed product details; only recognize a newly edited URL.
   const lastResolvedUrl = useRef(preset?.productUrl?.trim() || (draft?.aiFilled ? draft.url.trim() : ''));
   const pendingUrl = useRef('');
@@ -223,6 +235,10 @@ function RequestFormContent() {
     finishDeliveryEditor();
   };
   const place = d.places.find((p) => p.id === placeId) || d.places[0];
+  const placeResults = d.places.filter((candidate) => {
+    const term = placeQuery.trim().toLocaleLowerCase('ko-KR');
+    return !term || `${countryName(candidate.country)} ${candidate.city} ${candidate.name} ${candidate.englishName} ${candidate.region} ${candidate.tags.join(' ')}`.toLocaleLowerCase('ko-KR').includes(term);
+  });
   const mode = normalizeTransport(transport);
   const pricingInput = { localPrice: validLocalPrice(price) ? Number(price) : 0, quantity, currency: currencyForCountry(place.country) };
   const reward = Number(requestedReward) || 0;
@@ -684,53 +700,63 @@ function RequestFormContent() {
             placeholder="AI가 링크와 사진에서 찾아요"
           />
           <View>
-            <Txt size={14} weight="600" style={{ marginBottom: 10 }}>
-              어디에서 살 수 있나요?
-            </Txt>
-            <DestinationPicker country={place.country} cities={[place.city]} onChange={(country, cities) => {
-              const target = d.places.find((p) => p.country === country && (!cities.length || cities.includes(p.city)));
-              if (!target) return;
-              if (target.country !== place.country) setPrice('');
-              setPlaceId(target.id); setStoreName(target.name);
-            }} />
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ gap: 8, paddingTop: 12 }}
+            <Txt size={14} weight="600" style={{ marginBottom: 10 }}>어디에서 살 수 있나요?</Txt>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="구매 장소 검색 열기"
+              onPress={() => setPlaceSearchOpen(true)}
+              style={({ pressed }) => ({ minHeight: 70, borderRadius: 16, borderWidth: 1, borderColor: c.border, backgroundColor: c.paper, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12, opacity: pressed ? 0.76 : 1 })}
             >
-              {d.places.filter((p) => p.country === place.country && p.city === place.city).map((p) => (
-                <Chip
-                  key={p.id}
-                  label={`${p.city} · ${p.name}`}
-                  selected={placeId === p.id}
-                  onPress={() => {
-                    if (p.country !== place.country) setPrice('');
-                    setPlaceId(p.id);
-                    setStoreName(p.name); setInventoryStatus('CHECK_REQUIRED'); setError('');
-                  }}
-                />
-              ))}
-            </ScrollView>
+              <View style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: c.lilac, alignItems: 'center', justifyContent: 'center' }}><MapPin size={20} color={c.green} /></View>
+              <View style={{ flex: 1, minWidth: 0, gap: 2 }}><Txt size={12} color={c.secondary}>구매 장소</Txt><Txt size={16} weight="700" lines={1}>{place.city} · {place.name}</Txt></View>
+              <ChevronRight size={20} color={c.muted} />
+            </Pressable>
           </View>
           <View>
-            <Txt size={14} weight="600" style={{ marginBottom: 10 }}>
-              상품 종류
-            </Txt>
-            <Row style={{ flexWrap: 'wrap', gap: 8 }}>
-              {Object.entries(CATEGORIES).map(([v, label]) => (
-                <Chip
-                  key={v}
-                  label={label}
-                  selected={category === v}
-                  onPress={() => setCategory(v as Category)}
-                />
-              ))}
-            </Row>
+            <Txt size={14} weight="600" style={{ marginBottom: 10 }}>상품 종류</Txt>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="상품 종류 선택 열기"
+              onPress={() => { setCategoryPath(null); setCategoryPickerOpen(true); }}
+              style={({ pressed }) => ({ minHeight: 62, borderRadius: 16, borderWidth: 1, borderColor: c.border, backgroundColor: c.paper, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12, opacity: pressed ? 0.76 : 1 })}
+            >
+              <View style={{ flex: 1, minWidth: 0, gap: 2 }}><Txt size={12} color={c.secondary}>카테고리</Txt><Txt size={16} weight="700">{CATEGORIES[category]}</Txt></View>
+              <ChevronRight size={20} color={c.muted} />
+            </Pressable>
           </View>
           <Field label="옵션" value={option} onChange={setOption} placeholder="색상·사이즈 등" />
           <Txt size={12} color={c.secondary}>
             식품·의약품·주류·담배·고가 명품은 요청할 수 없어요.
           </Txt>
+          <Sheet
+            visible={placeSearchOpen}
+            title="구매 장소 찾기"
+            subtitle="도시, 매장, 쇼핑몰 이름으로 검색하세요."
+            onClose={() => { setPlaceSearchOpen(false); setPlaceQuery(''); }}
+          >
+            <SearchField label="구매 장소 검색" value={placeQuery} onChange={setPlaceQuery} placeholder="예: 시부야 PARCO, 도쿄, 치이카와" />
+            <Txt size={12} color={c.secondary}>{placeQuery.trim() ? `${placeResults.length}곳을 찾았어요` : '여행지와 매장을 한 번에 찾아보세요.'}</Txt>
+            {placeResults.map((candidate) => <Pressable key={candidate.id} accessibilityRole="button" accessibilityLabel={`${candidate.city} ${candidate.name} 선택`} onPress={() => {
+              if (candidate.country !== place.country) setPrice('');
+              setPlaceId(candidate.id); setStoreName(candidate.name); setInventoryStatus('CHECK_REQUIRED'); setError('');
+              setPlaceSearchOpen(false); setPlaceQuery('');
+            }} style={({ pressed }) => ({ minHeight: 76, padding: 16, borderRadius: 16, backgroundColor: placeId === candidate.id ? c.lilac : c.canvas, borderWidth: 1, borderColor: placeId === candidate.id ? c.green : c.border, flexDirection: 'row', alignItems: 'center', gap: 12, opacity: pressed ? 0.72 : 1 })}>
+              <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: c.paper, alignItems: 'center', justifyContent: 'center' }}><MapPin size={18} color={c.green} /></View>
+              <View style={{ flex: 1, minWidth: 0, gap: 2 }}><Txt size={16} weight="700" lines={1}>{candidate.name}</Txt><Txt size={12} color={c.secondary} lines={1}>{countryName(candidate.country)} · {candidate.city} · {candidate.region}</Txt></View>
+              {placeId === candidate.id ? <Check size={20} color={c.green} /> : <ChevronRight size={18} color={c.muted} />}
+            </Pressable>)}
+            {!placeResults.length && <Empty title="찾는 장소가 없어요" body="도시나 매장 이름을 다시 검색해보세요." />}
+          </Sheet>
+          <Sheet
+            visible={categoryPickerOpen}
+            title={categoryPath ? categoryPath.name : '상품 종류 선택'}
+            subtitle={categoryPath ? '가장 가까운 상품 종류를 골라주세요.' : '먼저 상품이 속한 큰 범주를 골라주세요.'}
+            onClose={() => { setCategoryPickerOpen(false); setCategoryPath(null); }}
+          >
+            {categoryPath ? <>
+              <Button small kind="ghost" label="← 큰 범주로 돌아가기" onPress={() => setCategoryPath(null)} style={{ alignSelf: 'flex-start' }} />
+              {categoryPath.values.map((value) => <Pressable key={value} accessibilityRole="button" accessibilityLabel={`${CATEGORIES[value]} 선택`} onPress={() => { setCategory(value); setCategoryPickerOpen(false); setCategoryPath(null); }} style={({ pressed }) => ({ minHeight: 68, paddingHorizontal: 16, borderRadius: 16, borderWidth: 1, borderColor: category === value ? c.green : c.border, backgroundColor: category === value ? c.lilac : c.paper, flexDirection: 'row', alignItems: 'center', opacity: pressed ? 0.72 : 1 })}><Txt size={16} weight="700" style={{ flex: 1 }}>{CATEGORIES[value]}</Txt>{category === value ? <Check size={20} color={c.green} /> : <ChevronRight size={19} color={c.muted} />}</Pressable>)}</> : CATEGORY_PATHS.map((path) => <Pressable key={path.name} accessibilityRole="button" accessibilityLabel={`${path.name} 상품 종류 선택`} onPress={() => setCategoryPath(path)} style={({ pressed }) => ({ minHeight: 78, padding: 16, borderRadius: 16, backgroundColor: c.paper, borderWidth: 1, borderColor: c.border, flexDirection: 'row', alignItems: 'center', gap: 12, opacity: pressed ? 0.72 : 1 })}><View style={{ flex: 1, minWidth: 0, gap: 3 }}><Txt size={16} weight="700">{path.name}</Txt><Txt size={12} color={c.secondary}>{path.description}</Txt></View><ChevronRight size={19} color={c.muted} /></Pressable>)}
+          </Sheet>
             </>
           ) : null}
           <ProductOriginal text={originalText} />
