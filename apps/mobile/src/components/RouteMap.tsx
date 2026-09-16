@@ -5,7 +5,7 @@ import type { Place } from '@moa/domain';
 import { colors as c } from '../theme/tokens';
 import { kakaoMapEmbedUrl, googlePlaceUrl, googleRouteMapHtml } from './google-route-map-html';
 import { Button, Txt } from './ui';
-import { RouteMapEmpty, RouteMapStatus, ROUTE_MAP_TIMEOUT, RouteMapLoadState } from './RouteMapStatus';
+import { RouteMapEmpty, RouteMapStatus, RouteMapUnavailable, ROUTE_MAP_TIMEOUT, RouteMapLoadState } from './RouteMapStatus';
 
 export type RouteMapProps = { places: Place[]; selected?: string; onSelect: (place: Place) => void };
 
@@ -22,13 +22,14 @@ export default function RouteMap({ places, selected, onSelect }: RouteMapProps) 
     setStatus((current) => next === 'ready' && current === 'error' ? current : next);
   };
   useEffect(() => {
-    if (!active) return;
+    if (!active || !apiKey) return;
     setStatus('loading');
     timer.current = setTimeout(() => setStatus('error'), ROUTE_MAP_TIMEOUT);
     return () => clearTimeout(timer.current);
   }, [html, active?.id, attempt, apiKey]);
   if (!active) return <RouteMapEmpty />;
   const open = () => void Linking.openURL(googlePlaceUrl(active));
+  if (!apiKey) return <RouteMapUnavailable places={places} active={active} onSelect={onSelect} onOpen={open} />;
   return <View style={{ borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: c.border, backgroundColor: c.paper }}>
     <View style={{ height: 300 }}>
       <WebView key={`${active.id}-${attempt}`} source={apiKey ? { html } : { uri: kakaoMapEmbedUrl(active) }} style={{ height: 300 }}

@@ -10,6 +10,7 @@ import {
   ImagePlus,
   Landmark,
   LockKeyhole,
+  MapPin,
   MessageCircle,
   Package,
   Plane,
@@ -24,7 +25,7 @@ import { Place, Transaction, money, shortDate, STATUS_LABEL, TRANSPORT_LABEL, tr
 import { useApp } from '../state/AppContext';
 import { MeetupSummary } from '../components/MeetupSummary';
 import { PlaneRouteAnimation } from '../components/travel-route';
-import { colors as c } from '../theme/tokens';
+import { colors as c, radius, space, typography } from '../theme/tokens';
 import { pickImage } from '../lib/images';
 import demoImages from '../lib/demo-images.json';
 import {
@@ -45,6 +46,11 @@ import {
   Txt,
 } from '../components/ui';
 import { Avatar, MoneyBreakdown, ProductArt, ProductRow, Timeline } from '../components/visuals';
+const tradeStatusLabel = (transaction: Transaction, domestic = false) => {
+  if (transaction.status === 'TRAVELING' && domestic) return '약속한 곳으로 이동해요';
+  if (transaction.status === 'SHIPPED' && transaction.transport === 'MEETUP') return '만날 약속이 준비됐어요';
+  return STATUS_LABEL[transaction.status];
+};
 const optimizedRoute = (places: Place[]) => {
   if (places.length < 2) return places;
   const remaining = places.slice(1), ordered = [places[0]];
@@ -69,7 +75,7 @@ export function TradesScreen() {
   const actionLabel = (t: Transaction) => {
     if (t.status === 'MATCHED') return buyer ? '결제를 완료해주세요' : '구매자의 결제를 기다려요';
     if (t.status === 'PAYMENT_HELD') return buyer ? '여행자가 구매할 차례예요' : '구매 후 사진을 올려주세요';
-    if (t.status === 'PURCHASED') return '귀국 후 전달을 준비해요';
+    if (t.status === 'PURCHASED') return '약속한 방법으로 전달을 준비해요';
     if (t.status === 'TRAVELING') return buyer ? '전달 소식을 기다려요' : t.transport === 'MEETUP' ? '만날 약속을 등록해주세요' : '국내 택배 정보를 등록해주세요';
     if (['SHIPPED', 'DELIVERED'].includes(t.status)) return buyer ? '받으셨다면 구매를 확정해주세요' : '구매자의 수령을 기다려요';
     if (t.status === 'CONFIRMED') return buyer ? '받은 상품은 어떠셨나요?' : '정산을 받을 수 있어요';
@@ -77,6 +83,7 @@ export function TradesScreen() {
   };
   return (
     <Page title="거래" back={false}>
+      <Row style={{ alignItems: 'flex-end', justifyContent: 'space-between' }}><Stack gap={space.xs}><Txt size={12} color={c.primary} weight="700">{buyer ? '나에게 오는 여정' : '함께 가져오는 여정'}</Txt><Txt size={typography.hero} weight="800">{buyer ? '설레는 기다림' : '가는 길의 약속'}</Txt></Stack><View style={{ alignItems: 'flex-end', paddingBottom: space.xs }}><Txt size={26} weight="800">{myTransactions.filter((item) => !completed(item)).length}<Txt size={14} weight="500" color={c.secondary}> 건</Txt></Txt><Txt size={12} color={c.secondary}>진행 중</Txt></View></Row>
       <SectionTabs items={['진행 중', waitingLabel, '완료']} value={filter} onChange={setFilter} />
       {filter === waitingLabel ? (
         <Stack gap={12}>
@@ -104,11 +111,13 @@ export function TradesScreen() {
             if (!r) return null;
             const partner = d.users.find((u) => u.id === (buyer ? t.travelerId : t.buyerId));
             const room = d.rooms.find((room) => room.transactionId === t.id);
+            const progress = ['MATCHED', 'PAYMENT_HELD', 'PURCHASED', 'TRAVELING', 'SHIPPED', 'DELIVERED', 'CONFIRMED', 'SETTLED'].indexOf(t.status);
             return <Card key={t.id} style={{ padding: 0, overflow: 'hidden' }}>
               <Pressable accessibilityRole="button" accessibilityLabel={r.productName + ' 거래 보기'} onPress={() => a.nav(t.status === 'MATCHED' && buyer ? 'payment' : 'transaction', { id: t.id })} style={{ padding: 18, gap: 16 }}>
-                <Row style={{ justifyContent: 'space-between' }}><Badge color={t.status === 'DISPUTED' ? c.danger : c.green} bg={t.status === 'DISPUTED' ? c.dangerBg : c.mint}>{STATUS_LABEL[t.status]}</Badge><ChevronRight size={18} color={c.muted} /></Row>
-                <Row><ProductArt art={r.art} image={r.productImage} size={64} /><Stack gap={5} style={{ flex: 1 }}><Txt weight="700" lines={2}>{r.productName}</Txt><Txt size={13} color={c.secondary}>{shortDate(t.estimatedDeliveryDate)} 전달 · {TRANSPORT_LABEL[t.transport]}</Txt><Txt weight="700">{buyer ? money(t.totalPrice) : '보상 ' + money(t.travelerReward)}</Txt></Stack></Row>
-                <Txt size={14} color={c.green} weight="600">{actionLabel(t)}</Txt>
+                <Row style={{ justifyContent: 'space-between' }}><Badge color={t.status === 'DISPUTED' ? c.danger : c.primaryStrong} bg={t.status === 'DISPUTED' ? c.dangerBg : c.primarySoft}>{tradeStatusLabel(t, r.country === r.deliveryCountry)}</Badge><Txt size={12} color={c.secondary}>{r.city}</Txt></Row>
+                <Row><ProductArt art={r.art} image={r.productImage} featured={r.productName.includes('치이카와')} size={64} /><Stack gap={5} style={{ flex: 1 }}><Txt weight="700" lines={2}>{r.productName}</Txt><Txt size={13} color={c.secondary}>{shortDate(t.estimatedDeliveryDate)} 전달 · {TRANSPORT_LABEL[t.transport]}</Txt><Txt weight="700">{buyer ? money(t.totalPrice) : '보상 ' + money(t.travelerReward)}</Txt></Stack></Row>
+                {progress >= 0 && <Row style={{ gap: space.xs }}>{[0, 2, 3, 4, 6].map((step) => <View key={step} style={{ flex: 1, height: 3, borderRadius: 2, backgroundColor: progress >= step ? c.primary : c.border }} />)}</Row>}
+                <Row><Txt size={14} color={t.status === 'DISPUTED' ? c.danger : c.primaryStrong} weight="600" style={{ flex: 1 }}>{actionLabel(t)}</Txt><ChevronRight size={17} color={c.primary} /></Row>
               </Pressable>
               {partner && room && <View style={{ borderTopWidth: 1, borderTopColor: c.border, paddingHorizontal: 18, paddingVertical: 10 }}><Row style={{ justifyContent: 'space-between' }}><Row><Avatar user={partner} size={28} /><Txt size={13} color={c.secondary}>{partner.nickname}</Txt></Row><Button small kind="ghost" icon={MessageCircle} label="대화하기" onPress={() => a.nav('chat', { id: t.id })} /></Row></View>}
             </Card>;
@@ -125,6 +134,7 @@ export function PaymentScreen() {
   const [fail, setFail] = useState(false);
   const [method, setMethod] = useState<'CARD' | 'ACCOUNT' | ''>('');
   const [paymentReady, setPaymentReady] = useState(false);
+  const [paymentError, setPaymentError] = useState('');
   if (!t) return <Page title="결제"><Empty /></Page>;
   const r = d.requests.find((r) => r.id === t.requestId), u = d.users.find((u) => u.id === t.travelerId);
   if (!r || !u) return <Page title="결제"><Empty title="거래 정보를 다시 확인해주세요" body="상품이나 여행자 정보를 불러오지 못했어요." action="거래 목록으로" onPress={() => a.tab('trades')} /></Page>;
@@ -137,6 +147,7 @@ export function PaymentScreen() {
       return;
     }
     if (!method) {
+      setPaymentError('아래에서 카드 또는 계좌를 선택해주세요.');
       a.notify('카드 또는 계좌를 먼저 선택해주세요.');
       return;
     }
@@ -145,24 +156,36 @@ export function PaymentScreen() {
       return;
     }
     if (!agreed) {
+      setPaymentError('결제 금액을 확인한 후 체크해주세요.');
       a.notify('결제 금액 확인에 체크해주세요.');
       return;
     }
+    setPaymentError('');
     const result = await a.mutate<Transaction>(
       `/transactions/${t.id}/actions`,
       { action: 'PAY', expectedRevision: t.revision, paymentMethod: method, paymentReference: reference, simulateFailure: fail },
       '결제 체험을 완료했어요.',
     );
     if (result) a.nav('transaction', { id: t.id });
+    else setPaymentError('결제가 완료되지 않았어요. 거래 상태를 확인한 뒤 다시 시도해주세요.');
   };
   return (
-    <Page title="결제" footer={<Button label={!canPay ? '거래 진행 보기' : paymentReady ? money(t.totalPrice) + ' 결제 체험하기' : method ? '이 결제수단으로 계속' : '결제수단을 선택해주세요'} loading={a.busy} icon={LockKeyhole} onPress={() => void pay()} />}>
-      <Stack gap={8}>
-        <Txt size={13} color={c.secondary}>{paymentReady ? '2 / 2 · 최종 확인' : '1 / 2 · 결제수단'}</Txt>
-        <Txt size={25} weight="700">{paymentReady ? '금액을 확인해주세요' : '어떻게 결제할까요?'}</Txt>
-        <Txt size={32} weight="700">{money(t.totalPrice)}</Txt>
-      </Stack>
-      <Notice>실제 결제 연결 전인 체험 화면이에요. 예시 카드·계좌로 진행하며 실제 출금이나 인증은 일어나지 않아요.</Notice>
+    <Page title="안전결제" footer={<Stack gap={space.md}>
+      <Row style={{ justifyContent: 'space-between' }}><Txt size={13} color={c.secondary}>총 결제금액</Txt><Txt size={25} weight="800">{money(t.totalPrice)}</Txt></Row>
+      <Button label={!canPay ? '거래 진행 보기' : paymentReady ? money(t.totalPrice) + ' 결제 체험하기' : method ? '이 결제수단으로 계속' : '결제수단을 선택해주세요'} loading={a.busy} icon={LockKeyhole} onPress={() => void pay()} />
+    </Stack>}>
+      <Row style={{ gap: space.sm }}>
+        {['결제수단', '금액 확인'].map((label, index) => <Row key={label} style={{ gap: space.xs }}><View style={{ width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: index === (paymentReady ? 1 : 0) ? c.primary : c.primarySoft }}><Txt size={11} weight="700" color={index === (paymentReady ? 1 : 0) ? c.onPrimary : c.primary}>{index + 1}</Txt></View><Txt size={12} weight="600" color={index === (paymentReady ? 1 : 0) ? c.ink : c.muted}>{label}</Txt>{index === 0 && <ChevronRight size={14} color={c.muted} />}</Row>)}
+      </Row>
+      <Card style={{ padding: 0, overflow: 'hidden' }}>
+        <Row style={{ padding: space.lg, alignItems: 'flex-start' }}>
+          <ProductArt art={r.art} image={r.productImage} featured={r.productName.includes('치이카와')} size={80} />
+          <Stack gap={space.xs} style={{ flex: 1, minWidth: 0 }}><Txt size={12} color={c.primary} weight="600">{r.city} · {r.storeName}</Txt><Txt size={17} weight="700" lines={3}>{r.productName}</Txt><Txt size={13} color={c.secondary}>{r.quantity}개 · {TRANSPORT_LABEL[t.transport]}</Txt></Stack>
+        </Row>
+        <View style={{ padding: space.lg, borderTopWidth: 1, borderStyle: 'dashed', borderColor: c.border, backgroundColor: c.primarySoft }}><Row><Avatar user={u} size={32} /><Stack gap={2} style={{ flex: 1 }}><Txt size={13} weight="600">{u.nickname}님이 가져와요</Txt><Txt size={12} color={c.secondary}>{shortDate(t.estimatedDeliveryDate)} 전달 예정</Txt></Stack><ShieldCheck size={20} color={c.primary} /></Row></View>
+      </Card>
+      <Stack gap={space.xs}><Txt size={typography.title} weight="700">{paymentReady ? '금액을 확인해주세요' : '어떻게 결제할까요?'}</Txt><Txt size={13} color={c.secondary}>상품을 받은 뒤 여행자에게 정산돼요.</Txt></Stack>
+      {!!paymentError && <Notice tone="error">{paymentError}</Notice>}
       {!paymentReady ? (
         <Stack gap={12}>
           {[
@@ -170,21 +193,17 @@ export function PaymentScreen() {
             { value: 'ACCOUNT' as const, title: '계좌로 결제', subtitle: '체험 계좌 · 0001', icon: Landmark },
           ].map((item) => {
             const selected = method === item.value, Icon = item.icon;
-            return <Pressable key={item.value} accessibilityRole="radio" accessibilityLabel={item.title} aria-checked={selected} accessibilityState={{ checked: selected }} onPress={() => { setMethod(item.value); setAgreed(false); }} style={{ borderWidth: 1, borderColor: selected ? c.green : c.border, borderRadius: 16, padding: 18, backgroundColor: selected ? c.mint : c.paper }}><Row><Icon size={24} color={selected ? c.green : c.secondary} /><View style={{ flex: 1 }}><Txt weight="700">{item.title}</Txt><Txt size={13} color={c.secondary}>{item.subtitle}</Txt></View><CheckCircle2 size={22} color={selected ? c.green : c.border} /></Row></Pressable>;
+            return <Pressable key={item.value} accessibilityRole="radio" accessibilityLabel={item.title} aria-checked={selected} accessibilityState={{ checked: selected }} onPress={() => { setMethod(item.value); setAgreed(false); setPaymentError(''); }} style={({ pressed }) => ({ borderWidth: selected ? 2 : 1, borderColor: selected ? c.primary : c.border, borderRadius: radius.md, padding: selected ? 19 : 20, backgroundColor: selected ? c.primarySoft : c.paper, opacity: pressed ? 0.8 : 1 })}><Row><View style={{ width: 44, height: 44, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center', backgroundColor: selected ? c.paper : c.canvas }}><Icon size={23} color={selected ? c.primary : c.secondary} /></View><Stack gap={space.xs} style={{ flex: 1 }}><Txt weight="700">{item.title}</Txt><Txt size={13} color={c.secondary}>{item.subtitle}</Txt></Stack><CheckCircle2 size={22} color={selected ? c.primary : c.border} /></Row></Pressable>;
           })}
-          <Txt size={13} color={c.secondary}>실제 카드번호나 계좌번호를 입력할 필요가 없어요.</Txt>
         </Stack>
       ) : (
         <Stack gap={16}>
-          <Card><Row>{method === 'CARD' ? <CreditCard size={24} color={c.green} /> : <Landmark size={24} color={c.green} />}<View style={{ flex: 1 }}><Txt size={12} color={c.secondary}>선택한 결제수단</Txt><Txt weight="700">{reference}</Txt></View><Button kind="ghost" small label="변경" onPress={() => { setPaymentReady(false); setAgreed(false); }} /></Row></Card>
-          <Pressable accessibilityRole="checkbox" accessibilityLabel="결제 금액 확인" aria-checked={agreed} accessibilityState={{ checked: agreed }} onPress={() => setAgreed(!agreed)} style={{ paddingVertical: 12 }}><Row style={{ alignItems: 'flex-start' }}><CheckCircle2 size={24} color={agreed ? c.green : c.muted} /><Txt size={14} style={{ flex: 1 }}>상품·보상·국내 전달비와 체험 결제 금액을 확인했어요.</Txt></Row></Pressable>
+          <Card><Row>{method === 'CARD' ? <CreditCard size={24} color={c.primary} /> : <Landmark size={24} color={c.primary} />}<View style={{ flex: 1 }}><Txt size={12} color={c.secondary}>선택한 결제수단</Txt><Txt weight="700">{reference}</Txt></View><Button kind="ghost" small label="변경" onPress={() => { setPaymentReady(false); setAgreed(false); setPaymentError(''); }} /></Row></Card>
         </Stack>
       )}
-      <ProductRow request={r} onPress={() => a.nav('request', { id: r.id })} />
-      <MoneyBreakdown price={t} />
-      <Divider />
-      <Row><Avatar user={u} /><View style={{ flex: 1 }}><Txt weight="600">{u.nickname}님이 가져와요</Txt><Txt size={13} color={c.secondary}>{shortDate(t.estimatedDeliveryDate)} · {TRANSPORT_LABEL[t.transport]}</Txt></View></Row>
-      <Row style={{ alignItems: 'flex-start' }}><ShieldCheck size={20} color={c.green} /><View style={{ flex: 1 }}><Txt size={14} weight="600">구매 확정 후 여행자에게 정산해요</Txt><Txt size={13} color={c.secondary}>체험에서는 결제 승인과 보관, 정산 순서를 확인할 수 있어요.</Txt></View></Row>
+      <Card><Stack gap={space.lg}><Txt size={17} weight="700">결제 내역</Txt><MoneyBreakdown price={t} /></Stack></Card>
+      {paymentReady && <Pressable accessibilityRole="checkbox" accessibilityLabel="결제 금액 확인" aria-checked={agreed} accessibilityState={{ checked: agreed }} onPress={() => { setAgreed(!agreed); setPaymentError(''); }} style={{ minHeight: 56, padding: space.lg, borderRadius: radius.md, backgroundColor: agreed ? c.primarySoft : c.paper, borderWidth: 1, borderColor: agreed ? c.primary : c.border }}><Row style={{ alignItems: 'flex-start' }}><CheckCircle2 size={24} color={agreed ? c.primary : c.muted} /><Txt size={14} style={{ flex: 1 }}>상품·보상·국내 전달비와 체험 결제 금액을 확인했어요.</Txt></Row></Pressable>}
+      <Row style={{ alignItems: 'flex-start' }}><ShieldCheck size={18} color={c.primary} /><Txt size={12} color={c.secondary} style={{ flex: 1 }}>체험 결제예요. 예시 카드·계좌로 진행하며 실제 출금이나 인증은 일어나지 않아요. 실제 결제정보는 입력하지 마세요.</Txt></Row>
       <Button small kind="ghost" label={fail ? '결제 실패 체험 켜짐 · 끄기' : '결제 실패 상태도 체험하기'} onPress={() => setFail(!fail)} />
     </Page>
   );
@@ -311,6 +330,12 @@ export function TransactionScreen() {
   const held = escrow?.status === 'HELD',
     frozen = escrow?.status === 'FROZEN',
     unavailable = receipt?.outcome === 'OUT_OF_STOCK';
+  const domestic = r.country === r.deliveryCountry;
+  const isComingHome = t.status === 'TRAVELING' && !domestic;
+  const isDomesticDelivery = ['SHIPPED', 'DELIVERED'].includes(t.status);
+  const handoffIcon = t.transport === 'MEETUP' ? MapPin : Truck;
+  const StatusIcon = isComingHome ? Plane : t.status === 'TRAVELING' && domestic ? MapPin : isDomesticDelivery ? handoffIcon : ['CONFIRMED', 'SETTLED'].includes(t.status) ? CheckCircle2 : t.status === 'DISPUTED' ? AlertCircle : Package;
+  const statusTitle = isComingHome ? `${travelerUser.nickname}님이\n상품과 함께 돌아와요` : t.status === 'TRAVELING' && domestic ? '약속한 곳으로 이동해요' : isDomesticDelivery ? t.transport === 'MEETUP' ? t.status === 'DELIVERED' ? '상품을 전달받았어요' : '만날 약속이 준비됐어요' : t.status === 'DELIVERED' ? '상품이 도착했어요' : '국내 택배로 오는 중이에요' : ['CONFIRMED', 'SETTLED'].includes(t.status) ? '이번 여정을 함께 마쳤어요' : STATUS_LABEL[t.status];
   if (buyer && t.status === 'CANCELLED')
     return (
       <Page
@@ -391,27 +416,18 @@ export function TransactionScreen() {
         )
       }
     >
-      <Stack gap={8}>
-        <Txt size={25} weight="700">
-          {STATUS_LABEL[t.status]}
-        </Txt>
-        <Txt size={14} color={c.secondary}>
-          {shortDate(t.estimatedDeliveryDate)} 전달 예정 · {TRANSPORT_LABEL[t.transport]}
-        </Txt>
-      </Stack>
-      <ProductRow request={r} onPress={() => a.nav('request', { id: r.id })} />
+      <View style={{ backgroundColor: frozen ? c.dangerBg : c.primarySoft, borderRadius: radius.lg, padding: space.page, gap: space.lg }}>
+        <Row style={{ justifyContent: 'space-between' }}><Badge bg={c.paper} color={frozen ? c.danger : c.primaryStrong}>{tradeStatusLabel(t, domestic)}</Badge><StatusIcon size={24} color={frozen ? c.danger : c.primary} /></Row>
+        <Stack gap={space.sm}><Txt size={typography.hero} weight="800">{statusTitle}</Txt><Txt size={13} color={c.secondary}>{shortDate(t.estimatedDeliveryDate)} 전달 예정 · {TRANSPORT_LABEL[t.transport]}</Txt></Stack>
+        {isComingHome && trip && <Stack gap={space.sm}><PlaneRouteAnimation departure={trip.destinationCity} destination={trip.departureCity} /><Txt size={12} color={c.secondary}>등록된 여행 일정 기준 · 실제 GPS 위치가 아니에요.</Txt></Stack>}
+        {isDomesticDelivery && shipment && <Row style={{ paddingTop: space.lg, borderTopWidth: 1, borderColor: c.primaryTint }}><View style={{ width: 44, height: 44, borderRadius: radius.sm, backgroundColor: c.paper, alignItems: 'center', justifyContent: 'center' }}><StatusIcon size={22} color={c.primary} /></View><Stack gap={2} style={{ flex: 1 }}><Txt size={15} weight="700">{shipment.carrier}</Txt><Txt size={13} color={c.secondary}>{shipment.trackingNumber}</Txt></Stack></Row>}
+        {isComingHome && trip && <Button small kind="secondary" label="여행 일정 보기" icon={Plane} onPress={() => a.nav('trip-route', { id: trip.id, placeId: r.placeId })} style={{ backgroundColor: c.paper }} />}
+      </View>
+      <Card style={{ padding: space.lg }}><ProductRow request={r} onPress={() => a.nav('request', { id: r.id })} /></Card>
       <Row style={{ justifyContent: 'space-between' }}><Row style={{ flex: 1 }}><Avatar user={other} size={36} /><View style={{ flex: 1 }}><Txt size={15} weight="600">{other.nickname}</Txt><Txt size={12} color={c.secondary}>{buyer ? '가져오는 여행자' : '부탁한 사람'}</Txt></View></Row><Button small kind="secondary" label="대화하기" icon={MessageCircle} onPress={() => a.nav('chat', { id: t.id })} /></Row>
       <Row style={{ backgroundColor: frozen ? c.dangerBg : c.canvas, padding: 14, borderRadius: 12, alignItems: 'flex-start' }}><LockKeyhole size={17} color={frozen ? c.danger : c.secondary} /><Txt size={13} color={frozen ? c.danger : c.secondary} style={{ flex: 1 }}>{frozen ? '문제를 확인하는 동안 정산을 멈췄어요.' : held ? '결제 체험 완료 · 구매 확정 후 정산해요.' : escrow?.status === 'RELEASED' ? '정산 체험을 완료했어요.' : escrow?.status === 'REFUNDED' ? '체험 결제금이 환불됐어요.' : '결제가 완료되면 구매를 시작해요.'}</Txt></Row>
       {!['DISPUTED', 'CANCELLED'].includes(t.status) ? (
-        <View style={{ paddingHorizontal: 4, paddingVertical: 8 }}>
-          {t.status === 'TRAVELING' && trip && (
-            <Stack gap={8} style={{ marginBottom: 18 }}>
-              <PlaneRouteAnimation departure={trip.destinationCity} destination={trip.departureCity} />
-              <Txt size={11} color={c.secondary}>여행 일정 기준 귀국 단계 · 실제 항공편이나 GPS 위치가 아니에요.</Txt>
-            </Stack>
-          )}
-          <Timeline transaction={t} />
-        </View>
+        <Stack gap={space.lg}><Txt size={typography.section} weight="700">부탁이 오는 길</Txt><View style={{ paddingHorizontal: space.xs }}><Timeline transaction={t} domestic={domestic} /></View></Stack>
       ) : (
         <Notice tone={t.status === 'DISPUTED' ? 'error' : 'info'}>
           {t.status === 'DISPUTED'
@@ -419,17 +435,16 @@ export function TransactionScreen() {
             : '이 거래는 취소되었어요. 결제된 모의 금액은 전액 환불됐어요.'}
         </Notice>
       )}
-      {trip && <Card style={{ backgroundColor: c.canvas }}>
-        <Stack gap={13}>
-          <Row style={{ justifyContent: 'space-between' }}><View style={{ flex: 1 }}><Txt size={18} weight="700">{travelerUser.nickname}님의 공개 여행 일정</Txt><Txt size={12} color={c.secondary}>일정을 보며 자연스럽게 이야기할 수 있어요.</Txt></View><Plane size={23} color={c.green} /></Row>
-          <Txt weight="700">{trip.departureCity} → {[...new Set(trip.placeIds.map((id) => d.places.find((place) => place.id === id)?.city).filter(Boolean))].join(' · ')}</Txt>
-          <Txt size={13} color={c.secondary}>{trip.startDate} — {trip.endDate}</Txt>
-          <Divider />
-          <Txt size={14} weight="700">수락한 부탁 기준 추천 동선</Txt>
-          {routePlaces.map((place, index) => place && <Row key={place.id}><Badge>{index + 1}</Badge><View style={{ flex: 1 }}><Txt weight="600">{place.name}</Txt><Txt size={12} color={c.secondary}>{place.city} {place.region} · 동선 추가 약 {place.extraMinutes}분</Txt></View></Row>)}
-          <Txt size={11} color={c.secondary}>좌표 기반 가까운 장소 순서의 예시 동선이에요. 실제 교통편·영업시간을 연결하면 다시 계산해요.</Txt>
+      {trip && <Card style={{ padding: 0, overflow: 'hidden' }}>
+        <Stack gap={space.lg} style={{ padding: space.page }}>
+          <Row style={{ justifyContent: 'space-between' }}><View style={{ flex: 1 }}><Txt size={12} color={c.primary} weight="700">TRIP WITH {travelerUser.nickname}</Txt><Txt size={18} weight="700">함께 오는 여행 일정</Txt></View><Plane size={23} color={c.primary} /></Row>
+          <Row><Txt size={18} weight="700" style={{ flex: 1 }}>{trip.departureCity}</Txt><View style={{ flex: 1, height: 1, borderTopWidth: 1, borderStyle: 'dashed', borderColor: c.primary }} /><ArrowRight size={16} color={c.primary} /><Txt size={18} weight="700" style={{ flex: 1, textAlign: 'right' }}>{trip.destinationCity}</Txt></Row>
+          <Txt size={13} color={c.secondary}>{shortDate(trip.startDate)} — {shortDate(trip.endDate)} · {routePlaces.length}곳 방문 동선</Txt>
+          <View style={{ borderTopWidth: 1, borderStyle: 'dashed', borderColor: c.border, paddingTop: space.lg, gap: space.md }}>
+            {routePlaces.slice(0, 3).map((place, index) => place && <Row key={place.id}><View style={{ width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: place.id === r.placeId ? c.primary : c.primarySoft }}><Txt size={11} weight="700" color={place.id === r.placeId ? c.onPrimary : c.primary}>{index + 1}</Txt></View><Txt size={14} weight={place.id === r.placeId ? '700' : '400'} style={{ flex: 1 }}>{place.name}</Txt>{place.id === r.placeId && <Txt size={11} color={c.primary}>내 부탁</Txt>}</Row>)}
+            {routePlaces.length > 3 && <Txt size={12} color={c.secondary}>외 {routePlaces.length - 3}곳 · 전체 일정에서 확인해요</Txt>}
+          </View>
           <Button small kind="secondary" icon={Plane} label="여행 경로 전체 보기" onPress={() => a.nav('trip-route', { id: trip.id, placeId: r.placeId })} />
-          <Button small kind="secondary" icon={MessageCircle} label="일정 이야기하기" onPress={() => a.nav('chat', { id: t.id })} />
         </Stack>
       </Card>}
       <View><Button kind="ghost" label={showPrice ? '금액 접기' : '결제금액 자세히 보기'} icon={Wallet} onPress={() => setShowPrice(!showPrice)} />{showPrice && <View style={{ paddingTop: 16 }}><MoneyBreakdown price={t} /></View>}</View>
@@ -454,7 +469,7 @@ export function TransactionScreen() {
           </Txt>
         </Stack>
       )}
-      {shipment && (
+      {shipment && !isDomesticDelivery && (
         <Card>
           <Stack gap={9}>
             <Row>
@@ -793,16 +808,17 @@ export function ReceiveScreen() {
         />
       }
     >
-      <View style={{ alignItems: 'center', padding: 10 }}>
+      <View style={{ alignItems: 'center', padding: space.xl, backgroundColor: c.primarySoft, borderRadius: radius.lg, gap: space.md }}>
         <ProductArt
           art={r.art}
           image={r.productImage}
           featured={r.productName.includes('치이카와')}
-          size={170}
+          size={140}
         />
+        <Txt size={15} weight="600" lines={2} style={{ textAlign: 'center' }}>{r.productName}</Txt>
       </View>
       <Txt size={27} weight="800">
-        {delivered ? '상품 확인을 마치고\n구매를 확정해주세요.' : '상품을 받았다면\n한 번에 완료해요.'}
+        {delivered ? '상품 확인을 마치고\n구매를 확정해주세요.' : '상품 잘 받으셨나요?'}
       </Txt>
       <Txt color={c.secondary}>
         아래 세 가지를 확인하면 수령 기록과 구매 확정이 함께 처리되고 여행자가 정산할 수 있어요.
@@ -836,7 +852,8 @@ export function ReceiveScreen() {
           </Row>
         </Pressable>
       ))}
-      <Notice>문제가 있다면 구매 확정을 누르기 전에 거래 화면에서 문제를 접수해주세요.</Notice>
+      <Row style={{ alignItems: 'flex-start' }}><ShieldCheck size={18} color={c.primary} /><Txt size={13} color={c.secondary} style={{ flex: 1 }}>구매를 확정하면 여행자가 보상을 정산할 수 있어요. 상품과 상태를 먼저 확인해주세요.</Txt></Row>
+      <Button kind="ghost" label="상품에 문제가 있어요" onPress={() => a.nav('transaction', { id: t.id })} />
     </Page>
   );
 }
@@ -860,6 +877,7 @@ export function ChatScreen() {
       </Page>
     );
   const other = d.users.find((u) => u.id === (t.buyerId === d.me.id ? t.travelerId : t.buyerId));
+  const request = d.requests.find((item) => item.id === t.requestId);
   if (!other || ![t.buyerId, t.travelerId].includes(d.me.id)) return <Page title="거래 채팅"><Empty title="이 대화를 불러올 수 없어요" action="거래 목록으로" onPress={() => a.tab('trades')} /></Page>;
   const messages = d.messages.filter((m) => m.roomId === room.id);
   const send = async () => {
@@ -903,7 +921,7 @@ export function ChatScreen() {
       }
     >
       <ScrollView ref={messagesRef} style={{ flex: 1 }} contentContainerStyle={{ padding: 20, gap: 16 }} keyboardShouldPersistTaps="handled" onScroll={(event) => { const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent; nearBottom.current = contentOffset.y + layoutMeasurement.height >= contentSize.height - 80; }} scrollEventThrottle={100} onContentSizeChange={() => { if (nearBottom.current) messagesRef.current?.scrollToEnd({ animated: true }); }}>
-      <Pressable accessibilityRole="button" accessibilityLabel="거래 상세 보기" onPress={() => a.nav('transaction', { id: t.id })}><Row style={{ padding: 14, borderRadius: 14, backgroundColor: c.canvas }}><Package size={19} color={c.green} /><Txt size={14} weight="600" style={{ flex: 1 }}>{STATUS_LABEL[t.status]}</Txt><ChevronRight size={18} color={c.muted} /></Row></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="거래 상세 보기" onPress={() => a.nav('transaction', { id: t.id })}><Row style={{ padding: 14, borderRadius: 14, backgroundColor: c.canvas }}><Package size={19} color={c.green} /><Txt size={14} weight="600" style={{ flex: 1 }}>{tradeStatusLabel(t, !!request && request.country === request.deliveryCountry)}</Txt><ChevronRight size={18} color={c.muted} /></Row></Pressable>
       {connectionFailed && <Notice tone="warning">새 대화를 불러오지 못했어요. 연결되면 다시 확인할게요.</Notice>}
       {messages.map((m) =>
         m.system ? (
@@ -962,20 +980,20 @@ export function ChatScreen() {
 export function PayoutsScreen() {
   const a = useApp(),
     d = a.data!;
+  const [expanded, setExpanded] = useState<string[]>([]);
   const pending = d.transactions.filter(
     (t) => t.travelerId === d.me.id && t.status === 'CONFIRMED',
   );
   const payouts = d.payouts.filter((p) => p.travelerId === d.me.id);
   return (
     <Page title="보상 정산">
-        <Stack gap={8}>
-          <Txt size={14} color={c.secondary}>지금까지 받은 보상</Txt>
-          <Txt size={32} weight="700">
+        <Stack gap={space.lg} style={{ padding: space.xl, backgroundColor: c.primarySoft, borderRadius: radius.lg }}>
+          <Row style={{ justifyContent: 'space-between' }}><Txt size={13} color={c.primaryStrong} weight="600">지금까지 받은 순보상</Txt><Wallet size={22} color={c.primary} /></Row>
+          <Txt size={34} weight="800">
             {money(payouts.reduce((s, p) => s + (p.netReward ?? travelerEarnings(p.reward).netReward), 0))}
           </Txt>
-          <Txt size={13} color={c.secondary}>
-            상품대금 상환액 제외 · 정산 체험
-          </Txt>
+          <Txt size={12} color={c.secondary}>상품대금 상환액 제외 · 정산 체험</Txt>
+          <Button kind="secondary" label="MOA 보관함 보기" onPress={() => a.nav('wallet')} style={{ backgroundColor: c.paper }} />
         </Stack>
       {pending.map((t) => (
         <Card key={t.id}>
@@ -1002,9 +1020,12 @@ export function PayoutsScreen() {
       <View>
         <Section title="정산 내역" />
         {payouts.map((p) => (
-          <Card key={p.id} style={{ marginBottom: 12 }}>
-            <Stack gap={12}>
-              <Badge>모의 정산 완료</Badge>
+          <Card key={p.id} style={{ marginBottom: space.md }}>
+            <Stack gap={space.md}>
+              <Pressable accessibilityRole="button" accessibilityLabel={`${shortDate(p.createdAt)} 정산 내역 ${expanded.includes(p.id) ? '접기' : '보기'}`} accessibilityState={{ expanded: expanded.includes(p.id) }} onPress={() => setExpanded((current) => current.includes(p.id) ? current.filter((id) => id !== p.id) : [...current, p.id])} style={{ minHeight: 52, justifyContent: 'center' }}>
+                <Row><View style={{ flex: 1, gap: space.sm }}><Badge>모의 정산 완료</Badge><Txt size={12} color={c.secondary}>{shortDate(p.createdAt)}</Txt></View><Txt size={22} weight="800" color={c.primaryStrong}>+{money(p.netReward ?? travelerEarnings(p.reward).netReward)}</Txt><ChevronRight size={18} color={c.muted} style={{ transform: [{ rotate: expanded.includes(p.id) ? '90deg' : '0deg' }] }} /></Row>
+              </Pressable>
+              {expanded.includes(p.id) && <Stack gap={space.md}>
               <Row style={{ justifyContent: 'space-between' }}>
                 <Txt color={c.secondary}>상품 선지출 상환</Txt>
                 <Txt>{money(p.reimbursement)}</Txt>
@@ -1034,6 +1055,7 @@ export function PayoutsScreen() {
                   {money(p.amount)}
                 </Txt>
               </Row>
+              </Stack>}
             </Stack>
           </Card>
         ))}

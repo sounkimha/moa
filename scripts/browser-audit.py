@@ -7,7 +7,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from functools import partial
 from pathlib import Path
 from urllib.parse import urlsplit
-import requests, subprocess, tempfile, threading, os, json, sys
+import requests, subprocess, tempfile, threading, os, json, sys, shutil
 
 ROOT = Path(__file__).resolve().parents[1]
 def button(page, label): return page.get_by_role('button', name=label, exact=True)
@@ -38,7 +38,11 @@ with tempfile.TemporaryDirectory(prefix='moa-isolated-ui-') as tmp:
     output = Path(tempfile.mkdtemp(prefix='moa-layout-results-'))
     env=dict(os.environ, DATA_FILE=tmp+'/state.json', PORT='0', QUIET='1')
     env.pop('DATABASE_URL', None)
-    static=ThreadingHTTPServer(('127.0.0.1', 0), partial(QuietStatic, directory=str(ROOT/'apps/mobile/dist')))
+    # Freeze this build for the whole audit; another build must not replace files mid-reload.
+    exported=Path(tmp)/'web'
+    shutil.copytree(ROOT/'apps/mobile/dist', exported)
+    assert (exported/'index.html').is_file(), 'Export the mobile app before running the browser audit'
+    static=ThreadingHTTPServer(('127.0.0.1', 0), partial(QuietStatic, directory=str(exported)))
     worker=threading.Thread(target=static.serve_forever, daemon=True); worker.start()
     app_url='http://127.0.0.1:' + str(static.server_port)
     server=subprocess.Popen(['node','-e',"require('./apps/api/dist/main').bootstrap().then(a=>console.log(JSON.stringify({port:a.getHttpServer().address().port})))"], cwd=ROOT, env=env, stdout=subprocess.PIPE, text=True)
@@ -121,6 +125,18 @@ with tempfile.TemporaryDirectory(prefix='moa-isolated-ui-') as tmp:
                     assert stored['meetupPoint']['latitude']==37.55
                     assert stored['meetupPoint']['detail']=='1번 출구 앞'
                     assert stored['transport']=='MEETUP'
+                    page.evaluate('''() => {
+                      const date=(offset)=>{const d=new Date(); d.setDate(d.getDate()+offset); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
+                      sessionStorage.setItem('moa-trip-draft-v1',JSON.stringify({ownerId:'u-me',draft:{departureCountry:'KR',departureCity:'부산',destinationCountry:'JP',cities:['도쿄'],startDate:date(4),endDate:date(7),placeIds:['p-shibuya'],capacity:'5'}}));
+                    }''')
+                    # Simulate returning after an app update: restore the session before opening a form.
+                    page.reload()
+                    expect(page.get_by_text('1번 출구 앞',exact=True)).to_be_visible()
+                    go('trip-form')
+                    expect(page.get_by_text('한국 · 부산',exact=True)).to_be_visible()
+                    migrated=page.evaluate('JSON.parse(sessionStorage.getItem("moa-trip-draft:u-me"))')
+                    assert migrated['departure']=='부산' and migrated['areas']==['도쿄'] and migrated['places']==['p-shibuya'] and migrated['capacity']=='5', 'redesign must migrate old draft without losing origin, destinations, stops, or capacity'
+                    page.evaluate('sessionStorage.removeItem("moa-trip-draft:u-me"); sessionStorage.removeItem("moa-trip-draft-v1")')
                     go('trip-form')
                     button(page,'여행지 선택 열기').click()
                     page.get_by_role('checkbox',name='도쿄 선택',exact=True).click()
@@ -132,7 +148,11 @@ with tempfile.TemporaryDirectory(prefix='moa-isolated-ui-') as tmp:
                     page.get_by_role('checkbox',name='유글레나 몰 방문',exact=True).click()
                     button(page,'3곳을 일정에 저장').click()
                     page.reload()
-                    expect(page.get_by_text('시부야 PARCO · 도쿄역 캐릭터 스트리트 · 유글레나 몰',exact=True)).to_be_visible()
+                    expect(page.get_by_text('시부야 PARCO · 도쿄역 캐릭터 스트리트 외 1곳',exact=True)).to_be_visible()
+                    trip_draft=page.evaluate('JSON.parse(sessionStorage.getItem("moa-trip-draft:u-me"))')
+                    assert trip_draft['areas']==['도쿄', '이시가키섬'], 'reload must keep mainland and island selection'
+                    assert trip_draft['places']==['p-shibuya', 'p-station'], 'reload must keep both selected catalog places'
+                    assert trip_draft['customStops']==['이시가키섬 · 유글레나 몰'], 'compact summary must not lose selected island stops'
                     check_layout(page, 'trip-'+str(width), output)
                     button(page,'여행 날짜 선택').click()
                     expect(page.get_by_text('가는 날부터 차례로 선택해주세요.',exact=True)).to_be_visible()
@@ -142,6 +162,24 @@ with tempfile.TemporaryDirectory(prefix='moa-isolated-ui-') as tmp:
                     box=footer.bounding_box()
                     assert box and box['y']>=0 and box['y']+box['height']<=height, 'calendar footer must remain visible'
                     button(page,'닫기').click()
+                    button(page,'여행 상품 수량 늘리기').click()
+                    page.reload()
+                    assert page.evaluate('JSON.parse(sessionStorage.getItem("moa-trip-draft:u-me")).capacity')=='9', 'capacity survives reload'
+                    button(page,'여행지 선택 열기').click()
+                    page.get_by_role('tab',name='대만 보기',exact=True).click()
+                    page.get_by_role('radio',name='대만 전역',exact=True).click()
+                    button(page,'닫기').click()
+                    assert page.evaluate('JSON.parse(sessionStorage.getItem("moa-trip-draft:u-me")).country')=='JP', 'cancel destination sheet must not overwrite draft'
+                    button(page,'여행지 선택 열기').click()
+                    page.get_by_role('tab',name='대만 보기',exact=True).click()
+                    page.get_by_role('radio',name='대만 전역',exact=True).click()
+                    button(page,'대만 전역으로 설정').click()
+                    changed_trip=page.evaluate('JSON.parse(sessionStorage.getItem("moa-trip-draft:u-me"))')
+                    assert changed_trip['country']=='TW' and not changed_trip['areas'] and not changed_trip['places'] and not changed_trip['customStops'], 'country changes must clear incompatible stops'
+                    button(page,'이 일정으로 계속').click()
+                    expect(page.get_by_text('왕복 항공권 인증',exact=True)).to_be_visible()
+                    assert page.evaluate('sessionStorage.getItem("moa-trip-draft:u-me")') is None, 'saved trip clears persisted draft'
+                    check_layout(page, 'flight-proof-'+str(width), output)
                     go('search')
                     page.get_by_role('tab',name='지도',exact=True).click()
                     check_layout(page, 'map-'+str(width), output)

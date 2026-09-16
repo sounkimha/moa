@@ -9,14 +9,14 @@ const { outputText } = ts.transpileModule(source, { compilerOptions: { module: t
 const mod = { exports: {} };
 new Function('exports', 'module', outputText)(mod.exports, mod);
 function createMap(withGoogle = true) {
-  const messages = [], events = {};
-  let timeout, point = { lat: 37.55, lng: 126.97 };
+  const messages = [], events = {}, windowEvents = {}, elements = { map: {}, pin: { style: {} }, error: { style: {} } };
+  let timeout, point = { lat: () => 37.55, lng: () => 126.97 };
   const map = { getCenter() { return point; }, addListener(name, callback) { events[name] = callback; }, panTo(value) { point = value; } };
   const google = { maps: { Map: function Map() { return map; }, event: { addListenerOnce(_map, name, callback) { events[name] = callback; } } } };
-  const scope = { google: withGoogle ? google : undefined, window: { google: withGoogle ? google : undefined, parent: { postMessage: (value) => messages.push(JSON.parse(value)) } }, document: { getElementById() { return {}; } }, setTimeout(callback) { timeout = callback; return 1; }, clearTimeout() {} };
+  const scope = { google: withGoogle ? google : undefined, window: { google: withGoogle ? google : undefined, addEventListener(name, callback) { windowEvents[name] = callback; }, parent: { postMessage: (value) => messages.push(JSON.parse(value)) } }, document: { getElementById(id) { return elements[id]; } }, setTimeout(callback) { timeout = callback; return 1; }, clearTimeout() {} };
   const html = mod.exports.meetupMapHtml(37.55, 126.97, 18, 'test-channel', 'test-key');
   vm.runInNewContext(html.match(/<script>([\s\S]*?)<\/script>/)[1], scope);
-  return { scope, messages, events, expire: () => timeout() };
+  return { scope, messages, events, elements, windowEvents, expire: () => timeout() };
 }
 test('meetup map reports a blocked Google library instead of claiming ready', () => {
   const fixture = createMap(false); fixture.scope.initMeetupMap();
@@ -31,4 +31,32 @@ test('meetup coordinates are sent only after the Google map is visible and longi
   fixture.events.click({ latLng: { lat: () => 35.68, lng: () => 499.76 } });
   assert.equal(fixture.messages.at(-1).latitude, 35.68);
   assert.ok(Math.abs(fixture.messages.at(-1).longitude - 139.76) < 0.00001);
+});
+
+test('a failed meetup SDK never sends stale coordinates or revives after late tiles', () => {
+  const fixture = createMap(); fixture.scope.initMeetupMap();
+  let cancelled = false;
+  fixture.windowEvents.unhandledrejection({ reason: new Error('Could not load "util".'), preventDefault() { cancelled = true; } });
+  assert.ok(cancelled);
+  assert.equal(fixture.elements.pin.style.display, 'none');
+  assert.equal(fixture.elements.error.style.display, 'grid');
+  fixture.events.tilesloaded();
+  fixture.events.click({ latLng: { lat: () => 35.68, lng: () => 139.76 } });
+  fixture.events.dragend();
+  fixture.expire();
+  assert.deepEqual(fixture.messages, [{ channel: 'test-channel', error: true }]);
+});
+
+test('an iframe runtime failure after readiness revokes coordinate selection', () => {
+  const fixture = createMap(); fixture.scope.initMeetupMap(); fixture.events.tilesloaded();
+  fixture.windowEvents.error({ message: 'Google utility failed', preventDefault() {} });
+  fixture.events.dragend(); fixture.events.tilesloaded();
+  fixture.events.click({ latLng: { lat: () => 35.68, lng: () => 139.76 } });
+  assert.deepEqual(fixture.messages, [{ channel: 'test-channel', ready: true }, { channel: 'test-channel', error: true }]);
+});
+
+test('opaque meetup iframe can observe bootstrap promise rejections through anonymous CORS', () => {
+  const html = mod.exports.meetupMapHtml(37.55, 126.97, 18, 'test-channel', 'test-key');
+  const bootstrap = html.match(/<script\b[^>]*\bsrc="https:\/\/maps\.googleapis\.com[^>]+>/)[0];
+  assert.match(bootstrap, /crossorigin="anonymous"/, 'The sandbox cannot report cross-origin bootstrap failures without CORS');
 });

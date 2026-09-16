@@ -1,8 +1,10 @@
 import React from 'react';
-import { ShieldCheck } from 'lucide-react-native';
+import { Pressable, View } from 'react-native';
+import { CalendarDays, ChevronRight, ShieldCheck } from 'lucide-react-native';
+import { shortDate, TRIP_VERIFICATION_LABEL } from '@moa/domain';
 import { useApp } from '../state/AppContext';
 import { TravelerScheduleSheet } from '../components/travel-route';
-import { Badge, Card, Empty, Notice, Page, Row, Stack, Txt } from '../components/ui';
+import { Badge, Empty, Page, Row, Stack, Txt } from '../components/ui';
 import { Avatar } from '../components/visuals';
 import { colors as c } from '../theme/tokens';
 
@@ -10,27 +12,25 @@ export function TripRouteScreen() {
   const a = useApp(), d = a.data!;
   const trip = d.trips.find((item) => item.id === a.route.id);
   if (!trip) return <Page title="여행 일정"><Empty title="일정이 변경되었어요" body="여행자 프로필에서 최신 일정을 확인해주세요." /></Page>;
-  const traveler = d.users.find((item) => item.id === trip.travelerId)!;
+  const traveler = d.users.find((item) => item.id === trip.travelerId);
+  if (!traveler) return <Page title="여행 일정"><Empty title="여행자 정보를 불러오지 못했어요" body="이전 화면에서 다른 일정을 확인해주세요." /></Page>;
   const destinations = d.destinations.filter((item) => item.tripId === trip.id);
   const orderedIds = destinations.slice().sort((x, y) => x.sequence - y.sequence).map((item) => item.placeId);
-  const places = (orderedIds.length ? orderedIds : trip.placeIds).map((id) => d.places.find((place) => place.id === id)).filter(Boolean) as typeof d.places;
+  const places = [...new Set([...orderedIds, ...trip.placeIds])].map((id) => d.places.find((place) => place.id === id)).filter(Boolean) as typeof d.places;
+  const requestCounts = Object.fromEntries(places.map((place) => [place.id, d.requests.filter((request) => request.placeId === place.id && ['REQUESTED', 'OFFER_RECEIVED'].includes(request.status)).length]));
   return (
-    <Page title="이 사람의 일정 보기" backLabel="여행자 비교로">
-      <Stack gap={8}>
-        <Badge>공개한 여행 계획</Badge>
-        <Txt size={29} weight="800">정말 그곳에 가는지{`\n`}경로와 시간으로 확인해요.</Txt>
-        <Txt color={c.secondary}>국제 이동과 현지 방문 동선을 구분해 보여드려요.</Txt>
-      </Stack>
-      <Card>
-        <Row>
-          <Avatar user={traveler} size={52} />
-          <Stack gap={2} style={{ flex: 1 }}><Txt size={18} weight="800">{traveler.nickname}</Txt><Txt size={12} color={c.secondary}>거래 완료 {traveler.completed}건 · 성공률 {traveler.successRate ?? 0}%</Txt></Stack>
-          <ShieldCheck size={22} color={c.primary} />
+    <Page title="이 사람의 일정 보기">
+      <Stack gap={16}>
+        <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <Stack gap={8} style={{ flex: 1, minWidth: 0 }}><Txt size={12} color={c.primaryStrong} weight="700">MY TRAVEL PLAN</Txt><Txt size={28} weight="800">{traveler.nickname}님의 여행</Txt><Row style={{ gap: 6 }}><CalendarDays size={16} color={c.secondary} /><Txt size={15} color={c.secondary}>{shortDate(trip.startDate)} — {shortDate(trip.endDate)}</Txt></Row></Stack>
+          <Pressable accessibilityRole="button" accessibilityLabel={`${traveler.nickname} 프로필`} onPress={() => a.nav('profile', { id: traveler.id })}><Avatar user={traveler} size={54} /></Pressable>
         </Row>
-        <Row style={{ marginTop: 12, flexWrap: 'wrap' }}><Badge>휴대폰 예시 인증</Badge><Badge>일정 예시 인증</Badge></Row>
-      </Card>
-      <Notice>{trip.startDate} — {trip.endDate} · 여행자가 공개한 계획이며 실제 위치 추적이 아니에요.</Notice>
-      <TravelerScheduleSheet trip={trip} destinations={destinations} places={places} highlightedPlaceId={a.route.placeId} />
+        <Row style={{ flexWrap: 'wrap', gap: 8 }}><Badge>{TRIP_VERIFICATION_LABEL[trip.verificationStatus]}</Badge><Txt size={12} color={c.secondary}>공개한 여행 계획</Txt></Row>
+      </Stack>
+      <TravelerScheduleSheet trip={trip} destinations={destinations} places={places} highlightedPlaceId={a.route.placeId} requestCounts={requestCounts} onPlacePress={(place) => a.nav('place', { id: place.id })} />
+      <Pressable accessibilityRole="button" onPress={() => a.nav('profile', { id: traveler.id })} style={({ pressed }) => ({ borderTopWidth: 1, borderTopColor: c.border, paddingVertical: 16, opacity: pressed ? 0.72 : 1 })}>
+        <Row><ShieldCheck size={20} color={c.primaryStrong} /><View style={{ flex: 1 }}><Txt size={14} weight="600">{traveler.nickname}님 더 알아보기</Txt><Txt size={12} color={c.secondary}>거래 완료 {traveler.completed}건 · 후기 확인</Txt></View><ChevronRight size={18} color={c.secondary} /></Row>
+      </Pressable>
     </Page>
   );
 }

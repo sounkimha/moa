@@ -17,10 +17,14 @@ html,body,#map{height:100%;margin:0}body{font-family:-apple-system,BlinkMacSyste
 </style></head><body><div id="map" role="application" aria-label="Google 장소 지도"></div><div id="loading">Google 지도를 불러오고 있어요…</div><div id="error">지도를 불러오지 못했어요.<br>잠시 후 다시 시도해주세요.</div>
 <script>
 var items=${safeJson(data)};var chosen=${safeJson(selected || '')};
-function send(value){var message=JSON.stringify(Object.assign({channel:${safeJson(channel)}},value));if(window.ReactNativeWebView)window.ReactNativeWebView.postMessage(message);else window.parent.postMessage(message,'*')}
-var failed=false;
+function send(value){if(failed&&!value.error)return;var message=JSON.stringify(Object.assign({channel:${safeJson(channel)}},value));if(window.ReactNativeWebView)window.ReactNativeWebView.postMessage(message);else window.parent.postMessage(message,'*')}
+var failed=false,ready=false;
 var waitTimer=setTimeout(fail,12000);
-function fail(){failed=true;clearTimeout(waitTimer);document.getElementById('loading').style.display='none';document.getElementById('error').style.display='grid';send({error:true})}
+function fail(){if(failed)return;failed=true;ready=false;clearTimeout(waitTimer);document.getElementById('loading').style.display='none';document.getElementById('error').style.display='grid';send({error:true})}
+// These listeners exist only inside this SDK document, never on the app window.
+function mapRuntimeFailure(event){fail();if(event&&event.preventDefault)event.preventDefault()}
+window.addEventListener('error',mapRuntimeFailure);
+window.addEventListener('unhandledrejection',mapRuntimeFailure);
 window.gm_authFailure=fail;
 function initMap(){try{
  if(failed)return;
@@ -29,12 +33,12 @@ function initMap(){try{
  var map=new google.maps.Map(document.getElementById('map'),{center:{lat:active.latitude,lng:active.longitude},zoom:13,mapTypeControl:false,streetViewControl:false,fullscreenControl:false,clickableIcons:false,gestureHandling:'greedy'});
  var bounds=new google.maps.LatLngBounds();var info=new google.maps.InfoWindow();
  items.forEach(function(item){var marker=new google.maps.Marker({map:map,position:{lat:item.latitude,lng:item.longitude},title:item.name,label:{text:String(item.requestCount),color:'#fff',fontSize:'11px',fontWeight:'700'},icon:{path:google.maps.SymbolPath.CIRCLE,scale:item.id===chosen?18:16,fillColor:item.id===chosen?'#17366f':'#3478f6',fillOpacity:1,strokeColor:'#fff',strokeWeight:3}});bounds.extend(marker.getPosition());
- marker.addListener('click',function(){info.setContent('<div class="info"><div class="name">'+escapeHtml(item.name)+'</div><div class="meta">'+escapeHtml(item.region)+' · 부탁 '+item.requestCount+'건 (예시)</div></div>');info.open({map:map,anchor:marker});send({placeId:item.id})})});
+ marker.addListener('click',function(){if(failed||!ready)return;info.setContent('<div class="info"><div class="name">'+escapeHtml(item.name)+'</div><div class="meta">'+escapeHtml(item.region)+' · 부탁 '+item.requestCount+'건 (예시)</div></div>');info.open({map:map,anchor:marker});send({placeId:item.id})})});
  if(items.length>1){map.fitBounds(bounds,52);google.maps.event.addListenerOnce(map,'idle',function(){if(map.getZoom()>15)map.setZoom(15)})}
- clearTimeout(waitTimer);document.getElementById('loading').style.display='none';send({ready:true});
+ google.maps.event.addListenerOnce(map,'tilesloaded',function(){if(failed)return;ready=true;clearTimeout(waitTimer);document.getElementById('loading').style.display='none';send({ready:true})});
  }catch(e){fail()}}
 function escapeHtml(value){return String(value).replace(/[&<>"']/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]})}
-</script><script async defer src="https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&language=ko&region=KR&callback=initMap" onerror="fail()"></script></body></html>`;
+</script><script async defer crossorigin="anonymous" src="https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&language=ko&region=KR&callback=initMap" onerror="fail()"></script></body></html>`;
 }
 
 // Google consumer URLs are not embeddable and the official Embed API needs a

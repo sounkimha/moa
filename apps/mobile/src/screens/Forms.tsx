@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { BackHandler, Platform, Pressable, ScrollView, View } from 'react-native';
+import { BackHandler, Image, Platform, Pressable, ScrollView, View } from 'react-native';
 import * as Location from 'expo-location';
 import {
   ArrowRight,
@@ -9,8 +9,8 @@ import {
   Link,
   LocateFixed,
   MapPin,
+  Package,
   Minus,
-  Plane,
   Plus,
   ShieldCheck,
   Sparkles,
@@ -37,7 +37,6 @@ import {
   COUNTRY_CODES,
   MAX_DEMO_REWARD,
 } from '@moa/domain';
-import { DestinationPicker } from '../components/DestinationPicker';
 import { TripRoutePicker, TripStopPicker } from '../components/TripRoutePicker';
 import { DateRangePicker } from '../components/DateRangePicker';
 import { MeetupPicker } from '../components/MeetupPicker';
@@ -49,7 +48,6 @@ import { readTripDraft, writeTripDraft } from '../state/trip-draft';
 import { addressValidation, productValidation, validDate, validLocalPrice, validProductUrl } from '../state/form-validation';
 import { colors as c } from '../theme/tokens';
 import {
-  Badge,
   Button,
   Card,
   Chip,
@@ -62,13 +60,13 @@ import {
   Page,
   Row,
   SearchField,
-  Section,
-  SectionTabs,
   Sheet,
   Stack,
   Txt,
 } from '../components/ui';
 import { ProductArt, MoneyBreakdown } from '../components/visuals';
+import { PlaneRouteAnimation } from '../components/travel-route';
+import { getPlacePhoto } from '../lib/place-photos';
 
 const CATEGORY_PATHS: Array<{ name: string; description: string; values: Category[] }> = [
   { name: '굿즈·취미', description: '캐릭터, 게임·애니 관련 상품', values: ['CHARACTER', 'GAME'] },
@@ -538,8 +536,16 @@ function RequestFormContent() {
         </Stack>
       }
     >
-      <Row style={{ gap: 8 }}><Txt size={12} weight="700" color={step === 1 ? c.green : c.muted}>1 상품 확인</Txt><ChevronRight size={13} color={c.muted} /><Txt size={12} weight="700" color={step === 2 ? c.green : c.muted}>2 수령·보상</Txt></Row>
-      <Stack gap={6}>
+      <Row style={{ gap: 12 }}>
+        {['상품 확인', '수령·보상'].map((label, index) => <Row key={label} style={{ flex: 1, gap: 8 }}>
+          <View style={{ width: 24, height: 24, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: step >= index + 1 ? c.primary : c.border }}>
+            {step > index + 1 ? <Check size={14} color={c.onPrimary} /> : <Txt size={12} weight="700" color={step >= index + 1 ? c.onPrimary : c.secondary}>{index + 1}</Txt>}
+          </View>
+          <Txt size={13} weight="600" color={step >= index + 1 ? c.primaryDeep : c.muted}>{label}</Txt>
+          {index === 0 && <View style={{ flex: 1, height: 1, backgroundColor: c.border, marginLeft: 4 }} />}
+        </Row>)}
+      </Row>
+      <Stack gap={8}>
         <Txt size={28} weight="700">
           {step === 1 ? '어떤 물건을 부탁할까요?' : '어떻게 받을까요?'}
         </Txt>
@@ -554,12 +560,19 @@ function RequestFormContent() {
       {error.length > 0 && <Notice tone="error">{error}</Notice>}
       {step === 1 ? (
         <>
-          <SectionTabs items={['상품 링크', '사진 올리기']} value={method === 'link' ? '상품 링크' : '사진 올리기'} onChange={(value) => {
-            const nextMethod = value === '상품 링크' ? 'link' : 'photo';
-            if (method === nextMethod) return;
-            pendingUrl.current = '';
-            recognitionRun.current++; setResolving(false); clearFeedback(); setMethod(nextMethod);
-          }} />
+          <Row style={{ gap: 12 }}>
+            {([{ value: 'link', title: '상품 링크', icon: Link }, { value: 'photo', title: '사진 올리기', icon: ImagePlus }] as const).map((item) => <Pressable
+              key={item.value} accessibilityRole="tab" accessibilityLabel={item.title} accessibilityState={{ selected: method === item.value }} aria-selected={method === item.value}
+              onPress={() => {
+                if (method === item.value) return;
+                pendingUrl.current = '';
+                recognitionRun.current++; setResolving(false); clearFeedback(); setMethod(item.value);
+              }}
+              style={({ pressed }) => ({ flex: 1, minHeight: 88, borderRadius: 18, padding: 16, gap: 12, borderWidth: 1.5, borderColor: method === item.value ? c.primary : c.border, backgroundColor: method === item.value ? c.primarySoft : c.paper, opacity: pressed ? 0.7 : 1 })}>
+              <Row style={{ justifyContent: 'space-between' }}><item.icon size={23} color={method === item.value ? c.primaryStrong : c.secondary} />{method === item.value && <Check size={16} color={c.primaryStrong} />}</Row>
+              <Txt size={15} weight="700" color={method === item.value ? c.primaryDeep : c.secondary}>{item.title}</Txt>
+            </Pressable>)}
+          </Row>
           {method === 'link' ? (
             <Stack gap={12}>
               <Field
@@ -567,14 +580,14 @@ function RequestFormContent() {
                 value={url}
                 onChange={changeUrl}
                 keyboard="url"
-                placeholder="사고 싶은 상품의 링크를 붙여넣으세요"
+                placeholder="상품 페이지의 링크를 붙여넣어 주세요"
               />
               {(resolving || linkStatus === 'checking') ? <Row style={{ gap: 7 }}><Sparkles size={15} color={c.green} /><Txt size={13} color={c.green}>상품 정보를 가져오고 있어요</Txt></Row> : linkStatus === 'error' && <Button label="링크 다시 확인하기" kind="secondary" icon={Sparkles} onPress={() => resolve(false, true)} />}
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="예시 링크로 빠르게 채우기"
                 onPress={() => resolve(true)}
-                style={{ paddingVertical: 8 }}
+                style={{ minHeight: 44, justifyContent: 'center' }}
               >
                 <Txt size={13} color={c.secondary}>
                   링크가 없다면 예시로 체험하기
@@ -596,7 +609,7 @@ function RequestFormContent() {
                   : '상품 이름과 포장이 잘 보이는 사진을 골라주세요.'}
               </Txt>
               <Txt size={12} color={c.muted}>
-                자동 인식을 사용하면 선택한 사진이 인식 서버로 전송돼요.
+                자동 인식을 위해 선택한 사진이 전송돼요.
               </Txt>
               <Button
                 small
@@ -612,8 +625,8 @@ function RequestFormContent() {
             <Notice tone={linkStatus === 'error' ? 'error' : 'info'}>{metadataMessage}</Notice>
           )}
           {aiFilled && !editingDetails ? (
-            <Card>
-              <Stack gap={14}>
+            <Card style={{ padding: 0, overflow: 'hidden' }}>
+              <Stack gap={16} style={{ padding: 20 }}>
                 <Row style={{ justifyContent: 'space-between' }}>
                   <Row style={{ gap: 8 }}>
                     <Sparkles size={18} color={c.green} />
@@ -628,7 +641,7 @@ function RequestFormContent() {
                     image={image}
                     art={art}
                     featured={name.includes('치이카와')}
-                    size={76}
+                    size={92}
                   />
                   <Stack gap={6} style={{ flex: 1 }}>
                     <Txt weight="700">{name}</Txt>
@@ -643,22 +656,23 @@ function RequestFormContent() {
                         구매 동선 후보 · {place.city} · {place.name}
                       </Txt>
                     )}
-                    <Txt size={18} weight="700">{price ? money(q.productPrice) : '가격 확인 필요'}</Txt>
+                    <Txt size={24} weight="800">{price ? money(q.productPrice) : '가격 확인 필요'}</Txt>
                     <Txt size={12} color={c.secondary}>{CATEGORIES[category]} · {localMoney(Number(price), currencyForCountry(place.country))}</Txt>
                     {option !== '기본 옵션' && <Txt size={13} color={c.secondary}>{option}</Txt>}
                   </Stack>
                 </Row>
-                <Txt size={12} color={c.muted}>
+              </Stack>
+              <View style={{ backgroundColor: c.primarySoft, paddingHorizontal: 20, paddingVertical: 14 }}><Txt size={12} color={c.primaryDeep}>
                   {preset
                     ? '수령 방법과 날짜를 확인하고 다시 부탁해주세요.'
                     : sampleFilled
                     ? '예시 정보예요. 실제 상품·재고 확인 결과는 아니에요.'
                     : '이 상품이 맞는지 확인해주세요. 재고는 구매 전에 확인해요.'}
-                </Txt>
-              </Stack>
+                </Txt></View>
             </Card>
           ) : editingDetails ? (
             <>
+          <Card><Stack gap={18}>
           <Row style={{ alignItems: 'flex-start', gap: 16 }}>
             <Pressable
               accessibilityRole="button"
@@ -669,7 +683,7 @@ function RequestFormContent() {
                 image={image}
                 art={art}
                 featured={name.includes('치이카와')}
-                size={100}
+                size={76}
               />
             </Pressable>
             <Stack gap={10} style={{ flex: 1 }}>
@@ -697,7 +711,7 @@ function RequestFormContent() {
             label="매장·판매처"
             value={storeName}
             onChange={setStoreName}
-            placeholder="AI가 링크와 사진에서 찾아요"
+            placeholder="예: 시부야 PARCO"
           />
           <View>
             <Txt size={14} weight="600" style={{ marginBottom: 10 }}>어디에서 살 수 있나요?</Txt>
@@ -728,6 +742,7 @@ function RequestFormContent() {
           <Txt size={12} color={c.secondary}>
             식품·의약품·주류·담배·고가 명품은 요청할 수 없어요.
           </Txt>
+          </Stack></Card>
           <Sheet
             visible={placeSearchOpen}
             title="구매 장소 찾기"
@@ -741,7 +756,7 @@ function RequestFormContent() {
               setPlaceId(candidate.id); setStoreName(candidate.name); setInventoryStatus('CHECK_REQUIRED'); setError('');
               setPlaceSearchOpen(false); setPlaceQuery('');
             }} style={({ pressed }) => ({ minHeight: 76, padding: 16, borderRadius: 16, backgroundColor: placeId === candidate.id ? c.lilac : c.canvas, borderWidth: 1, borderColor: placeId === candidate.id ? c.green : c.border, flexDirection: 'row', alignItems: 'center', gap: 12, opacity: pressed ? 0.72 : 1 })}>
-              <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: c.paper, alignItems: 'center', justifyContent: 'center' }}><MapPin size={18} color={c.green} /></View>
+              {getPlacePhoto(candidate) ? <Image source={getPlacePhoto(candidate)!.source} style={{ width: 54, height: 54, borderRadius: 12 }} resizeMode="cover" /> : <View style={{ width: 54, height: 54, borderRadius: 12, backgroundColor: c.paper, alignItems: 'center', justifyContent: 'center' }}><MapPin size={18} color={c.green} /></View>}
               <View style={{ flex: 1, minWidth: 0, gap: 2 }}><Txt size={16} weight="700" lines={1}>{candidate.name}</Txt><Txt size={12} color={c.secondary} lines={1}>{countryName(candidate.country)} · {candidate.city} · {candidate.region}</Txt></View>
               {placeId === candidate.id ? <Check size={20} color={c.green} /> : <ChevronRight size={18} color={c.muted} />}
             </Pressable>)}
@@ -771,7 +786,7 @@ function RequestFormContent() {
         </>
       ) : (
         <>
-          <Stack gap={8}>
+          <Card><Stack gap={16}>
             <Row style={{ alignItems: 'flex-start' }}>
               <ProductArt
                 art={art}
@@ -787,7 +802,6 @@ function RequestFormContent() {
               </View>
               <Button small label="수정" kind="ghost" onPress={() => setStep(1)} />
             </Row>
-          </Stack>
           <Row style={{ justifyContent: 'space-between' }}>
             <Txt weight="600">수량</Txt>
             <Row>
@@ -806,15 +820,23 @@ function RequestFormContent() {
               />
             </Row>
           </Row>
-          <Divider />
+          </Stack></Card>
           <Stack gap={10}>
             <Row style={{ justifyContent: 'space-between' }}><Txt size={17} weight="700">받는 방법</Txt><Pressable accessibilityRole="button" accessibilityLabel="수령 지역 변경" onPress={() => openDeliveryEditor('region')} style={{ minHeight: 44, justifyContent: 'center' }}><Row style={{ gap: 3 }}><Txt size={12} color={c.secondary}>{countryName(deliveryCountry)} · {deliveryCity}</Txt><ChevronRight size={14} color={c.muted} /></Row></Pressable></Row>
             {([
               ['DOMESTIC_PARCEL', '국내 택배 · ₩3,500', '국내 택배', '귀국 후 집으로 보내드려요', parcelQuote],
               ['MEETUP', '직접 전달 · 무료', '직접 만나요', '배송비 없이 가까운 곳에서 받아요', meetupQuote],
             ] as const).map(([value, accessibilityLabel, label, description, priceQuote]) => <Pressable key={value} accessibilityRole="button" accessibilityLabel={accessibilityLabel} accessibilityState={{ selected: mode === value }} aria-selected={mode === value} aria-pressed={mode === value} onPress={() => { if (value === 'MEETUP' && !meetupPoint) openDeliveryEditor('meetup'); setTransport(value); }}
-              style={({ pressed }) => ({ padding: 16, borderRadius: 16, borderWidth: 1.5, borderColor: mode === value ? c.green : c.border, backgroundColor: c.paper, flexDirection: 'row', alignItems: 'center', gap: 12, opacity: pressed ? 0.7 : 1 })}>
-              <View style={{ flex: 1, gap: 4 }}><Txt size={15} weight="600">{label}</Txt><Txt size={12} color={c.secondary}>{description}</Txt></View><View style={{ alignItems: 'flex-end', gap: 4 }}><Txt size={16} weight="700">{money(priceQuote.totalPrice)}</Txt><Txt size={11} color={c.muted}>{requestedReward === '' ? '보상 입력 전' : '예상 합계'}</Txt></View>
+              style={({ pressed }) => ({ padding: 16, borderRadius: 18, borderWidth: 1.5, borderColor: mode === value ? c.primary : c.border, backgroundColor: mode === value ? c.primarySoft : c.paper, gap: 14, opacity: pressed ? 0.7 : 1 })}>
+              <Row style={{ gap: 10 }}>
+                {value === 'DOMESTIC_PARCEL' ? <Package size={21} color={mode === value ? c.primaryStrong : c.secondary} /> : <MapPin size={21} color={mode === value ? c.primaryStrong : c.secondary} />}
+                <Txt size={16} weight="700" style={{ flex: 1 }}>{label}</Txt>
+                <View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: mode === value ? c.primary : c.border, alignItems: 'center', justifyContent: 'center', backgroundColor: mode === value ? c.primary : c.paper }}>{mode === value && <Check size={13} color={c.onPrimary} />}</View>
+              </Row>
+              <Row style={{ alignItems: 'flex-end', justifyContent: 'space-between' }}>
+                <View style={{ flex: 1, gap: 5 }}><Txt size={12} color={c.secondary}>{description}</Txt><Txt size={12} weight="600" color={c.primaryDeep}>{value === 'MEETUP' ? '배송비 0원' : '배송비 3,500원'}</Txt></View>
+                <View style={{ alignItems: 'flex-end', gap: 3 }}><Txt size={11} color={c.secondary}>{requestedReward === '' ? '보상 입력 전' : '예상 합계'}</Txt><Txt size={20} weight="800">{money(priceQuote.totalPrice)}</Txt></View>
+              </Row>
             </Pressable>)}
           </Stack>
           {mode === 'DOMESTIC_PARCEL' ? (
@@ -828,9 +850,8 @@ function RequestFormContent() {
           )}
           <Divider />
           <DateField label="희망 수령일" value={desired} onChange={setDesired} min={future(0)} />
-          <Stack gap={10}><Txt size={17} weight="700">보상은 얼마가 좋을까요?</Txt><Field label="여행자 보상 (원)" value={requestedReward} onChange={(value) => { setRequestedReward(value.replace(/[^0-9]/g, '').slice(0, 7)); setError(''); }} keyboard="numeric" placeholder="직접 금액을 정해주세요" hint="이 부탁을 가져와 주는 여행자에게 전하는 보상이에요." /></Stack>
-          <Divider />
-          <Stack gap={16}><Txt size={18} weight="700">예상 결제금액</Txt><MoneyBreakdown price={q} rewardPending={requestedReward === ''} /></Stack>
+          <Stack gap={10}><Txt size={19} weight="700">고마운 마음, 얼마를 전할까요?</Txt><Field label="여행자 보상 (원)" value={requestedReward} onChange={(value) => { setRequestedReward(value.replace(/[^0-9]/g, '').slice(0, 7)); setError(''); }} keyboard="numeric" placeholder="직접 금액을 정해주세요" hint="보상은 부탁하는 사람이 자유롭게 정해요." /></Stack>
+          <Card><Stack gap={20}><Row><ShieldCheck size={20} color={c.primary} /><Txt size={18} weight="700">예상 결제금액</Txt></Row><MoneyBreakdown price={q} rewardPending={requestedReward === ''} /><Txt size={12} color={c.secondary}>여행자가 수락하면 결제해요. 상품을 받은 뒤 여행자에게 정산돼요.</Txt></Stack></Card>
           <Sheet visible={editingMeetup} title="어디에서 만날까요?" onClose={cancelDeliveryEditor}>
             {editingMeetup && <MeetupPicker key={deliveryCountry} country={deliveryCountry} value={meetupPoint} legacyName={meetupLocation} history={completedMeetups} onChange={(point) => {
               setMeetupPoint(point);
@@ -870,7 +891,18 @@ function TripFormContent() {
   const homeAddress = (d.addresses || []).find((item) => item.userId === d.me.id && item.isDefault);
   const homeCity = homeAddress?.address1.match(/서울|부산|대구|인천|광주|대전|울산|제주/)?.[0]
     || homeAddress?.address1.trim().split(/\s+/).find((part) => /[시군]$/.test(part))?.replace(/[시군]$/, '') || '';
-  const [restored] = useState(() => readTripDraft(d.me.id));
+  const [restored] = useState(() => {
+    const current = readTripDraft(d.me.id);
+    if (current || !a.tripDraft) return current;
+    const previous = a.tripDraft;
+    const areas = previous.cities.filter((city) => TRIP_AREAS[previous.destinationCountry].some((area) => area.name === city));
+    return {
+      departure: previous.departureCity, depCountry: previous.departureCountry,
+      originSource: 'manual' as const, country: previous.destinationCountry, areas,
+      customStops: [], places: previous.placeIds.filter((id) => d.places.some((place) => place.id === id && place.country === previous.destinationCountry && areas.includes(place.city))),
+      start: previous.startDate, end: previous.endDate, capacity: previous.capacity,
+    };
+  });
   const initialStart = restored?.start && restored.start >= future(0) ? restored.start : future(4);
   const initialEnd = restored?.end && restored.end >= initialStart ? restored.end : initialStart > future(7) ? initialStart : future(7);
   const [departure, setDeparture] = useState(restored?.departure ?? homeCity),
@@ -883,6 +915,7 @@ function TripFormContent() {
     [customStops, setCustomStops] = useState<string[]>(restored?.customStops || []),
     [start, setStart] = useState(initialStart),
     [end, setEnd] = useState(initialEnd),
+    [capacity, setCapacity] = useState(restored?.capacity ?? '8'),
     [places, setPlaces] = useState<string[]>(restored?.places.filter((id) => d.places.some((place) => place.id === id && place.country === restored.country && restored.areas.includes(place.city))) || []),
     [error, setError] = useState('');
   const saved = useRef(false), storageWarning = useRef(false);
@@ -898,9 +931,9 @@ function TripFormContent() {
   };
   useEffect(() => {
     if (saved.current || editingOrigin) return;
-    const stored = writeTripDraft(d.me.id, { departure, depCountry, originSource, country, areas, customStops, start, end, places });
+    const stored = writeTripDraft(d.me.id, { departure, depCountry, originSource, country, areas, customStops, start, end, places, capacity });
     if (!stored && !storageWarning.current) { storageWarning.current = true; a.notify('임시 저장을 사용할 수 없어요. 이 화면에서 일정을 마저 등록해주세요.'); }
-  }, [d.me.id, departure, depCountry, originSource, country, areas, customStops, start, end, places, editingOrigin]);
+  }, [d.me.id, departure, depCountry, originSource, country, areas, customStops, start, end, places, capacity, editingOrigin]);
   const locateDeparture = async () => {
     const currentRun = ++locationRun.current;
     setLocating(true);
@@ -938,6 +971,11 @@ function TripFormContent() {
       setError('오늘 이후의 시작일과 그 이후의 종료일을 선택해주세요.');
       return;
     }
+    const maxItems = Number(capacity);
+    if (!Number.isInteger(maxItems) || maxItems < 1 || maxItems > 20) {
+      setError('가져올 수량을 1~20개 사이로 정해주세요.');
+      return;
+    }
     const destinationAreas = areas.length ? areas : [`${countryName(country)} 전역`];
     const t = await a.mutate<Trip>(
       '/trips',
@@ -951,20 +989,21 @@ function TripFormContent() {
         endDate: end,
         placeIds: places,
         customStops,
-        maxItems: 8,
+        maxItems,
       },
       '여행을 등록했어요. 왕복 항공권을 확인해주세요.',
     );
     if (t) {
       saved.current = true;
       writeTripDraft(d.me.id, null);
+      a.setTripDraft(null);
       a.setRole('traveler');
       a.nav('flight-proof', { id: t.id });
     }
   };
   return (
     <Page
-      title="여행 등록"
+      title="어디로 떠나세요?"
       resetScrollKey={error}
       footer={
         <Button
@@ -976,8 +1015,9 @@ function TripFormContent() {
       }
     >
       {error.length > 0 && <Notice tone="error">{error}</Notice>}
-      <Stack gap={8}><Txt size={28} weight="700">여행지는 어디인가요?</Txt><Txt size={15} color={c.secondary}>원래 가는 길에서 부탁을 만나보세요.</Txt></Stack>
-      <View style={{ backgroundColor: c.paper, borderRadius: 20, paddingHorizontal: 20 }}>
+      <Stack gap={8}><Txt size={12} weight="700" color={c.primaryStrong}>MY NEXT TRIP</Txt><Txt size={28} weight="800">여행지만 알려주세요.</Txt><Txt size={15} color={c.secondary}>가는 길의 부탁을 모아드릴게요.</Txt></Stack>
+      <PlaneRouteAnimation departure={departure.trim() || '출발지'} destination={areas[0] || countryName(country)} compact />
+      <View style={{ backgroundColor: c.paper, borderRadius: 20, paddingHorizontal: 20, borderWidth: 1, borderColor: c.border }}>
         <Pressable accessibilityRole="button" accessibilityLabel="출발지 변경" onPress={openOriginEditor} style={({ pressed }) => ({ paddingVertical: 16, minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 14, opacity: pressed ? 0.65 : 1 })}>
           <LocateFixed size={21} color={c.secondary} /><View style={{ flex: 1, gap: 4 }}><Txt size={12} color={c.secondary}>출발 · {originSource === 'gps' ? '현재 위치' : originSource === 'address' ? '기본 배송지' : '직접 선택'}</Txt><Txt size={16} weight="600">{departure ? `${countryName(depCountry)} · ${departure}` : '출발지를 선택해주세요'}</Txt></View><ChevronRight size={19} color={c.muted} />
         </Pressable>
@@ -987,12 +1027,15 @@ function TripFormContent() {
           setPlaces(places.filter((id) => d.places.some((place) => place.id === id && place.country === nextCountry && selectedAreas.includes(place.city))));
           setCustomStops(country === nextCountry ? customStops.filter((stop) => selectedAreas.some((area) => stop.startsWith(`${area} · `))) : []);
         }} />
+        <Divider />
+        <DateRangePicker start={start} end={end} min={future(0)} onChange={(nextStart, nextEnd) => { setStart(nextStart); setEnd(nextEnd); setError(''); }} />
       </View>
-      <View style={{ gap: 8 }}><Row style={{ justifyContent: 'space-between' }}><Txt size={17} weight="700">방문 예정지</Txt><Txt size={12} color={c.muted}>선택</Txt></Row>
+      <View style={{ gap: 8 }}><Row style={{ justifyContent: 'space-between' }}><Txt size={19} weight="700">들를 곳도 정해졌나요?</Txt><Txt size={12} color={c.muted}>선택</Txt></Row>
         <TripStopPicker country={country} areas={areas} catalog={d.places} placeIds={places} customStops={customStops} onChange={(ids, stops) => { setPlaces(ids); setCustomStops(stops); }} />
       </View>
-      <View style={{ gap: 8 }}><Txt size={17} weight="700">언제 다녀오세요?</Txt><DateRangePicker start={start} end={end} min={future(0)} onChange={(nextStart, nextEnd) => { setStart(nextStart); setEnd(nextEnd); setError(''); }} /></View>
-      <Row style={{ gap: 8 }}><ShieldCheck size={16} color={c.muted} /><Txt size={12} color={c.secondary} style={{ flex: 1 }}>일정 저장 후 왕복 항공권을 확인해요.</Txt></Row>
+      <Divider />
+      <Row style={{ justifyContent: 'space-between', gap: 12 }}><View style={{ flex: 1, gap: 5 }}><Txt size={16} weight="700">가져올 수 있는 수량</Txt><Txt size={12} color={c.secondary}>짐과 일정에 맞게 정해주세요.</Txt></View><Row style={{ gap: 8 }}><IconButton icon={Minus} label="여행 상품 수량 줄이기" onPress={() => setCapacity(String(Math.max(1, Number(capacity) - 1)))} /><Txt size={23} weight="800">{capacity}</Txt><IconButton icon={Plus} label="여행 상품 수량 늘리기" onPress={() => setCapacity(String(Math.min(20, Number(capacity) + 1)))} /></Row></Row>
+      <Row style={{ gap: 8, padding: 16, borderRadius: 16, backgroundColor: c.primarySoft }}><ShieldCheck size={19} color={c.primaryStrong} /><Txt size={13} color={c.primaryDeep} style={{ flex: 1 }}>저장 후 항공권을 확인해요. 인증을 마쳐야 부탁을 수락할 수 있어요.</Txt></Row>
       <Sheet visible={editingOrigin} title="어디에서 출발하세요?" onClose={cancelOriginEditor} footer={<Button label="이 출발지로 설정" disabled={!departure.trim() || departure.trim().length > 40} onPress={finishOriginEditor} />}>
         {Platform.OS !== 'web' ? <Button kind="secondary" icon={LocateFixed} label="현재 위치로 바꾸기" loading={locating} onPress={() => void locateDeparture()} /> : <Txt size={13} color={c.secondary}>웹에서는 출발 도시를 직접 선택해주세요.</Txt>}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>

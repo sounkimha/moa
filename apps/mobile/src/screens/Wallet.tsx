@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Banknote, CheckCircle2, ChevronRight, CreditCard, Landmark, LockKeyhole, ShieldCheck, Smartphone, Wallet as WalletIcon } from 'lucide-react-native';
-import { money, PaymentMethod, WalletTransactionType } from '@moa/domain';
+import { money, shortDate, PaymentMethod, WalletTransactionType } from '@moa/domain';
 import { useApp } from '../state/AppContext';
-import { colors as c } from '../theme/tokens';
+import { colors as c, radius, space, typography } from '../theme/tokens';
 import { Badge, Button, Card, Chip, Divider, Empty, Field, Notice, Page, Row, Section, Stack, Txt } from '../components/ui';
 
 const entryLabels: Record<WalletTransactionType, string> = {
@@ -16,24 +16,35 @@ function MethodIcon({ method }: { method: PaymentMethod }) {
 
 export function WalletScreen() {
   const a = useApp(), d = a.data!;
-  const wallet = d.wallets[0];
-  const entries = d.walletTransactions.slice().reverse();
+  const wallet = d.wallets.find((item) => item.userId === d.me.id);
+  const [filter, setFilter] = useState<'전체' | '들어온 금액' | '나간 금액'>('전체');
+  const ownEntries = d.walletTransactions.filter((item) => item.userId === d.me.id);
+  const entries = ownEntries.filter((item) => filter === '전체' || (filter === '들어온 금액' ? item.amount >= 0 : item.amount < 0)).slice().reverse();
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const monthReward = ownEntries.filter((item) => item.type === 'TRAVELER_REWARD' && item.status === 'COMPLETED' && item.createdAt.startsWith(currentMonth)).reduce((sum, item) => sum + item.amount, 0);
   if (!wallet) return <Page title="MOA 포인트 보관함"><Empty title="보관함을 준비하지 못했어요" body="최신 상태를 다시 불러와주세요." /></Page>;
   return (
-    <Page title="MOA 포인트 보관함">
-      <Card style={{ backgroundColor: c.primaryDeep, borderWidth: 0 }}>
-        <Stack gap={14}>
-          <Row style={{ justifyContent: 'space-between' }}><Badge bg={c.navySurface} color={c.onPrimary}>DEMO WALLET</Badge><LockKeyhole size={20} color={c.primaryTint} /></Row>
-          <Stack gap={3}><Txt size={12} color={c.navyText}>사용 가능</Txt><Txt size={38} weight="800" color={c.onPrimary}>{money(wallet.availableBalance)}</Txt></Stack>
-          <Row style={{ justifyContent: 'space-between' }}><Stack gap={2}><Txt size={11} color={c.navyText}>정산 중</Txt><Txt weight="700" color={c.onPrimary}>{money(wallet.pendingBalance)}</Txt></Stack><Stack gap={2} style={{ alignItems: 'flex-end' }}><Txt size={11} color={c.navyText}>출금 처리 중</Txt><Txt weight="700" color={c.onPrimary}>{money(wallet.withdrawalPending)}</Txt></Stack></Row>
+    <Page title="MOA 보관함">
+      <Card style={{ backgroundColor: c.primaryDeep, borderWidth: 0, padding: space.xl }}>
+        <Stack gap={space.xl}>
+          <Row style={{ justifyContent: 'space-between' }}><Txt size={13} color={c.navyText} weight="600">나의 여행이 남긴 여유</Txt><WalletIcon size={22} color={c.primaryTint} /></Row>
+          <Stack gap={space.xs}><Txt size={13} color={c.navyText}>사용 가능한 체험 잔액</Txt><Txt size={36} weight="800" color={c.onPrimary}>{money(wallet.availableBalance)}</Txt></Stack>
+          <Button label="내 계좌로 받기" icon={Landmark} kind="secondary" onPress={() => a.nav('wallet-withdraw')} style={{ backgroundColor: c.onPrimary }} />
         </Stack>
       </Card>
-      <Row style={{ alignItems: 'stretch' }}><Button style={{ flex: 1 }} label="충전" icon={Banknote} onPress={() => a.nav('wallet-topup')} /><Button style={{ flex: 1 }} kind="secondary" label="계좌로 받기" icon={Landmark} onPress={() => a.nav('wallet-withdraw')} /></Row>
-      <Notice>현재 보관함·충전·출금은 체험용 장부입니다. 실제 선불금 충전이나 은행 이체가 발생하지 않아요.</Notice>
-      <View><Section title="최근 내역" />
-        {entries.map((entry) => <Card key={entry.id} style={{ marginBottom: 10 }}><Row><View style={{ width: 42, height: 42, borderRadius: 14, backgroundColor: entry.amount >= 0 ? c.primarySoft : c.background, alignItems: 'center', justifyContent: 'center' }}>{entry.amount >= 0 ? <Banknote size={20} color={c.primary} /> : <CreditCard size={20} color={c.secondary} />}</View><Stack gap={2} style={{ flex: 1 }}><Txt weight="700">{entry.title}</Txt><Txt size={11} color={c.secondary}>{entryLabels[entry.type]} · {entry.status === 'PROCESSING' ? '처리 중' : '체험 기록 완료'}</Txt></Stack><Txt weight="800" color={entry.amount >= 0 ? c.primaryStrong : c.ink}>{entry.amount >= 0 ? '+' : '-'} {money(Math.abs(entry.amount))}</Txt></Row></Card>)}
-        {!entries.length && <Empty title="아직 받은 정산금이 없어요" body="구매자가 수령을 확인하면 여행 정산이 여기에 적립돼요." action="거래 확인" onPress={() => a.tab('trades')} />}
-      </View>
+      <Row style={{ alignItems: 'stretch', gap: space.md }}>
+        <View style={{ flex: 1, backgroundColor: c.paper, borderRadius: radius.md, padding: space.lg, gap: space.sm }}><Txt size={12} color={c.secondary}>정산 예정</Txt><Txt size={22} weight="700">{money(wallet.pendingBalance)}</Txt></View>
+        <View style={{ flex: 1, backgroundColor: c.primarySoft, borderRadius: radius.md, padding: space.lg, gap: space.sm }}><Txt size={12} color={c.secondary}>이번 달 여행 정산</Txt><Txt size={22} weight="700" color={c.primaryStrong}>{money(monthReward)}</Txt></View>
+      </Row>
+      <Row style={{ justifyContent: 'space-between' }}><Txt size={13} color={c.secondary}>출금 처리 중 {money(wallet.withdrawalPending)}</Txt><Button small kind="ghost" label="체험 충전" icon={Banknote} onPress={() => a.nav('wallet-topup')} /></Row>
+      <Stack gap={space.lg}><Txt size={typography.section} weight="700">최근 내역</Txt>
+        <Row style={{ flexWrap: 'wrap', gap: space.sm }}>{(['전체', '들어온 금액', '나간 금액'] as const).map((label) => <Chip key={label} label={label} selected={filter === label} onPress={() => setFilter(label)} />)}</Row>
+        <View style={{ backgroundColor: c.paper, borderRadius: radius.lg, paddingHorizontal: space.lg }}>
+          {entries.map((entry, index) => <View key={entry.id} style={{ paddingVertical: space.page, borderBottomWidth: index === entries.length - 1 ? 0 : 1, borderColor: c.border }}><Row style={{ alignItems: 'flex-start' }}><View style={{ width: 36, height: 36, borderRadius: radius.sm, backgroundColor: entry.amount >= 0 ? c.primarySoft : c.background, alignItems: 'center', justifyContent: 'center' }}>{entry.amount >= 0 ? <Banknote size={18} color={c.primary} /> : <CreditCard size={18} color={c.secondary} />}</View><Stack gap={space.xs} style={{ flex: 1, minWidth: 0 }}><Txt size={14} weight="600">{entry.title}</Txt><Txt size={12} color={entry.status === 'FAILED' ? c.danger : c.secondary}>{shortDate(entry.createdAt)} · {entry.status === 'PROCESSING' ? '처리 중' : entry.status === 'FAILED' ? '실패' : entryLabels[entry.type]}</Txt></Stack><Txt size={15} weight="700" color={entry.amount >= 0 ? c.primaryStrong : c.ink}>{entry.amount >= 0 ? '+' : '−'}{money(Math.abs(entry.amount))}</Txt></Row></View>)}
+        </View>
+        {!entries.length && <Empty title={filter === '전체' ? '보관함의 첫 기록을 기다려요' : '아직 해당 내역이 없어요'} body="수령 확인 후 여행 정산과 결제 기록이 여기에 모여요." action="거래 확인" onPress={() => a.tab('trades')} />}
+      </Stack>
+      <Row style={{ alignItems: 'flex-start' }}><LockKeyhole size={16} color={c.muted} /><Txt size={12} color={c.secondary} style={{ flex: 1 }}>체험용 금액이에요. 충전·출금 버튼으로 실제 결제나 은행 이체가 발생하지 않아요.</Txt></Row>
     </Page>
   );
 }
@@ -51,12 +62,13 @@ export function TopUpScreen() {
   };
   return (
     <Page title="보관함 충전" footer={<Button label={`${money(value || 0)} 체험 충전`} disabled={!Number.isSafeInteger(value) || value <= 0 || !methodId} loading={a.busy} onPress={submit} />}>
-      <Stack gap={6}><Txt size={28} weight="800">얼마를 충전할까요?</Txt><Txt color={c.secondary}>결제수단을 선택해 Mock 충전 흐름을 확인할 수 있어요.</Txt></Stack>
+      <Stack gap={6}><Txt size={28} weight="800">얼마를 충전할까요?</Txt><Txt color={c.secondary}>예시 결제수단으로 보관함 충전을 체험해요.</Txt></Stack>
       <Row style={{ flexWrap: 'wrap' }}>{[10_000, 30_000, 50_000, 100_000].map((value) => <Chip key={value} label={money(value)} selected={!custom && amount === value} onPress={() => { setCustom(''); setAmount(value); }} />)}</Row>
       <Field label="직접 입력" value={custom} onChange={(value) => setCustom(value.replace(/[^0-9]/g, ''))} keyboard="numeric" placeholder="원 단위" />
       <Section title="충전 결제수단" />
-      {methods.map((method) => <Pressable key={method.id} accessibilityRole="radio" accessibilityState={{ selected: methodId === method.id }} onPress={() => setMethodId(method.id)}><Card style={{ borderColor: methodId === method.id ? c.primary : c.border }}><Row><MethodIcon method={method} /><Stack gap={1} style={{ flex: 1 }}><Txt weight="700">{method.label} {method.last4 ? `•••• ${method.last4}` : ''}</Txt><Txt size={11} color={c.secondary}>Mock Provider · 실제 승인 없음</Txt></Stack><CheckCircle2 size={22} color={methodId === method.id ? c.primary : c.muted} /></Row></Card></Pressable>)}
-      <Notice tone="warning">실제 충전은 PG 계약, 선불전자지급수단 정책과 법률 검토가 끝난 뒤 연결해야 해요.</Notice>
+      {methods.map((method) => <Pressable key={method.id} accessibilityRole="radio" accessibilityLabel={method.label} accessibilityState={{ checked: methodId === method.id }} aria-checked={methodId === method.id} onPress={() => setMethodId(method.id)}><Card style={{ borderColor: methodId === method.id ? c.primary : c.border, backgroundColor: methodId === method.id ? c.primarySoft : c.paper }}><Row><MethodIcon method={method} /><Stack gap={1} style={{ flex: 1 }}><Txt weight="700">{method.label} {method.last4 ? `•••• ${method.last4}` : ''}</Txt><Txt size={12} color={c.secondary}>체험 전용 · 실제 승인 없음</Txt></Stack><CheckCircle2 size={22} color={methodId === method.id ? c.primary : c.muted} /></Row></Card></Pressable>)}
+      {!methods.length && <Empty title="사용할 수 있는 결제수단이 없어요" action="결제수단 확인" onPress={() => a.nav('payment-methods')} />}
+      <Notice>체험용 잔액만 늘어나요. 실제 카드 결제나 계좌 출금은 일어나지 않아요.</Notice>
     </Page>
   );
 }
@@ -66,11 +78,12 @@ export function IdentityScreen() {
   const verify = (method: 'PASS' | 'SMS') => a.mutate('/identity/verify', { method }, '체험 본인확인을 완료했어요.');
   return (
     <Page title="본인확인">
-      <Stack gap={8}><Badge>{verified ? '체험 확인 완료' : '확인 필요'}</Badge><Txt size={29} weight="800">안전한 거래와 출금을 위해{`\n`}본인을 확인해요.</Txt><Txt color={c.secondary}>여행자로 거래하거나 정산 계좌를 등록할 때 필요한 구조예요.</Txt></Stack>
-      <Card><Stack gap={14}><Row><ShieldCheck size={25} color={c.primary} /><Txt size={18} weight="800">개발환경 Mock Identity</Txt></Row><Txt size={13} color={c.secondary}>PASS·SMS 사업자 Credential은 연결되지 않았습니다. 아래 버튼은 상태 전환과 예외 처리를 검증하기 위한 체험입니다.</Txt></Stack></Card>
+      <View style={{ width: 72, height: 72, backgroundColor: c.primarySoft, borderRadius: radius.lg, justifyContent: 'center', alignItems: 'center' }}><ShieldCheck size={36} color={c.primary} /></View>
+      <Stack gap={space.sm}><Badge>{verified ? '체험 확인 완료' : '확인 필요'}</Badge><Txt size={typography.hero} weight="800">서로 믿고 부탁할 수 있게{`\n`}본인을 확인해요.</Txt><Txt color={c.secondary}>부탁을 수락하거나 정산금을 받기 전 한 번 확인해요.</Txt></Stack>
+      <View style={{ paddingVertical: space.lg, gap: space.lg }}><Row><CheckCircle2 size={20} color={c.primary} /><Txt size={14}>상대에게는 인증 여부만 보여요</Txt></Row><Row><LockKeyhole size={20} color={c.primary} /><Txt size={14}>신분증과 주민등록번호를 받지 않아요</Txt></Row></View>
       <Button label={verified ? 'PASS 체험 다시 확인' : 'PASS로 체험 확인'} onPress={() => verify('PASS')} loading={a.busy} />
       <Button kind="secondary" label="SMS로 체험 확인" onPress={() => verify('SMS')} loading={a.busy} />
-      <Notice>신분증 원본이나 주민등록번호를 저장하지 않아요. 실서비스에서는 인증 사업자의 결과 토큰만 보관해야 해요.</Notice>
+      <Notice>현재는 본인확인 체험이에요. 실제 PASS·SMS 인증은 진행되지 않아요.</Notice>
     </Page>
   );
 }
@@ -81,8 +94,8 @@ export function PaymentMethodsScreen() {
     <Page title="결제수단">
       <Stack gap={6}><Txt size={27} weight="800">결제할 방법을 관리해요</Txt><Txt color={c.secondary}>카드번호 전체는 MOA 서버나 기기에 저장하지 않아요.</Txt></Stack>
       {methods.map((method) => <Pressable key={method.id} accessibilityRole="button" onPress={() => a.mutate(`/payment-methods/${method.id}/default`, {}, '기본 결제수단을 바꿨어요.')}><Card><Row><MethodIcon method={method} /><Stack gap={2} style={{ flex: 1 }}><Txt weight="700">{method.label} {method.last4 ? `•••• ${method.last4}` : ''}</Txt><Txt size={11} color={c.secondary}>{method.status === 'DEMO_ONLY' ? '체험 전용 토큰' : ''}</Txt></Stack>{method.isDefault ? <Badge>기본</Badge> : <ChevronRight size={18} color={c.muted} />}</Row></Card></Pressable>)}
-      <Button kind="secondary" label="결제수단 추가 구조 보기" onPress={() => a.notify('실제 PG 토큰 발급 화면을 연결할 자리예요. 카드번호는 MOA가 직접 받지 않아요.')} />
-      <Notice>실서비스에서는 계약된 PG가 발급한 Tokenized Payment Method만 저장해야 해요.</Notice>
+      {!methods.length && <Empty title="등록된 결제수단이 없어요" body="현재는 거래 결제에서 예시 카드 또는 계좌로 체험할 수 있어요." />}
+      <Notice>현재는 예시 결제수단만 사용할 수 있어요. 카드번호를 직접 입력하거나 실제로 결제되지 않아요.</Notice>
     </Page>
   );
 }
@@ -97,7 +110,7 @@ export function WithdrawalScreen() {
   };
   return (
     <Page title="내 계좌로 받기" footer={account ? <Button label={`${money(Number(amount) || 0)} 출금 체험`} disabled={!Number(amount) || Number(amount) > (wallet?.availableBalance || 0)} loading={a.busy} onPress={withdraw} /> : undefined}>
-      <Notice>Mock Payout Provider 화면입니다. 실제 은행 송금이나 계좌 실명 조회가 발생하지 않아요.</Notice>
+      <Stack gap={space.sm}><Txt size={typography.hero} weight="800">여행에서 쌓은 보상,{`\n`}내 계좌로 받아요</Txt><Txt size={14} color={c.secondary}>지금은 출금 흐름을 체험하며 실제 송금은 일어나지 않아요.</Txt></Stack>
       {!d.verificationSummary.identity ? <Card><Stack><Txt size={20} weight="800">본인확인이 먼저 필요해요</Txt><Txt color={c.secondary}>정산 계좌와 출금 요청은 확인된 사용자에게만 열려요.</Txt><Button label="체험 본인확인" icon={ShieldCheck} onPress={() => a.nav('identity')} /></Stack></Card> : !account ? <Card><Stack gap={13}><Txt size={20} weight="800">정산 계좌 등록</Txt><Txt size={12} color={c.secondary}>체험에서는 민감한 전체 계좌번호를 받지 않고 표시용 끝 4자리만 저장해요.</Txt><Field label="은행명" value={bankName} onChange={setBankName} required /><Field label="계좌 끝 4자리" value={last4} onChange={(value) => setLast4(value.replace(/[^0-9]/g, '').slice(0, 4))} keyboard="numeric" required /><Field label="예금주" value={holder} onChange={setHolder} required /><Button label="체험 계좌 등록" disabled={last4.length !== 4 || holder.trim().length < 2} loading={a.busy} onPress={save} /></Stack></Card> : <><Card><Row><Landmark size={23} color={c.primary} /><Stack gap={2} style={{ flex: 1 }}><Txt weight="800">{account.bankName}</Txt><Txt size={13} color={c.secondary}>•••• {account.accountLast4} · {account.holderName}</Txt></Stack><Badge>체험 확인</Badge></Row></Card><Card><Stack><Row style={{ justifyContent: 'space-between' }}><Txt color={c.secondary}>출금 가능</Txt><Txt size={23} weight="800">{money(wallet?.availableBalance || 0)}</Txt></Row><Divider /><Field label="출금 금액" value={amount} onChange={(value) => setAmount(value.replace(/[^0-9]/g, ''))} keyboard="numeric" placeholder="원 단위" /></Stack></Card></>}
     </Page>
   );

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Pressable, View } from 'react-native';
-import { CheckCircle2, FileImage, Plane, ShieldCheck } from 'lucide-react-native';
+import { Image, Pressable, View } from 'react-native';
+import { ArrowDown, ArrowUp, CheckCircle2, FileImage, Plane, ShieldCheck } from 'lucide-react-native';
 import { FlightLeg, TRIP_VERIFICATION_LABEL } from '@moa/domain';
 import { useApp } from '../state/AppContext';
 import { pickImage } from '../lib/images';
@@ -36,19 +36,18 @@ export function FlightProofScreen() {
       {leg.date || `연도 확인 필요 · 연중 ${leg.dayOfYear || '?'}번째 날`}</Txt>)}
   </Stack>;
   return <Page title="왕복 항공권 인증" resetScrollKey={`${trip.flightProof?.checkedAt || ''}:${error}`} footer={<Button
-    label={busy ? '왕복 항공권 확인 중' : '항공권 인식하고 일정 대조하기'}
+    label={busy ? '왕복 항공권 확인 중' : '항공권 확인하기'}
     loading={busy} disabled={!outbound || !inbound || !consent} onPress={submit} icon={ShieldCheck} />}>
     <Stack gap={10}>
-      <Badge>부탁 수락 전 필수 확인</Badge>
-      <Txt size={28} weight="800">가는 편도, 오는 편도{ '\n' }확인할게요.</Txt>
-      <Txt color={c.secondary}>항공권·예약 확인서 사진이나 QR·바코드가 보이는 탑승권을 올려주세요.</Txt>
+      <Txt size={12} weight="700" color={c.primaryStrong}>TRAVEL VERIFIED</Txt>
+      <Txt size={28} weight="800">믿고 부탁할 수 있도록,{ '\n' }항공권을 확인해요.</Txt>
+      <Txt size={15} color={c.secondary}>왕복 항공권이나 예약 확인서를 준비해주세요.</Txt>
     </Stack>
-    <Card><Stack gap={10}>
-      <Row><Plane size={20} color={c.green} /><Txt weight="700" style={{ flex: 1 }}>{trip.departureCity} ↔ {trip.destinationCity}</Txt></Row>
-      <Txt size={14}>가는 날 {trip.startDate} · 오는 날 {trip.endDate}</Txt>
-      <Badge>{TRIP_VERIFICATION_LABEL[trip.verificationStatus]}</Badge>
+    <Card style={{ backgroundColor: c.primaryDeep, borderColor: c.primaryDeep }}><Stack gap={18}>
+      <Row style={{ justifyContent: 'space-between' }}><Txt size={12} weight="600" color={c.navyText}>MY ROUND TRIP</Txt><Badge>{TRIP_VERIFICATION_LABEL[trip.verificationStatus]}</Badge></Row>
+      <Row style={{ alignItems: 'center', gap: 12 }}><Stack gap={4} style={{ flex: 1, minWidth: 0 }}><Txt size={trip.departureCity.length > 5 ? 18 : 22} weight="800" color={c.onPrimary}>{trip.departureCity}</Txt><Txt size={12} color={c.navyText}>{trip.startDate}</Txt></Stack><Plane size={22} color={c.navyTextBright} /><Stack gap={4} style={{ flex: 1, minWidth: 0, alignItems: 'flex-end' }}><Txt size={trip.destinationCity.length > 5 ? 18 : 22} weight="800" color={c.onPrimary} style={{ textAlign: 'right' }}>{trip.destinationCity}</Txt><Txt size={12} color={c.navyText}>{trip.endDate}</Txt></Stack></Row>
     </Stack></Card>
-    <Notice>항공권 인식은 발권 진위·탑승 보장과 달라요. 현재 항공사·본인확인 연동이 없어 새 일정은 최종 인증 전까지 부탁을 수락할 수 없어요.</Notice>
+    <Notice>체험에서는 항공권 정보를 대조해요. 실제 발권·본인 인증은 아직 연결되지 않아, 새 일정으로는 부탁을 수락할 수 없어요.</Notice>
     {trip.flightProof && <Card><Stack gap={14}>
       <Txt size={17} weight="700">최근 항공권 대조 결과</Txt>
       {legs('가는 편', trip.flightProof.outbound)}
@@ -57,9 +56,10 @@ export function FlightProofScreen() {
       {trip.flightProof.issues.map((issue, index) => <Txt key={index} size={13} color={c.secondary}>{issue}</Txt>)}
     </Stack></Card>}
     {[{ title: '가는 편 항공권', value: outbound, direction: 'outbound' as const },
-      { title: '오는 편 항공권', value: inbound, direction: 'inbound' as const }].map((item) => <Card key={item.direction}><Stack gap={10}>
-        <Txt size={17} weight="700">{item.title}</Txt>
-        <Txt size={13} color={c.secondary}>{item.value ? '사진을 선택했어요. 인증 버튼을 누르면 전송돼요.' : '탑승객 이름·항공편·날짜·출발/도착 구간이 보여야 해요.'}</Txt>
+      { title: '오는 편 항공권', value: inbound, direction: 'inbound' as const }].map((item) => <Card key={item.direction} style={{ borderColor: item.value ? c.primaryTint : c.border }}><Stack gap={14}>
+        <Row><View style={{ width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: c.primarySoft }}>{item.direction === 'outbound' ? <ArrowUp size={19} color={c.primaryStrong} /> : <ArrowDown size={19} color={c.primaryStrong} />}</View><View style={{ flex: 1, gap: 2 }}><Txt size={17} weight="700">{item.title}</Txt><Txt size={12} color={c.secondary}>{item.direction === 'outbound' ? `${trip.departureCity} → ${trip.destinationCity}` : `${trip.destinationCity} → ${trip.departureCity}`}</Txt></View>{!!item.value && <CheckCircle2 size={21} color={c.primary} />}</Row>
+        {item.value && <Image source={{ uri: item.value }} accessibilityLabel={`${item.title} 선택한 사진`} style={{ width: '100%', height: 132, borderRadius: 12, backgroundColor: c.canvas }} resizeMode="contain" />}
+        <Txt size={13} color={c.secondary}>{item.value ? '확인 버튼을 누르면 선택한 사진이 전송돼요.' : '이름, 항공편, 날짜, 출발·도착지가 보이게 올려주세요.'}</Txt>
         <Button kind="secondary" icon={FileImage} label={`${item.title} ${item.value ? '다시 선택' : '사진 올리기'}`} disabled={busy} onPress={() => pick(item.direction)} />
         {item.value !== '' && <Button small kind="ghost" label={`${item.title} 사진 지우기`} disabled={busy} onPress={() => (item.direction === 'outbound' ? setOutbound : setInbound)('')} />}
       </Stack></Card>)}

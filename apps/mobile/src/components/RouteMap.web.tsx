@@ -2,17 +2,18 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Pressable, ScrollView, View } from 'react-native';
 import type { Place } from '@moa/domain';
 import { colors as c } from '../theme/tokens';
+import { GOOGLE_WEB_MAPS_KEY } from '../lib/maps-config';
 import { kakaoMapEmbedUrl, googlePlaceUrl, googleRouteMapHtml } from './google-route-map-html';
 import type { RouteMapProps } from './RouteMap';
 import { Button, Txt } from './ui';
-import { RouteMapEmpty, RouteMapStatus, ROUTE_MAP_TIMEOUT, RouteMapLoadState } from './RouteMapStatus';
+import { RouteMapEmpty, RouteMapStatus, RouteMapUnavailable, ROUTE_MAP_TIMEOUT, RouteMapLoadState } from './RouteMapStatus';
 
 export default function RouteMap({ places, selected, onSelect }: RouteMapProps) {
   const frame = useRef<HTMLIFrameElement>(null);
   const [status, setStatus] = useState<RouteMapLoadState>('loading');
   const [attempt, setAttempt] = useState(0);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY?.trim() || '';
+  const apiKey = GOOGLE_WEB_MAPS_KEY;
   const active = places.find((place) => place.id === selected) || places[0];
   const channel = useRef(`route-${Math.random().toString(36).slice(2)}`).current;
   const html = useMemo(() => apiKey ? googleRouteMapHtml(places, selected, apiKey, channel) : '', [apiKey, channel, places, selected]);
@@ -21,7 +22,7 @@ export default function RouteMap({ places, selected, onSelect }: RouteMapProps) 
     setStatus((current) => next === 'ready' && current === 'error' ? current : next);
   };
   useEffect(() => {
-    if (!active) return;
+    if (!active || !apiKey) return;
     setStatus('loading');
     timer.current = setTimeout(() => setStatus('error'), ROUTE_MAP_TIMEOUT);
     return () => clearTimeout(timer.current);
@@ -43,6 +44,7 @@ export default function RouteMap({ places, selected, onSelect }: RouteMapProps) 
   }, [channel, onSelect, places]);
   if (!active) return <RouteMapEmpty />;
   const open = () => void Linking.openURL(googlePlaceUrl(active));
+  if (!apiKey) return <RouteMapUnavailable places={places} active={active} onSelect={onSelect} onOpen={open} />;
   return <View style={{ borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: c.border, backgroundColor: c.paper }}>
     <View style={{ height: 300 }}>
       <iframe key={attempt} ref={frame} title="Google 장소 지도" src={apiKey ? undefined : kakaoMapEmbedUrl(active)} srcDoc={apiKey ? html : undefined}

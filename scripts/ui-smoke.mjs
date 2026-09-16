@@ -94,6 +94,9 @@ const click = async (label, role = 'button') => {
   assert.ok(element.isConnected, label + ' must remain on the current screen');
   element.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
   await new Promise((r) => setTimeout(r, 70));
+  // RN modal exit keeps content mounted until CSS animationend. jsdom has no animation clock.
+  finishAnimations();
+  await new Promise((r) => setTimeout(r, 20));
 };
 const expectText = async (text) => wait(() => document.body.textContent.includes(text), text);
 const finishAnimations = () => {
@@ -117,7 +120,6 @@ try {
   await click('모아 시작하기');
   await expectText('부탁할게요');
   await expectText('가져올게요');
-  await click('모아 시작하기');
   await click('체험 계정으로 로그인');
   await expectText('링크나 사진만');
   assert.ok(document.body.textContent.indexOf('요즘 떠나는 곳') < document.body.textContent.indexOf('찾는 물건이 있나요?'), 'Places must come before product entry');
@@ -127,11 +129,13 @@ try {
   await click('여행 일정 등록');
   await expectText('어디로 떠나세요?');
   await click('뒤로');
+  await expectText('요즘 떠나는 곳');
+  await click('등록', 'tab');
   await expectText('이거 부탁하기');
   await click('구매 요청 등록');
   await expectText('어떤 물건을 부탁할까요?');
   await click('뒤로');
-  await expectText('이거 부탁하기');
+  await expectText('요즘 떠나는 곳');
   await click('홈', 'tab');
   await expectText('요즘 떠나는 곳');
   console.log('PASS: + chooser → trip entry → request entry');
@@ -215,17 +219,25 @@ try {
   await expectText('월');
   await click('희망 수령일 달력 열기');
   await click('직접 전달 · 무료');
-  const mapFrame = await wait(() => document.querySelector('iframe[title="직거래 위치 지도"]'), 'meetup map');
-  const interactiveMap = mapFrame.srcdoc?.match(/"channel":"([^"]+)"/);
+  await wait(() => document.querySelector('iframe[title="직거래 위치 지도"]') || document.body.textContent.includes('지도 연결을 준비하고 있어요'), 'meetup map or honest unavailable state');
+  const mapFrame = document.querySelector('iframe[title="직거래 위치 지도"]');
+  const interactiveMap = mapFrame?.srcdoc?.match(/"channel":"([^"]+)"/);
   if (interactiveMap) {
+    // jsdom does not execute the external SDK. Mirror its tilesloaded handshake
+    // before a coordinate message; the recovery unit suite tests rejected/late messages.
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', {
+      source: mapFrame.contentWindow,
+      data: JSON.stringify({ channel: interactiveMap[1], ready: true }),
+    }));
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', {
       source: mapFrame.contentWindow,
       data: JSON.stringify({ channel: interactiveMap[1], latitude: 37.555, longitude: 126.97 }),
     }));
     await click('이 위치에서 만날게요');
   } else {
-    assert.match(mapFrame.src, /map\.kakao\.com\/link\/map/, 'A zero-key meetup map must use the Kakao Map fallback, never raw OSM tiles');
-    await expectText('지도를 움직여 위치를 확인할 수 있어요.');
+    assert.equal(mapFrame, null, 'A missing API key must not render a pretend map iframe');
+    await expectText('지도 연결을 준비하고 있어요');
+    await click('어디에서 만날까요? 닫기');
     await click('국내 택배 · ₩3,500');
   }
   finishAnimations();
@@ -313,9 +325,9 @@ try {
   );
   offers.click();
   await click('이 사람의 일정 보기');
-  await expectText('정말 그곳에 가는지');
-  await expectText('시간별 공개 일정');
-  await click('여행자 비교로');
+  await expectText('공개한 여행 계획');
+  await expectText('일정 한눈에 보기');
+  await click('뒤로');
   await click('민트로드님과 함께하기');
   await expectText('어떻게 결제할까요?');
   await click('카드로 결제', 'radio');

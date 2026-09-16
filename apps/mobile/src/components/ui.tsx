@@ -59,9 +59,10 @@ export function Txt({
               : undefined,
           fontSize: size,
           fontWeight: weight,
+          fontVariant: ['tabular-nums'],
           color,
-          lineHeight: size * 1.38,
-          letterSpacing: size >= 22 ? -0.65 : -0.18,
+          lineHeight: size * (size >= 24 ? 1.28 : 1.45),
+          letterSpacing: size >= 22 ? -0.8 : -0.25,
         },
         style,
       ]}
@@ -175,7 +176,7 @@ export function Button({
           maxWidth: '100%',
           flexShrink: 1,
           paddingVertical: 12,
-          borderRadius: 14,
+          borderRadius: radius.button,
           paddingHorizontal: small ? 16 : 20,
           alignItems: 'center',
           justifyContent: 'center',
@@ -183,15 +184,16 @@ export function Button({
           gap: 8,
           backgroundColor:
             kind === 'primary'
-              ? c.green
+              ? c.primaryStrong
               : kind === 'secondary'
-                ? c.lilac
+                ? c.primarySoft
                 : kind === 'lime'
                   ? c.lime
                   : kind === 'danger'
                     ? c.dangerBg
                     : 'transparent',
           opacity: disabled ? 0.45 : pressed ? 0.78 : 1,
+          transform: [{ scale: pressed && !disabled ? 0.985 : 1 }],
         },
         style,
       ]}
@@ -281,7 +283,7 @@ export function Chip({
 }
 export function Badge({
   children,
-  color = c.green,
+  color = c.primaryStrong,
   bg = c.mint,
 }: {
   children: ReactNode;
@@ -427,12 +429,13 @@ export function Notice({
   children: ReactNode;
   tone?: 'info' | 'success' | 'warning' | 'error';
 }) {
-  const bg = tone === 'warning' ? c.butter : tone === 'error' ? c.dangerBg : c.mint;
+  const bg = tone === 'warning' ? c.butter : tone === 'error' ? c.dangerBg : tone === 'success' ? c.successSoft : c.ultraSoft;
+  const color = tone === 'error' ? c.danger : tone === 'warning' ? c.warning : tone === 'success' ? c.success : c.primaryDeep;
   return (
     <Row style={{ alignItems: 'flex-start', padding: 14, borderRadius: 14, backgroundColor: bg }}>
-      <Info size={17} color={tone === 'error' ? c.danger : c.green} style={{ marginTop: 2 }} />
-      <View style={{ flex: 1 }}>
-        <Txt size={13} color={tone === 'error' ? c.danger : c.darkGreen}>
+      {tone === 'success' ? <Check size={17} color={color} style={{ marginTop: 2 }} /> : <Info size={17} color={color} style={{ marginTop: 2 }} />}
+      <View style={{ flex: 1 }} accessibilityRole={tone === 'error' ? 'alert' : undefined}>
+        <Txt size={13} color={color}>
           {children}
         </Txt>
       </View>
@@ -513,8 +516,9 @@ export function Empty({
   const app = useApp();
   return (
     <Stack gap={12} style={{ alignItems: 'center', paddingVertical: 36, paddingHorizontal: 20 }}>
-      <View style={{ padding: 16, borderRadius: radius.lg, backgroundColor: c.lilac }}>
-        <Package size={26} color={c.muted} strokeWidth={1.5} />
+      <View style={{ width: 76, height: 76, borderRadius: 24, backgroundColor: c.primarySoft, alignItems: 'center', justifyContent: 'center', marginBottom: 4, transform: [{ rotate: '-5deg' }] }}>
+        <Package size={32} color={c.primary} strokeWidth={1.5} />
+        <View style={{ position: 'absolute', width: 10, height: 10, backgroundColor: c.sky, borderRadius: 5, top: 4, right: -4 }} />
       </View>
       <Txt size={18} weight="700" style={{ textAlign: 'center' }}>
         {title}
@@ -559,9 +563,9 @@ export function Page({
     >
       <Row
         style={{
-          minHeight: 58,
+          minHeight: 60,
           paddingHorizontal: 12,
-          borderBottomWidth: 1,
+          borderBottomWidth: 0,
           borderColor: c.border,
           backgroundColor: c.paper,
         }}
@@ -585,13 +589,14 @@ export function Page({
         ) : (
           <View style={{ width: 12 }} />
         )}
-        <Txt size={20} weight="700" style={{ flex: 1 }} lines={1}>
+        <Txt size={22} weight="700" style={{ flex: 1 }} lines={1}>
           {title}
         </Txt>
       </Row>
       {scroll ? (
         <ScrollView
           ref={scrollRef}
+          style={{ flex: 1 }}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           contentContainerStyle={{ padding: space.page, paddingBottom: space.xxl, gap: space.xl }}

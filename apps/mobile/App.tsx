@@ -13,12 +13,14 @@ import {
   HelpCircle,
   Plane,
   RefreshCw,
+  WifiOff,
 } from 'lucide-react-native';
 import { AppProvider, Screen, useApp } from './src/state/AppContext';
 import { colors as c } from './src/theme/tokens';
-import { Badge, Button, Row, Stack, Txt } from './src/components/ui';
+import { Badge, Button, Row, Sheet, Stack, Txt } from './src/components/ui';
+import { LoadingSkeleton, PageTransition } from './src/components/motion';
 import { Logo } from './src/components/visuals';
-import { CreateScreen, GuideScreen, Home, Onboarding, PlaceScreen, SearchScreen } from './src/screens/Home';
+import { CreateActions, CreateScreen, GuideScreen, Home, Onboarding, PlaceScreen, SearchScreen } from './src/screens/Home';
 import { RequestForm } from './src/screens/Forms';
 import { TripForm } from './src/screens/TripForm';
 import { FlightProofScreen } from './src/screens/FlightProof';
@@ -116,6 +118,8 @@ function Shell() {
   const a = useApp(),
     { width, height } = useWindowDimensions();
   const [entryGuideComplete, setEntryGuideComplete] = React.useState(false);
+  const [creationOpen, setCreationOpen] = React.useState(false);
+  const [retrying, setRetrying] = React.useState(false);
   const desktop = width >= 1060;
   const Current = screens[a.route.name] || Home;
   useEffect(() => {
@@ -145,7 +149,7 @@ function Shell() {
             accessibilityRole="tab"
             accessibilityLabel={label}
             accessibilityState={{ selected }}
-            onPress={() => a.tab(name)}
+            onPress={() => name === 'create' ? setCreationOpen(true) : a.tab(name)}
             style={({ pressed }) =>
               vertical
                 ? {
@@ -185,7 +189,7 @@ function Shell() {
               weight={selected ? '700' : '500'}
               color={selected ? c.green : c.secondary}
             >
-              {vertical && name === 'create' ? '새로 등록하기' : label}
+              {vertical && name === 'create' ? '새로 등록하기' : name === 'search' ? '둘러보기' : label}
             </Txt>
           </Pressable>
         );
@@ -207,7 +211,7 @@ function Shell() {
           style={{
             flex: 1,
             width: '100%',
-            maxWidth: desktop ? 1170 : 680,
+            maxWidth: desktop ? 960 : 640,
             flexDirection: 'row',
             borderLeftWidth: desktop ? 1 : 0,
             borderRightWidth: desktop ? 1 : 0,
@@ -217,7 +221,7 @@ function Shell() {
           {desktop && a.data && (
             <View
               style={{
-                width: 250,
+                width: 260,
                 padding: 25,
                 backgroundColor: c.canvas,
                 borderRightWidth: 1,
@@ -243,14 +247,11 @@ function Shell() {
                 </Txt>
                 <Pressable
                   accessibilityRole="button"
-                  onPress={() => {
-                    a.setRole('traveler');
-                    a.tab('home');
-                  }}
+                  onPress={() => a.nav('settings')}
                 >
                   <Row style={{ gap: 4 }}>
                     <Txt size={12} color={c.darkGreen} weight="700">
-                      내 동선 살펴보기
+                      이용 모드 설정
                     </Txt>
                     <ArrowUpRight size={13} color={c.darkGreen} />
                   </Row>
@@ -270,10 +271,14 @@ function Shell() {
           )}
           <View style={{ flex: 1, minWidth: 0, backgroundColor: c.canvas }}>
             {a.loading ? (
-              <Stack style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                <Logo size={60} />
-                <Txt color={c.secondary}>가는 김에, 하나 더.</Txt>
-                <ActivityIndicator color={c.green} />
+              <LoadingSkeleton variant={['profile', 'offers'].includes(a.route.name) ? 'traveler' : ['transaction', 'payment', 'trades'].includes(a.route.name) ? 'transaction' : ['request', 'request-form'].includes(a.route.name) ? 'request' : 'place'} />
+            ) : !a.data && a.error ? (
+              <Stack style={{ flex: 1, justifyContent: 'center', padding: 28 }}>
+                <View style={{ width: 64, height: 64, backgroundColor: c.primarySoft, borderRadius: 20, justifyContent: 'center', alignItems: 'center' }}><WifiOff size={28} color={c.primaryStrong} /></View>
+                <Txt size={26} weight="800">연결을 다시 확인해주세요.</Txt>
+                <View accessibilityRole="alert"><Txt color={c.secondary}>{a.error}</Txt></View>
+                <Button label="다시 연결하기" loading={retrying} onPress={async () => { setRetrying(true); try { await a.refresh(); } catch { /* Error remains readable; don't erase the session or saved draft. */ } finally { setRetrying(false); } }} />
+                <Button label="로그인부터 다시 시작" kind="ghost" onPress={() => a.logout()} />
               </Stack>
             ) : !a.data ? (
               entryGuideComplete ? <Onboarding /> : <GuideScreen onComplete={() => setEntryGuideComplete(true)} />
@@ -297,12 +302,13 @@ function Shell() {
                     </Row>
                   </View>
                 )}
-                <View style={{ flex: 1, minHeight: 0 }}>
+                <PageTransition routeKey={JSON.stringify(a.route)}>
                   <Boundary key={`${JSON.stringify(a.route)}-${a.data.me.id}`}>
                     <Current />
                   </Boundary>
-                </View>
+                </PageTransition>
                 {!desktop && navigation()}
+                <Sheet visible={creationOpen} title="무엇을 할까요?" onClose={() => setCreationOpen(false)}><CreateActions onChoose={() => setCreationOpen(false)} /></Sheet>
               </>
             )}
             {!!a.toast && (

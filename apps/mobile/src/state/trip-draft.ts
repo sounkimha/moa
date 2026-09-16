@@ -12,6 +12,7 @@ export type TripDraft = {
   places: string[];
   start: string;
   end: string;
+  capacity?: string;
 };
 const memory = new Map<string, TripDraft>();
 const key = (owner: string) => `moa-trip-draft:${owner}`;
@@ -28,6 +29,7 @@ export function readTripDraft(owner: string): TripDraft | null {
     if (!draft || !COUNTRY_CODES.includes(draft.country) || !COUNTRY_CODES.includes(draft.depCountry)
       || typeof draft.departure !== 'string' || draft.departure.length > 40 || !['address', 'gps', 'manual'].includes(draft.originSource)
       || !validDate(draft.start) || !validDate(draft.end) || draft.end < draft.start
+      || (draft.capacity !== undefined && (typeof draft.capacity !== 'string' || !/^\d{0,2}$/.test(draft.capacity)))
       || !Array.isArray(draft.areas) || draft.areas.length > 8 || !draft.areas.every((value) => typeof value === 'string')
       || !Array.isArray(draft.places) || draft.places.length > 12 || !draft.places.every((value) => typeof value === 'string' && value.length <= 100)
       || !Array.isArray(draft.customStops) || draft.customStops.length > 8 || !draft.customStops.every((value) => typeof value === 'string' && value.length <= 100)) { clear(owner); return null; }

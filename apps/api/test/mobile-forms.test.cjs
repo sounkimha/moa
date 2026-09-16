@@ -40,11 +40,15 @@ test('request and trip form state regressions', async (t) => {
     const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
     const module = { exports: {} };
     const imports = (name) => {
-      if (name === 'react-native') return { Platform: { OS: 'web' }, View: shell, ScrollView: shell, Pressable: button, BackHandler: {} };
+      if (name === 'react-native') return { Platform: { OS: 'web' }, View: shell, Image: () => null, ScrollView: shell, Pressable: button, BackHandler: {} };
       if (name === 'expo-location') return {};
       if (name === 'lucide-react-native') return new Proxy({}, { get: () => () => null });
       if (name.endsWith('/ui') || name === './ui') return ui;
       if (name.endsWith('/visuals')) return { ProductArt: () => null, MoneyBreakdown: ({ price }) => h('span', { 'aria-label': 'price' }, String(price.totalPrice)) };
+      // Keep visual assets/native animation outside this state harness, just as ProductArt is.
+      // The browser suites exercise the actual photo previews and moving route component.
+      if (name.endsWith('/travel-route')) return { PlaneRouteAnimation: () => null };
+      if (name.endsWith('/place-photos')) return { getPlacePhoto: () => undefined };
       if (name.endsWith('/AppContext')) return { useApp: () => app };
       if (name.endsWith('/api')) return { api: (...args) => apiCall(...args) };
       if (name.endsWith('/images')) return { pickImage: async () => null };
@@ -62,7 +66,8 @@ test('request and trip form state regressions', async (t) => {
     new Function('exports', 'module', 'require', compiled)(module.exports, module, imports);
     modules.set(file, module.exports); return module.exports;
   }
-  const { RequestForm, TripForm } = load(path.join(mobileRoot, 'screens/Forms.tsx'));
+  const { RequestForm } = load(path.join(mobileRoot, 'screens/Forms.tsx'));
+  const { TripForm } = load(path.join(mobileRoot, 'screens/TripForm.tsx'));
   const { DateRangePicker } = load(path.join(mobileRoot, 'components/DateRangePicker.tsx'));
   const { seedDatabase } = require('../../../packages/domain/dist/seed.js');
   const wait = async (ms = 0) => act(() => new Promise((resolve) => setTimeout(resolve, ms)));

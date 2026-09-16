@@ -21,7 +21,7 @@ import {
 } from 'lucide-react-native';
 import { money, shortDate, UserAddress, TRIP_VERIFICATION_LABEL } from '@moa/domain';
 import { useApp } from '../state/AppContext';
-import { colors as c } from '../theme/tokens';
+import { colors as c, radius, space, typography } from '../theme/tokens';
 import {
   Badge,
   Button,
@@ -39,9 +39,9 @@ import {
 import { Avatar, PlaceCard } from '../components/visuals';
 
 function AccountGroup({ title, children }: { title: string; children: ReactNode }) {
-  return <View style={{ gap: 6 }}>
-    <Txt size={12} weight="600" color={c.muted} style={{ paddingHorizontal: 4 }}>{title}</Txt>
-    <View style={{ backgroundColor: c.paper, borderRadius: 18, paddingHorizontal: 16 }}>{children}</View>
+  return <View style={{ gap: space.sm }}>
+    <Txt size={13} weight="600" color={c.secondary} style={{ paddingHorizontal: space.xs }}>{title}</Txt>
+    <View style={{ backgroundColor: c.paper, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border, paddingHorizontal: space.lg }}>{children}</View>
   </View>;
 }
 
@@ -70,7 +70,7 @@ function AccountDetails({ panel, onClose }: { panel: AccountPanel; onClose: () =
     const name = request?.meetupPoint?.name || request?.meetupLocation;
     return request?.transport === 'MEETUP' && name ? [{ request, trade, name }] : [];
   }).reverse().filter((item, index, all) => all.findIndex((other) => other.name === item.name && other.request.meetupPoint?.address === item.request.meetupPoint?.address) === index);
-  const identityVerified = d.me.verificationLabels.includes('본인 인증');
+  const identityVerified = d.verificationSummary.identity || d.me.verificationLabels.includes('본인 인증');
   const titles: Record<NonNullable<AccountPanel>, string> = {
     identity: '본인 인증', meetups: '직거래 장소 기록', payments: '결제수단 관리', settlement: '정산 계좌', notifications: '알림 설정',
   };
@@ -140,38 +140,33 @@ export function MyScreen() {
   const ownRequests = d.requests.filter((request) => request.requesterId === d.me.id).length;
   const ownTravelerTrades = d.transactions.filter((trade) => trade.travelerId === d.me.id).length;
   const ownTrips = d.trips.filter((trip) => trip.travelerId === d.me.id).length;
-  const reward = d.payouts.filter((payout) => payout.travelerId === d.me.id).reduce(
-    (sum, payout) => sum + (payout.netReward ?? payout.reward - Math.round(payout.reward * 0.1)),
-    0,
-  );
+  const wallet = d.wallets.find((item) => item.userId === d.me.id);
   const modeLabel = a.role === 'buyer' ? '부탁하기' : '여행하기';
   const reviews = d.reviews.filter((review) => review.targetId === d.me.id);
-  const identityVerified = d.me.verificationLabels.includes('본인 인증');
+  const identityVerified = d.verificationSummary.identity || d.me.verificationLabels.includes('본인 인증');
   return (
     <Page title="마이" back={false}>
-      <Pressable accessibilityRole="button" accessibilityLabel="내 프로필 보기" onPress={() => a.nav('profile', { id: d.me.id })}>
-        <Row style={{ paddingVertical: 8, gap: 14 }}>
-          <Avatar user={d.me} size={58} />
+      <Pressable accessibilityRole="button" accessibilityLabel="내 프로필 보기" onPress={() => a.nav('profile', { id: d.me.id })} style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}>
+        <Row style={{ paddingVertical: space.sm, gap: space.lg }}>
+          <Avatar user={d.me} size={64} />
           <View style={{ flex: 1, minWidth: 0, gap: 5 }}>
-            <Txt size={23} weight="700" lines={1}>{d.me.nickname}</Txt>
-            <Row style={{ gap: 4 }}><ShieldCheck size={14} color={identityVerified ? c.green : c.muted} /><Txt size={12} color={c.secondary}>{identityVerified ? '본인 인증 · 체험 계정' : '본인 인증 필요'}</Txt></Row>
+            <Txt size={typography.hero} weight="800" lines={1}>{d.me.nickname}</Txt>
+            <Row style={{ gap: space.xs }}><ShieldCheck size={15} color={identityVerified ? c.primary : c.muted} /><Txt size={13} color={c.secondary}>{identityVerified ? '본인 확인 완료 · 체험' : '본인 인증 필요'}</Txt></Row>
           </View>
           <ChevronRight size={20} color={c.muted} />
         </Row>
       </Pressable>
-      <Row style={{ justifyContent: 'space-between', gap: 4, paddingBottom: 4 }}>
-        {[[`${d.me.completed}건`, '완료한 거래'], [d.me.successRate === null ? '—' : `${d.me.successRate}%`, '거래 성공률'], [`${reviews.length}개`, '받은 후기'], [`${d.me.responseMinutes}분`, '평균 응답']].map(([value, label]) =>
-          <View key={label} style={{ flex: 1, alignItems: 'center', gap: 5 }}><Txt size={17} weight="700">{value}</Txt><Txt size={11} color={c.muted}>{label}</Txt></View>)}
+      <Row style={{ justifyContent: 'space-between', gap: space.xs, backgroundColor: c.paper, paddingVertical: space.lg, borderRadius: radius.md }}>
+        {[[`${d.me.completed}건`, '완료한 거래'], [`${reviews.length}개`, '받은 후기'], [d.me.successRate === null ? '—' : `${d.me.successRate}%`, '거래 성공률']].map(([value, label]) =>
+          <View key={label} style={{ flex: 1, alignItems: 'center', gap: space.xs }}><Txt size={20} weight="700">{value}</Txt><Txt size={12} color={c.secondary}>{label}</Txt></View>)}
       </Row>
-      <View style={{ borderTopWidth: 1, borderBottomWidth: 1, borderColor: c.border }}>
+      <View style={{ paddingHorizontal: space.lg, backgroundColor: c.primarySoft, borderRadius: radius.md }}>
         <AccountRow title="이용 모드" icon={a.role === 'buyer' ? ShoppingBag : Plane} detail={modeLabel} selected label="이용 모드 설정" onPress={() => a.nav('settings')} />
       </View>
-      {a.role === 'traveler' && <Card style={{ backgroundColor: c.mint }}>
-        <Row style={{ justifyContent: 'space-between' }}>
-          <View style={{ flex: 1, minWidth: 0 }}><Txt size={12} color={c.secondary}>정산된 보상 · 체험</Txt><Txt size={26} weight="700">{money(reward)}</Txt></View>
-          <Button small kind="ghost" label="정산 내역" onPress={() => a.nav('payouts')} />
-        </Row>
-      </Card>}
+      <Pressable accessibilityRole="button" accessibilityLabel="MOA 보관함 보기" onPress={() => a.nav('wallet')} style={({ pressed }) => ({ borderRadius: radius.lg, padding: space.page, backgroundColor: c.primaryDeep, gap: space.lg, opacity: pressed ? 0.85 : 1 })}>
+        <Row style={{ justifyContent: 'space-between' }}><Row><Wallet size={19} color={c.navyText} /><Txt size={14} color={c.onPrimary} weight="600">MOA 보관함</Txt></Row><ChevronRight size={19} color={c.navyText} /></Row>
+        <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end' }}><Stack gap={space.xs}><Txt size={12} color={c.navyText}>사용 가능한 체험 잔액</Txt><Txt size={30} weight="800" color={c.onPrimary}>{money(wallet?.availableBalance ?? 0)}</Txt></Stack><Txt size={12} color={c.navyText}>보관함 보기</Txt></Row>
+      </Pressable>
       <AccountGroup title="나의 활동">
         <AccountRow title={a.role === 'buyer' ? '내 부탁' : '가져오는 거래'} icon={ShoppingBag} detail={`${a.role === 'buyer' ? ownRequests : ownTravelerTrades}건`} onPress={() => a.tab('trades')} />
         <AccountRow title="여행 일정" icon={Plane} detail={`${ownTrips}개`} onPress={() => a.nav('trips')} />
@@ -179,11 +174,11 @@ export function MyScreen() {
         <AccountRow title="남긴 후기" icon={Star} onPress={() => a.nav('reviews')} />
       </AccountGroup>
       <AccountGroup title="거래 준비">
-        <AccountRow title="본인 인증" icon={ShieldCheck} detail={identityVerified ? '체험 인증' : '확인 필요'} onPress={() => setPanel('identity')} />
+        <AccountRow title="본인 인증" icon={ShieldCheck} detail={identityVerified ? '체험 인증' : '확인 필요'} onPress={() => a.nav('identity')} />
         <AccountRow title="배송지 관리" icon={MapPin} detail={`${(d.addresses || []).filter((item) => item.userId === d.me.id).length}개`} onPress={() => a.nav('addresses')} />
         <AccountRow title="직거래 장소 기록" icon={MapPin} onPress={() => setPanel('meetups')} />
-        <AccountRow title="결제수단 관리" icon={CreditCard} onPress={() => setPanel('payments')} />
-        {a.role === 'traveler' && <AccountRow title="정산 계좌" icon={Wallet} onPress={() => setPanel('settlement')} />}
+        <AccountRow title="결제수단 관리" icon={CreditCard} onPress={() => a.nav('payment-methods')} />
+        {a.role === 'traveler' && <><AccountRow title="정산 계좌" icon={Wallet} onPress={() => a.nav('wallet-withdraw')} /><AccountRow title="정산 내역" icon={Wallet} onPress={() => a.nav('payouts')} /></>}
       </AccountGroup>
       <AccountGroup title="설정과 도움말">
         <AccountRow title="알림" icon={Bell} detail={d.notifications.filter((notice) => !notice.read).length ? '새 소식' : undefined} onPress={() => a.nav('notifications')} />
@@ -308,19 +303,20 @@ export function TripsScreen() {
           const areas = t.destinationAreas?.length ? t.destinationAreas : [...new Set(places.map((place) => place.city))];
           const stops = [...new Set(t.customStops || [])];
           return (
-          <Card key={t.id}>
-            <Stack gap={16}>
-              <Row style={{ gap: 6 }}><Plane size={16} color={c.green} /><Txt size={13} color={c.secondary}>{t.departureCity} 출발</Txt></Row>
-              <Stack gap={6}>
-                <Txt size={23} weight="700">{areas.join(' · ') || t.destinationCity}</Txt>
-                <Txt size={14} color={c.secondary}>{shortDate(t.startDate)} — {shortDate(t.endDate)}</Txt>
-              </Stack>
-              <Txt size={12} color={t.verificationStatus === 'NEEDS_REVIEW' ? c.danger : c.secondary}>{TRIP_VERIFICATION_LABEL[t.verificationStatus]}</Txt>
-              {(places.length > 0 || stops.length > 0) && <View style={{ borderTopWidth: 1, borderColor: c.border, paddingTop: 10 }}>
+          <Card key={t.id} style={{ padding: 0, overflow: 'hidden' }}>
+            <Stack gap={space.lg} style={{ padding: space.page }}>
+              <Row style={{ justifyContent: 'space-between' }}><Txt size={12} color={c.primary} weight="700">MY JOURNEY</Txt><Txt size={12} color={c.secondary}>{shortDate(t.startDate)} — {shortDate(t.endDate)}</Txt></Row>
+              <Row style={{ alignItems: 'center' }}><Stack gap={space.xs} style={{ flex: 1 }}><Txt size={12} color={c.secondary}>출발</Txt><Txt size={20} weight="700">{t.departureCity}</Txt></Stack><View style={{ flex: 0.65, alignItems: 'center', justifyContent: 'center' }}><View style={{ position: 'absolute', width: '100%', height: 1, borderTopWidth: 1, borderColor: c.primaryTint, borderStyle: 'dashed' }} /><View style={{ backgroundColor: c.paper, paddingHorizontal: space.sm }}><Plane size={22} color={c.primary} /></View></View><Stack gap={space.xs} style={{ flex: 1, alignItems: 'flex-end' }}><Txt size={12} color={c.secondary}>여행지</Txt><Txt size={20} weight="700" style={{ textAlign: 'right' }}>{areas.join(' · ') || t.destinationCity}</Txt></Stack></Row>
+              <Row><ShieldCheck size={16} color={t.verificationStatus === 'NEEDS_REVIEW' ? c.danger : c.primary} /><Txt size={12} color={t.verificationStatus === 'NEEDS_REVIEW' ? c.danger : c.secondary} style={{ flex: 1 }}>{TRIP_VERIFICATION_LABEL[t.verificationStatus]}</Txt></Row>
+              <Button label="여행 일정 보기" kind="secondary" icon={Plane} onPress={() => a.nav('trip-route', { id: t.id })} />
+            </Stack>
+            <Stack gap={space.md} style={{ borderTopWidth: 1, borderStyle: 'dashed', borderColor: c.border, padding: space.page, backgroundColor: c.canvas }}>
+              {(places.length > 0 || stops.length > 0) && <View>
+                <Txt size={12} color={c.secondary}>{places.length + stops.length}곳을 방문해요</Txt>
                 {places.map((place) => <AccountRow key={place.id} title={place.name} icon={MapPin} onPress={() => a.nav('place', { id: place.id })} />)}
-                {stops.map((stop) => <Row key={stop} style={{ minHeight: 42, paddingVertical: 8 }}><MapPin size={18} color={c.muted} /><Txt size={14} style={{ flex: 1 }}>{stop}</Txt></Row>)}
+                {stops.map((stop) => <Row key={stop} style={{ minHeight: 44, paddingVertical: space.sm }}><MapPin size={18} color={c.muted} /><Txt size={14} style={{ flex: 1 }}>{stop}</Txt></Row>)}
               </View>}
-              <Button label={t.flightProof ? '항공권 확인 결과 보기' : '왕복 항공권 인증하기'} kind="secondary" icon={ShieldCheck} onPress={() => a.nav('flight-proof', { id: t.id })} />
+              <Button label={t.flightProof ? '항공권 확인 결과 보기' : '왕복 항공권 인증하기'} small kind="ghost" icon={ShieldCheck} onPress={() => a.nav('flight-proof', { id: t.id })} />
             </Stack>
           </Card>
         );})}
@@ -338,6 +334,7 @@ export function NotificationsScreen() {
   }, []);
   return (
     <Page title="알림">
+      <Stack gap={space.xs}><Txt size={typography.hero} weight="800">여정의 새 소식</Txt><Txt size={14} color={c.secondary}>부탁부터 도착까지, 놓치지 않게 알려드려요.</Txt></Stack>
       {d.notifications
         .slice()
         .reverse()
@@ -353,13 +350,13 @@ export function NotificationsScreen() {
                   : a.nav('help')
             }
           >
-            <View style={{ paddingVertical: 18, borderBottomWidth: 1, borderColor: c.border }}>
+            <View style={{ paddingVertical: space.page, borderBottomWidth: 1, borderColor: c.border }}>
               <Row style={{ alignItems: 'flex-start', gap: 14 }}>
-                <View style={{ backgroundColor: c.mint, padding: 10, borderRadius: 14 }}>
-                  <Bell color={c.green} size={19} />
+                <View style={{ backgroundColor: n.transactionId ? c.primarySoft : c.canvas, padding: 10, borderRadius: radius.sm }}>
+                  {n.transactionId ? <ShoppingBag color={c.primary} size={19} /> : <Bell color={c.secondary} size={19} />}
                 </View>
                 <Stack style={{ flex: 1 }} gap={7}>
-                  <Txt weight="600">{n.title}</Txt>
+                  <Txt size={15} weight="600">{n.title}</Txt>
                   <Txt size={12} color={c.secondary}>
                     {shortDate(n.createdAt)}
                   </Txt>
@@ -438,9 +435,9 @@ export function SettingsScreen() {
       </View>
 
       <AccountGroup title="계정 관리">
-        <AccountRow title="본인 인증" icon={ShieldCheck} onPress={() => setPanel('identity')} />
-        <AccountRow title="결제수단 관리" icon={CreditCard} onPress={() => setPanel('payments')} />
-        {a.role === 'traveler' && <AccountRow title="정산 계좌" icon={Wallet} onPress={() => setPanel('settlement')} />}
+        <AccountRow title="본인 인증" icon={ShieldCheck} onPress={() => a.nav('identity')} />
+        <AccountRow title="결제수단 관리" icon={CreditCard} onPress={() => a.nav('payment-methods')} />
+        {a.role === 'traveler' && <AccountRow title="정산 계좌" icon={Wallet} onPress={() => a.nav('wallet-withdraw')} />}
         <AccountRow title="알림 설정" icon={Bell} onPress={() => setPanel('notifications')} />
       </AccountGroup>
       <AccountGroup title="도움말">
@@ -503,6 +500,7 @@ export function ReviewsScreen() {
     >
       {t && !already ? (
         <>
+          <View style={{ alignItems: 'center', gap: space.md, padding: space.xl, backgroundColor: c.primarySoft, borderRadius: radius.lg }}><CheckCircle2 size={36} color={c.primary} /><Txt size={14} color={c.primaryStrong} weight="600">서로의 여행을 조금 더 특별하게</Txt></View>
           <Txt size={28} weight="800">
             이번 부탁은 어땠나요?
           </Txt>
@@ -513,7 +511,7 @@ export function ReviewsScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={`${n}점`}
                 onPress={() => setRating(n)}
-                style={{ padding: 6 }}
+                style={{ padding: 6, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
               >
                 <Star
                   size={36}
@@ -538,9 +536,9 @@ export function ReviewsScreen() {
             .filter((r) => r.authorId === d.me.id)
             .map((r) => (
               <Card key={r.id}>
-                <Stack>
-                  <Txt color={c.green}>{'★'.repeat(r.rating)}</Txt>
-                  <Txt>{r.text}</Txt>
+                <Stack gap={space.md}>
+                  <Row style={{ justifyContent: 'space-between' }}><Txt color={c.primaryStrong}>{'★'.repeat(r.rating)}</Txt><Txt size={12} color={c.secondary}>{shortDate(r.createdAt)}</Txt></Row>
+                  <Txt size={15}>{r.text}</Txt>
                 </Stack>
               </Card>
             ))}

@@ -5,7 +5,7 @@ import { Place } from '@moa/domain';
 import { Badge } from './ui';
 import { colors as c } from '../theme/tokens';
 
-export function ItineraryMap({ places, highlightedPlaceId }: { places: Place[]; highlightedPlaceId?: string }) {
+export function ItineraryMap({ places, highlightedPlaceId, onSelectPlace }: { places: Place[]; highlightedPlaceId?: string; onSelectPlace?: (place: Place) => void }) {
   const map = useRef<MapView>(null);
   const coordinates = useMemo(() => places.map((place) => ({ latitude: place.latitude, longitude: place.longitude })), [places]);
   useEffect(() => {
@@ -17,7 +17,7 @@ export function ItineraryMap({ places, highlightedPlaceId }: { places: Place[]; 
   return (
     <View style={{ height: 240, overflow: 'hidden' }}>
       <MapView ref={map} provider={PROVIDER_GOOGLE} style={{ flex: 1 }} initialRegion={{ ...coordinates[0], latitudeDelta: 0.18, longitudeDelta: 0.18 }}>
-        {places.map((place, index) => <Marker key={place.id} coordinate={coordinates[index]} title={`${index + 1}. ${place.name}`} pinColor={place.id === highlightedPlaceId ? c.primaryStrong : c.primary} />)}
+        {places.map((place, index) => <Marker key={place.id} coordinate={coordinates[index]} title={`${index + 1}. ${place.name}`} pinColor={place.id === highlightedPlaceId ? c.primaryStrong : c.primary} onPress={() => onSelectPlace?.(place)} />)}
         {coordinates.length > 1 && <Polyline coordinates={coordinates} strokeColor={c.primary} strokeWidth={4} geodesic />}
       </MapView>
       <View style={{ position: 'absolute', left: 10, bottom: 10 }}><Badge bg={c.surface}>Google Maps · 등록된 일정</Badge></View>

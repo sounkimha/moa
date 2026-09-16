@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { Image, Pressable, ScrollView, View } from 'react-native';
 import { Check, ChevronRight, Globe2, MapPin, Plus, X } from 'lucide-react-native';
 import { Country, COUNTRY_CODES, DESTINATIONS, Place, TRIP_AREAS } from '@moa/domain';
 import { Button, Row, SearchField, Sheet, Txt } from './ui';
 import { colors as c } from '../theme/tokens';
+import { getPlacePhoto } from '../lib/place-photos';
 
 export function TripRoutePicker({ country, areas, onChange }: {
   country: Country;
@@ -39,8 +40,8 @@ export function TripRoutePicker({ country, areas, onChange }: {
       style={({ pressed }) => ({ minHeight: 76, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', gap: 14, opacity: pressed ? 0.65 : 1 })}>
       <Globe2 size={22} color={c.green} strokeWidth={1.8} />
       <View style={{ flex: 1, gap: 4 }}>
-        <Txt size={12} color={c.secondary}>{label}</Txt>
-        <Txt size={19} weight="700">{areas.length ? areas.join(' · ') : `${label} 전역`}</Txt>
+        <Txt size={12} color={c.secondary}>여행지 · {label}</Txt>
+        <Txt size={19} weight="700" lines={2}>{areas.length ? areas.join(' · ') : `${label} 전역`}</Txt>
       </View>
       <ChevronRight size={20} color={c.muted} />
     </Pressable>
@@ -55,7 +56,7 @@ export function TripRoutePicker({ country, areas, onChange }: {
       </ScrollView>}
       {selectedAreas.length > 0 && <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
         {selectedAreas.map((area) => <Pressable key={area} accessibilityRole="button" accessibilityLabel={`${area} 선택 해제`} onPress={() => setSelectedAreas(selectedAreas.filter((name) => name !== area))}
-          style={{ paddingHorizontal: 12, minHeight: 36, borderRadius: 10, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: c.mint }}>
+          style={{ paddingHorizontal: 12, minHeight: 44, borderRadius: 10, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: c.mint }}>
           <Txt size={13} color={c.darkGreen} weight="600">{area}</Txt><X size={14} color={c.darkGreen} />
         </Pressable>)}
       </ScrollView>}
@@ -97,8 +98,8 @@ export function TripStopPicker({ country, areas, catalog, placeIds, customStops,
   let resultCount = 0;
   return <>
     <Pressable accessibilityRole="button" accessibilityLabel="방문 예정지 선택" aria-expanded={open} onPress={() => { setDraftPlaces(placeIds); setDraftStops(customStops); setQuery(''); setOpen(true); }}
-      style={({ pressed }) => ({ minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 14, opacity: pressed ? 0.65 : 1 })}>
-      <MapPin size={21} color={c.secondary} /><View style={{ flex: 1, gap: 3 }}><Txt size={15} weight="600">{selectedNames.length ? selectedNames.join(' · ') : '방문할 곳 추가'}</Txt><Txt size={12} color={c.secondary}>{selectedNames.length ? `${selectedNames.length}곳 · 이 근처 부탁을 모아드려요` : '정해진 곳만 골라도 좋아요'}</Txt></View><Plus size={20} color={c.green} />
+      style={({ pressed }) => ({ minHeight: 90, padding: 18, borderWidth: 1, borderStyle: selectedNames.length ? 'solid' : 'dashed', borderColor: selectedNames.length ? c.primaryTint : c.border, borderRadius: 18, backgroundColor: selectedNames.length ? c.primarySoft : c.paper, flexDirection: 'row', alignItems: 'center', gap: 14, opacity: pressed ? 0.65 : 1 })}>
+      <MapPin size={23} color={c.primary} /><View style={{ flex: 1, gap: 5 }}><Txt size={15} weight="700" lines={2}>{selectedNames.length ? `${selectedNames.slice(0, 2).join(' · ')}${selectedNames.length > 2 ? ` 외 ${selectedNames.length - 2}곳` : ''}` : '매장·동네 찾아보기'}</Txt><Txt size={12} color={c.secondary}>{selectedNames.length ? `${selectedNames.length}곳 · 이 근처 부탁을 모아드려요` : '정해진 곳만 골라도 좋아요'}</Txt></View><Plus size={20} color={c.green} />
     </Pressable>
     <Sheet visible={open} title="어디에 들르세요?" subtitle="실제로 방문할 곳만 선택해주세요." onClose={() => setOpen(false)}
       footer={<Button label={draftPlaces.length + draftStops.length ? `${draftPlaces.length + draftStops.length}곳을 일정에 저장` : '방문지는 나중에 정할게요'} onPress={() => { onChange(draftPlaces, draftStops); setOpen(false); }} />}>
@@ -110,10 +111,12 @@ export function TripStopPicker({ country, areas, catalog, placeIds, customStops,
         if (!known.length && !stops.length) return null;
         const row = (key: string, name: string, subtitle: string, selected: boolean, isCatalog: boolean) => {
           const disabled = !selected && (isCatalog ? draftPlaces.length >= 12 : draftStops.length >= 8);
+          const place = isCatalog ? catalog.find((candidate) => candidate.id === key) : undefined;
+          const photo = place && getPlacePhoto(place);
           return <Pressable key={key} accessibilityRole="checkbox" accessibilityLabel={`${name} 방문`} accessibilityState={{ checked: selected, disabled }} aria-checked={selected} aria-disabled={disabled} disabled={disabled}
             onPress={() => isCatalog ? setDraftPlaces(selected ? draftPlaces.filter((id) => id !== key) : [...draftPlaces, key]) : setDraftStops(selected ? draftStops.filter((stop) => stop !== key) : [...draftStops, key])}
             style={{ paddingVertical: 16, flexDirection: 'row', alignItems: 'center', gap: 14, opacity: disabled ? 0.4 : 1 }}>
-            <MapPin size={19} color={selected ? c.green : c.muted} /><View style={{ flex: 1, gap: 4 }}><Txt size={15} weight="600">{name}</Txt><Txt size={12} color={c.secondary}>{subtitle}</Txt></View>
+            {photo ? <Image source={photo.source} style={{ width: 52, height: 52, borderRadius: 12 }} resizeMode="cover" /> : <View style={{ width: 52, height: 52, borderRadius: 12, backgroundColor: c.primarySoft, alignItems: 'center', justifyContent: 'center' }}><MapPin size={19} color={selected ? c.green : c.muted} /></View>}<View style={{ flex: 1, gap: 4 }}><Txt size={15} weight="600">{name}</Txt><Txt size={12} color={c.secondary}>{subtitle}</Txt></View>
             <View style={{ width: 23, height: 23, borderRadius: 8, borderWidth: selected ? 0 : 1.5, borderColor: c.border, backgroundColor: selected ? c.green : 'transparent', alignItems: 'center', justifyContent: 'center' }}>{selected && <Check size={16} color="white" />}</View>
           </Pressable>;
         };

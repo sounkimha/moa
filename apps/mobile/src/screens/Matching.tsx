@@ -8,6 +8,7 @@ import {
   Clock,
   Layers,
   MapPin,
+  Plane,
   ShieldCheck,
   Star,
 } from 'lucide-react-native';
@@ -26,6 +27,7 @@ import {
   MAX_DEMO_REWARD,
   canAcceptTrip,
   TRIP_VERIFICATION_LABEL,
+  rewardCommission,
 } from '@moa/domain';
 import { useApp } from '../state/AppContext';
 import { MeetupSummary } from '../components/MeetupSummary';
@@ -47,7 +49,7 @@ import {
   Stack,
   Txt,
 } from '../components/ui';
-import { Avatar, MoneyBreakdown, ProductArt, ProductRow } from '../components/visuals';
+import { Avatar, MoneyBreakdown, PlaceCover, ProductArt, ProductRow } from '../components/visuals';
 
 export function RequestScreen() {
   const a = useApp(),
@@ -97,9 +99,9 @@ export function RequestScreen() {
     >
       <View
         style={{
-          backgroundColor: c.canvas,
+          backgroundColor: c.primarySoft,
           borderRadius: 20,
-          padding: 20,
+          padding: 24,
           alignItems: 'center',
           gap: 10,
         }}
@@ -108,7 +110,7 @@ export function RequestScreen() {
           art={r.art}
           image={r.productImage}
           featured={r.productName.includes('치이카와')}
-          size={192}
+          size={168}
         />
         <Txt size={11} color={c.secondary}>
           {r.productImage ? '요청자가 등록한 사진' : '상품 이해를 위한 예시 일러스트'}
@@ -121,10 +123,10 @@ export function RequestScreen() {
             {countryName(r.country)} · {r.city}
           </Txt>
         </Row>
-        <Txt size={24} weight="700">
+        <Txt size={27} weight="800">
           {r.productName}
         </Txt>
-        <Txt size={24} weight="700">
+        <Txt size={28} weight="800" color={c.primaryStrong}>
           {money(quote({ ...r, quantity: 1 }, 0, r.transport).productPrice)}{' '}
           <Txt size={14} color={c.secondary}>
             / 1개
@@ -135,8 +137,9 @@ export function RequestScreen() {
       <Pressable accessibilityRole="button" onPress={() => a.nav('place', { id: p.id })}>
         <Card>
           <Row>
-            <MapPin size={22} color={c.green} />
+            <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.primarySoft, alignItems: 'center', justifyContent: 'center' }}><MapPin size={21} color={c.primaryStrong} /></View>
             <View style={{ flex: 1 }}>
+              <Txt size={11} color={c.secondary}>이곳에서 만나는 상품</Txt>
               <Txt weight="700">{p.name}</Txt>
               <Txt size={12} color={c.secondary}>
                 {p.city} · {p.region}
@@ -223,29 +226,32 @@ export function OffersScreen() {
   };
   return (
     <Page title="누가 가져올까요?">
-      <Txt color={c.secondary}>{offers.length}명의 일정과 거래 경험을 확인해보세요.</Txt>
-      <ProductRow request={r} onPress={() => a.nav('request', { id: r.id })} />
-      <Row style={{ flexWrap: 'wrap' }}>
-        {(r.requestedReward === undefined ? ['추천순', '낮은 보상순', '빠른 수령순'] : ['추천순', '빠른 수령순']).map((v) => (
+      <Pressable accessibilityRole="button" accessibilityLabel={`${r.productName} 부탁 상세`} onPress={() => a.nav('request', { id: r.id })} style={({ pressed }) => ({ opacity: pressed ? 0.72 : 1 })}>
+        <Row style={{ gap: 12 }}><ProductArt art={r.art} image={r.productImage} featured={r.productName.includes('치이카와')} size={48} /><Stack gap={3} style={{ flex: 1, minWidth: 0 }}><Txt size={14} weight="600" lines={1}>{r.productName}</Txt><Txt size={12} color={c.secondary}>{r.quantity}개 · {shortDate(r.desiredDate)}까지 받아요</Txt></Stack><ChevronRight size={17} color={c.muted} /></Row>
+      </Pressable>
+      <Row style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+        <Row style={{ flexWrap: 'wrap', gap: 8 }}>{(r.requestedReward === undefined ? ['추천순', '낮은 보상순', '빠른 수령순'] : ['추천순', '빠른 수령순']).map((v) => (
           <Chip key={v} label={v} selected={sort === v} onPress={() => setSort(v)} />
-        ))}
+        ))}</Row><Txt size={12} color={c.secondary}>수락 {offers.length}명</Txt>
       </Row>
       {offers.map((o, i) => {
         const u = d.users.find((x) => x.id === o.travelerId)!;
         const trip = d.trips.find((item) => item.id === o.tripId);
+        const unavailable = !canAcceptTrip(trip) ? '선택 전에 여행 일정 인증을 확인해야 해요.'
+          : !['REQUESTED', 'OFFER_RECEIVED'].includes(r.status) ? '이미 매칭되었거나 종료된 부탁이에요.'
+            : o.estimatedPurchaseDate < new Date().toISOString().slice(0, 10) ? '구매 예정일이 지나 새 일정 확인이 필요해요.' : '';
         return (
-          <Card key={o.id} style={i === 0 ? { borderColor: c.green, borderWidth: 1.5 } : undefined}>
-            <Stack gap={17}>
-              {i === 0 && <Badge>거래 경험과 일정으로 살펴보세요</Badge>}
+          <Card key={o.id} style={{ padding: 0, overflow: 'hidden', borderWidth: 1, borderColor: i === 0 ? c.primaryTint : c.border }}>
+            <Stack gap={12} style={{ padding: 16 }}>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`${u.nickname} 프로필`}
                 onPress={() => a.nav('profile', { id: u.id })}
               >
                 <Row>
-                  <Avatar user={u} size={49} />
+                  <Avatar user={u} size={52} />
                   <View style={{ flex: 1 }}>
-                    <Txt size={17} weight="700">
+                    <Txt size={19} weight="700">
                       {u.nickname}
                     </Txt>
                     <Txt size={12} color={c.secondary}>
@@ -255,47 +261,46 @@ export function OffersScreen() {
                   <ChevronRight size={18} color={c.secondary} />
                 </Row>
               </Pressable>
-              <Row style={{ gap: 6 }}>
-                <ShieldCheck size={15} color={c.green} />
-                <Txt size={12} color={c.green}>
-                  휴대폰 · 계좌 · 일정 예시 인증
-                </Txt>
-              </Row>
+              <Row style={{ gap: 6, alignItems: 'flex-start' }}><ShieldCheck size={15} color={c.primaryStrong} /><Txt size={12} color={c.secondary} style={{ flex: 1 }}>{u.verificationLabels.length ? `${u.verificationLabels.slice(0, 2).join(' · ')} 예시 인증` : '본인 확인 정보 없음'}{trip ? ` · ${TRIP_VERIFICATION_LABEL[trip.verificationStatus]}` : ''}</Txt></Row>
+              {trip && <View style={{ backgroundColor: c.primarySoft, borderRadius: 14, padding: 12 }}>
+                <Row style={{ gap: 8 }}><Txt size={14} weight="700" style={{ flex: 1 }}>{trip.departureCity}</Txt><View style={{ flex: 1, height: 1, backgroundColor: c.primaryTint }} /><Plane size={17} color={c.primaryStrong} /><View style={{ flex: 1, height: 1, backgroundColor: c.primaryTint }} /><Txt size={17} weight="800" color={c.primaryDeep} style={{ flex: 1.3, textAlign: 'right' }}>{trip.destinationCity}</Txt></Row>
+                <Txt size={12} color={c.secondary} style={{ marginTop: 5 }}>{shortDate(trip.startDate)} — {shortDate(trip.endDate)} · 여행 예정</Txt>
+              </View>}
               <Row style={{ justifyContent: 'space-between' }}>
                 <Stack gap={4}>
                   <Txt size={12} color={c.secondary}>
-                    예상 수령일
+                    예상 구매일
                   </Txt>
                   <Txt size={22} weight="700">
-                    {shortDate(o.estimatedDeliveryDate)}
+                    {shortDate(o.estimatedPurchaseDate)}
                   </Txt>
                 </Stack>
                 <Stack gap={4} style={{ alignItems: 'flex-end' }}>
                   <Txt size={12} color={c.secondary}>
                     여행자 보상
                   </Txt>
-                  <Txt size={24} weight="800" color={c.green}>
+                  <Txt size={26} weight="800" color={c.primaryStrong}>
                     {money(o.reward)}
                   </Txt>
                 </Stack>
               </Row>
-              <Txt size={14} color={c.secondary}>
-                {o.message}
-              </Txt>
-              {trip && <Button kind="secondary" icon={Calendar} label="이 사람의 일정 보기" onPress={() => a.nav('trip-route', { id: o.tripId, placeId: r.placeId })} />}
+              <Row style={{ gap: 5 }}><Calendar size={14} color={c.secondary} /><Txt size={12} color={c.secondary}>예상 수령 {shortDate(o.estimatedDeliveryDate)} · {TRANSPORT_LABEL[o.transport]}</Txt></Row>
               <Divider />
               <Row style={{ justifyContent: 'space-between' }}>
                 <Txt size={13} color={c.secondary}>
-                  모든 항목 포함 예상 총액
+                  예상 총 결제
                 </Txt>
-                <Txt weight="700">{money(quote(r, o.reward, o.transport).totalPrice)}</Txt>
+                <Txt size={20} weight="700">{money(quote(r, o.reward, o.transport).totalPrice)}</Txt>
               </Row>
+              {trip && <Button small kind="secondary" icon={Calendar} label="이 사람의 일정 보기" onPress={() => a.nav('trip-route', { id: o.tripId, placeId: r.placeId })} />}
               <Button
                 label={`${u.nickname}님과 함께하기`}
                 loading={a.busy}
-                disabled={!canAcceptTrip(trip) || !['REQUESTED', 'OFFER_RECEIVED'].includes(r.status) || o.estimatedPurchaseDate < new Date().toISOString().slice(0, 10)}
+                disabled={!!unavailable}
                 onPress={() => select(o)}
               />
+              {!!o.message && <Txt size={12} color={c.secondary} lines={2}>{o.message}</Txt>}
+              {!!unavailable && <Txt size={12} color={c.secondary}>{unavailable}</Txt>}
             </Stack>
           </Card>
         );
@@ -322,24 +327,19 @@ export function ProfileScreen() {
       </Page>
     );
   const reviews = d.reviews.filter((r) => r.targetId === u.id);
+  const trips = d.trips.filter((t) => t.travelerId === u.id);
+  const rating = reviews.length ? (reviews.reduce((total, review) => total + review.rating, 0) / reviews.length).toFixed(1) : null;
   return (
     <Page title="어떤 여행자인가요?">
-      <Stack style={{ alignItems: 'center', paddingHorizontal: 8 }}>
-        <Avatar user={u} size={78} />
-        <Txt size={25} weight="800" lines={1}>
-          {u.nickname}
-        </Txt>
-        <Txt color={c.secondary} style={{ textAlign: 'center' }}>
-          {u.bio}
-        </Txt>
-        <Badge>체험용 프로필</Badge>
+      <Stack gap={20}>
+        <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+          <Stack gap={6} style={{ flex: 1, minWidth: 0 }}><Txt size={12} weight="700" color={c.primaryStrong}>YOUR TRAVEL MATE</Txt><Txt size={28} weight="800">{u.nickname}</Txt>{rating ? <Row style={{ gap: 5 }}><Star size={14} color={c.primaryStrong} fill={c.primaryStrong} /><Txt size={14} weight="700">{rating}</Txt><Txt size={12} color={c.secondary}>후기 {reviews.length}개</Txt></Row> : <Txt size={13} color={c.secondary}>첫 후기를 기다리고 있어요</Txt>}</Stack>
+          <Avatar user={u} size={80} />
+        </Row>
+        <Txt size={15} color={c.secondary}>{u.bio}</Txt>
+        <Row style={{ alignItems: 'flex-start', gap: 7 }}><ShieldCheck size={17} color={c.primaryStrong} /><Txt size={12} color={c.secondary} style={{ flex: 1 }}>{u.verificationLabels.length ? `${u.verificationLabels.join(' · ')} 예시 인증` : '아직 등록된 인증이 없어요'}</Txt></Row>
       </Stack>
-      <Row style={{ flexWrap: 'wrap', justifyContent: 'center', gap: 8 }}>
-        {u.verificationLabels.map((v) => (
-          <Badge key={v}>✓ {v} 예시 인증</Badge>
-        ))}
-      </Row>
-      <Card>
+      <Card style={{ backgroundColor: c.primarySoft, borderWidth: 0 }}>
         <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
           {[
             ['거래 완료', `${u.completed}건`],
@@ -350,47 +350,42 @@ export function ProfileScreen() {
               <Txt size={12} color={c.secondary}>
                 {k}
               </Txt>
-              <Txt size={20} weight="800" lines={1}>
+              <Txt size={23} weight="800" lines={1}>
                 {v}
               </Txt>
             </Stack>
           ))}
         </Row>
         <Txt size={11} color={c.secondary} style={{ marginTop: 15 }}>
-          프로필 수치는 샘플이며 실제 거래 이력이 아니에요.
+          체험용 프로필 · 거래 수치는 예시예요.
         </Txt>
       </Card>
       <View>
-        <Section title="예정된 여행" />
-        {d.trips
-          .filter((t) => t.travelerId === u.id)
-          .map((t) => (
-            <Card key={t.id} style={{ marginBottom: 10 }}>
-              <Stack gap={8}>
-                <Txt size={20} weight="700">
-                  {t.departureCity} → {[...new Set(t.placeIds.map((id) => d.places.find((place) => place.id === id)?.city).filter(Boolean))].join(' · ') || t.destinationCity}
-                </Txt>
-                <Txt size={13} color={c.secondary}>
-                  {t.startDate} — {t.endDate}
-                </Txt>
-                <Txt size={13}>
-                  {t.placeIds.map((id) => d.places.find((p) => p.id === id)?.name).join(' · ')}
-                </Txt>
+        <Section title="공개한 여행" subtitle="어디를 들르는지 확인해보세요." />
+        {trips.map((t) => {
+          const tripPlaces = t.placeIds.map((id) => d.places.find((p) => p.id === id)).filter(Boolean) as typeof d.places;
+          return <Card key={t.id} style={{ marginBottom: 16, padding: 0, overflow: 'hidden' }}>
+              {tripPlaces[0] && <View style={{ height: 148, overflow: 'hidden' }}><PlaceCover place={tripPlaces[0]} thumbnail /></View>}
+              <Stack gap={14} style={{ padding: 18 }}>
+                <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}><Stack gap={5} style={{ flex: 1, minWidth: 0 }}><Txt size={23} weight="800">{[...new Set(tripPlaces.map((place) => place.city))].join(' · ') || t.destinationCity}</Txt><Txt size={13} color={c.secondary}>{shortDate(t.startDate)} — {shortDate(t.endDate)}</Txt></Stack><Badge>{tripPlaces.length}곳</Badge></Row>
+                <Row style={{ gap: 7 }}><Plane size={15} color={c.primaryStrong} /><Txt size={13} color={c.secondary}>{t.departureCity} 출발</Txt></Row>
+                <Txt size={13} color={c.secondary} lines={2}>{tripPlaces.length ? tripPlaces.map((place) => place.name).join(' → ') : '세부 동선을 정하고 있어요'}</Txt>
                 <Button small kind="secondary" icon={Calendar} label="경로와 시간 보기" onPress={() => a.nav('trip-route', { id: t.id })} />
               </Stack>
-            </Card>
-          ))}
+            </Card>;
+        })}
+        {!trips.length && <Empty title="아직 공개한 여행이 없어요" body="여행을 등록하면 방문 일정이 이곳에 보여요." />}
       </View>
       <View>
         <Section title={`함께한 사람들의 후기 ${reviews.length}개`} />
         {reviews.length ? (
           reviews.map((r) => (
-            <Card key={r.id} style={{ marginBottom: 10 }}>
+            <View key={r.id} style={{ paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: c.border }}>
               <Stack gap={8}>
-                <Txt color={c.green}>{'★'.repeat(r.rating)}</Txt>
+                <Row style={{ gap: 5 }}><Star size={14} fill={c.primaryStrong} color={c.primaryStrong} /><Txt size={13} weight="700">{r.rating}.0</Txt><Txt size={12} color={c.secondary}>함께한 여행 후기</Txt></Row>
                 <Txt>{r.text}</Txt>
               </Stack>
-            </Card>
+            </View>
           ))
         ) : (
           <Empty
@@ -431,6 +426,8 @@ export function BundleScreen() {
   const remaining = Math.max(0, trip.maxItems - reserved);
   const items = requests.reduce((s, r) => s + r.quantity, 0),
     advance = requests.reduce((s, r) => s + quote(r, 0, r.transport).productPrice, 0);
+  const grossReward = requests.reduce((sum, request) => sum + (request.requestedReward ?? 0), 0);
+  const commission = requests.reduce((sum, request) => sum + rewardCommission(request.requestedReward ?? 0), 0);
   return (
     <Page
       title="한 번 가서, 함께 가져와요"
@@ -445,34 +442,25 @@ export function BundleScreen() {
         />
       }
     >
-      <Stack gap={10}>
-        <Badge>{trip.destinationCity} · 내 방문 장소</Badge>
-        <Txt size={28} weight="800">
-          {bundle.place.name}
-        </Txt>
-        <Row>
-          <Clock size={16} color={c.secondary} />
-          <Txt size={13} color={c.secondary}>
-            동선 추가 +{bundle.extraMinutes}분 · 예시 추정
-          </Txt>
-        </Row>
-      </Stack>
-      <Card style={{ backgroundColor: c.mint, borderWidth: 0 }}>
-        <Stack gap={10}>
+      <View style={{ borderRadius: 20, overflow: 'hidden', backgroundColor: c.surface }}>
+        <View style={{ height: 166, overflow: 'hidden' }}><PlaceCover place={bundle.place} thumbnail /></View>
+        <Stack gap={10} style={{ padding: 20 }}><Txt size={12} weight="700" color={c.primaryStrong}>{bundle.place.city} · MY ROUTE</Txt><Txt size={25} weight="800">{bundle.place.name}</Txt><Txt size={16} color={c.secondary}>한 번 들러서, {bundle.requests.length}개의 부탁을.</Txt><Row style={{ gap: 6 }}><Clock size={14} color={c.secondary} /><Txt size={12} color={c.secondary}>추가 이동 +{bundle.extraMinutes}분 · 예시 추정</Txt></Row></Stack>
+      </View>
+      <Card style={{ backgroundColor: c.primaryDeep, borderWidth: 0 }}>
+        <Stack gap={12}>
           <Row style={{ justifyContent: 'space-between' }}>
-            <Txt size={14}>선택한 {requests.length}건의 보상금</Txt>
-            <Layers size={22} />
+            <Txt size={14} color={c.navyText}>선택한 {requests.length}건의 보상금</Txt>
+            <Layers size={22} color={c.primaryTint} />
           </Row>
-          <Txt size={28} weight="700">
-            {money(requests.reduce((sum, request) => sum + (request.requestedReward ?? 0), 0))}
+          <Txt size={34} weight="800" color={c.onPrimary}>
+            {money(grossReward)}
           </Txt>
-          <Txt size={13} color={c.secondary}>{requests.some((request) => request.requestedReward === undefined) ? '보상이 미정인 이전 부탁은 다음 화면에서 확인해요.' : '구매자가 정한 보상이에요.'}</Txt>
-          <Divider />
-          <Txt size={14}>
-            상품 {items}개 · 선지출 {money(advance)}
-          </Txt>
+          <Txt size={12} color={c.navyText}>{requests.some((request) => request.requestedReward === undefined) ? '보상 미정인 부탁은 다음 화면에서 확인해요.' : '구매자가 정한 보상이에요.'}</Txt>
+          <View style={{ height: 1, backgroundColor: c.navyDivider }} />
+          <Row style={{ justifyContent: 'space-between' }}><Txt size={12} color={c.navyText}>수수료 10% 제외 후</Txt><Txt size={18} weight="700" color={c.onPrimary}>{money(grossReward - commission)}</Txt></Row>
         </Stack>
       </Card>
+      <Row style={{ paddingHorizontal: 4, justifyContent: 'space-between', alignItems: 'flex-start' }}><Stack gap={4}><Txt size={12} color={c.secondary}>가져올 상품</Txt><Txt size={20} weight="700">{items}개 <Txt size={12} color={c.secondary}>/ 여유 {remaining}개</Txt></Txt></Stack><Stack gap={4} style={{ alignItems: 'flex-end' }}><Txt size={12} color={c.secondary}>상품 구매에 필요한 금액</Txt><Txt size={20} weight="700">{money(advance)}</Txt></Stack></Row>
       <Row style={{ justifyContent: 'space-between' }}>
         <Txt weight="700">함께 처리할 요청</Txt>
         <Button
@@ -503,8 +491,9 @@ export function BundleScreen() {
               padding: 16,
               borderWidth: 1,
               borderColor: selected.includes(r.id) ? c.green : c.border,
-              backgroundColor: selected.includes(r.id) ? c.mint : c.paper,
+              backgroundColor: c.paper,
               borderRadius: 18,
+              opacity: 1,
               marginBottom: 12,
             }}
           >
@@ -669,6 +658,7 @@ export function OfferForm() {
   const requestsOpen = requests.every((request) => request.requesterId !== d.me.id && ['REQUESTED', 'OFFER_RECEIVED'].includes(request.status));
   const validRewards = requests.every((r) => rewardFor(r.id) !== undefined);
   const grossReward = requests.reduce((s, r) => s + (rewardFor(r.id) ?? 0), 0);
+  const serviceFee = requests.reduce((sum, request) => sum + rewardCommission(rewardFor(request.id) ?? 0), 0);
   const methods = [...new Set(requests.map((r) => TRANSPORT_LABEL[r.transport]))].join(' · ');
   const submit = async () => {
     if (!validRewards || !datesValid || !requestsOpen || !agree) return;
@@ -699,7 +689,7 @@ export function OfferForm() {
         />
       }
     >
-      <Txt size={22} weight="700">{ids.length}건, 가는 길에 가져올게요</Txt>
+      <Stack gap={6}><Txt size={12} weight="700" color={c.primaryStrong}>내 동선의 부탁</Txt><Txt size={27} weight="800">{ids.length}건, 가는 길에{`\n`}가져올게요.</Txt><Txt size={14} color={c.secondary}>구매일과 보상을 확인하면 준비 끝이에요.</Txt></Stack>
       <Row style={{ flexWrap: 'wrap' }}>
         {trips.map((t) => (
           <Chip
@@ -721,7 +711,7 @@ export function OfferForm() {
         <Txt size={18} weight="700">부탁과 보상 확인</Txt>
         {requests.map((r, index) => r.requestedReward !== undefined ? (
           <Row key={r.id} style={{ paddingVertical: 12, alignItems: 'flex-start' }}>
-            <ProductArt art={r.art} image={r.productImage} size={52} />
+            <ProductArt art={r.art} image={r.productImage} featured={r.productName.includes('치이카와')} size={52} />
             <View style={{ flex: 1 }}><Txt size={15} weight="600">{r.productName}</Txt><Txt size={13} color={c.secondary}>{r.quantity}개 · {TRANSPORT_LABEL[r.transport]}</Txt></View>
             <Txt weight="700">{money(r.requestedReward)}</Txt>
           </Row>
@@ -739,12 +729,15 @@ export function OfferForm() {
           />
         ))}
       </Stack>
-      <Card style={{ backgroundColor: c.mint }}>
-        <Stack gap={8}>
+      <Card style={{ backgroundColor: c.primarySoft, borderWidth: 0 }}>
+        <Stack gap={12}>
           <Row style={{ justifyContent: 'space-between' }}>
-            <Txt weight="600">보상 합계</Txt>
-            <Txt size={20} weight="800">{validRewards ? money(grossReward) : '금액 입력 필요'}</Txt>
+            <Txt size={13} color={c.secondary}>보상 합계</Txt>
+            <Txt size={18} weight="700">{validRewards ? money(grossReward) : '금액 입력 필요'}</Txt>
           </Row>
+          <Row style={{ justifyContent: 'space-between' }}><Txt size={13} color={c.secondary}>정산 수수료 · 10%</Txt><Txt size={14}>{validRewards ? `− ${money(serviceFee)}` : '—'}</Txt></Row>
+          <Divider />
+          <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}><Txt size={15} weight="600">예상 받는 보상</Txt><Txt size={27} weight="800" color={c.primaryStrong}>{validRewards ? money(grossReward - serviceFee) : '—'}</Txt></Row>
         </Stack>
         <Txt size={13} color={c.secondary} style={{ marginTop: 12 }}>
           상품 구매에 {money(total)}이 필요해요. 구매 확정 후 돌려받아요.

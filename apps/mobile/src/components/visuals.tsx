@@ -214,6 +214,7 @@ export function AvatarStack({ users }: { users: User[] }) {
 }
 export function PlaceCover({ place, thumbnail = false }: { place: Place; thumbnail?: boolean }) {
   const photo = getPlacePhoto(place);
+  const [failedId, setFailedId] = useState<string>();
   return (
     <View
       style={{
@@ -224,10 +225,11 @@ export function PlaceCover({ place, thumbnail = false }: { place: Place; thumbna
         aspectRatio: 8 / 5,
       }}
     >
-      {photo ? (
+      {photo && failedId !== place.id ? (
         <>
           <Image
             source={photo.source}
+            onError={() => setFailedId(place.id)}
             accessibilityLabel={`${photo.label} 대표 풍경 사진`}
             style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
             resizeMode="cover"
@@ -276,7 +278,7 @@ export function PlaceCard({
       testID={list ? 'place-list-item' : 'place-card'}
       style={{
         width: '100%',
-        maxWidth: list ? undefined : 420,
+        maxWidth: '100%',
         minWidth: 0,
         borderRadius: list ? 18 : 20,
         backgroundColor: c.paper,
@@ -311,12 +313,7 @@ export function PlaceCard({
           <Txt size={list ? 16 : 18} weight="700" lines={2}>
             {place.name}
           </Txt>
-          <Txt size={12} color={c.secondary}>
-            {place.visitors}명 방문 예정 · 부탁 {place.requestCount}건
-          </Txt>
-          <Txt size={list ? 13 : 14} color={c.green} weight="700">
-            {place.requestCount ? `평균 보상 ${money(place.averageReward)}` : '첫 부탁 남기기'}
-          </Txt>
+          {list ? <><Txt size={12} color={c.secondary}>{place.visitors}명 방문 예정 · 부탁 {place.requestCount}건</Txt><Txt size={13} color={c.primaryStrong} weight="700">{place.requestCount ? `평균 보상 ${money(place.averageReward)}` : '첫 부탁 남기기'}</Txt></> : <Row style={{ marginTop: 8, paddingTop: 12, borderTopWidth: 1, borderColor: c.border, justifyContent: 'space-between' }}><Row style={{ gap: 6 }}><Users size={16} color={c.primaryStrong} /><Txt size={13} color={c.secondary}><Txt size={15} weight="700">{place.visitors}명</Txt> 방문 예정</Txt></Row><Txt size={13} color={c.secondary}>부탁 <Txt size={15} weight="700" color={c.primaryStrong}>{place.requestCount}건</Txt></Txt></Row>}
         </View>
       </Pressable>
       <PhotoCredit place={place} list={list} />
@@ -436,7 +433,7 @@ export function MoneyBreakdown({ price, compact = false, rewardPending = false }
     </Stack>
   );
 }
-export function Timeline({ transaction }: { transaction: Transaction }) {
+export function Timeline({ transaction, domestic = false }: { transaction: Transaction; domestic?: boolean }) {
   const index = TIMELINE.indexOf(transaction.status);
   return (
     <View>
@@ -451,7 +448,7 @@ export function Timeline({ transaction }: { transaction: Transaction }) {
                   width: 24,
                   height: 24,
                   borderRadius: 12,
-                  backgroundColor: past ? c.green : current ? c.lime : c.canvas,
+                  backgroundColor: past ? c.primarySoft : current ? c.primaryStrong : c.canvas,
                   borderWidth: past || current ? 0 : 1,
                   borderColor: c.border,
                   alignItems: 'center',
@@ -459,27 +456,28 @@ export function Timeline({ transaction }: { transaction: Transaction }) {
                 }}
               >
                 {past ? (
-                  <Check size={14} color="white" />
+                  <Check size={14} color={c.primaryStrong} />
                 ) : current ? (
                   <View
-                    style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.green }}
+                    style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.paper }}
                   />
                 ) : null}
               </View>
               {i < TIMELINE.length - 1 && (
                 <View
-                  style={{ width: 2, height: 28, backgroundColor: past ? c.green : c.border }}
+                  style={{ width: 2, flex: 1, minHeight: current ? 42 : 28, backgroundColor: past ? c.primaryTint : c.border }}
                 />
               )}
             </View>
-            <View style={{ paddingTop: 1, flex: 1 }}>
+            <View style={{ flex: 1, paddingTop: current ? 0 : 1, paddingBottom: current ? 16 : 12 }}>
               <Txt
-                size={14}
+                size={current ? 17 : 14}
                 weight={current ? '700' : '400'}
-                color={current ? c.green : past ? c.ink : c.muted}
+                color={current ? c.primaryStrong : past ? c.secondary : c.muted}
               >
-                {TIMELINE_LABEL[s] || STATUS_LABEL[s]}
+                {s === 'TRAVELING' && domestic ? '약속한 곳으로 이동해요' : s === 'SHIPPED' && transaction.transport === 'MEETUP' ? '만날 약속이 준비됐어요' : TIMELINE_LABEL[s] || STATUS_LABEL[s]}
               </Txt>
+              {current && <Txt size={12} color={c.secondary} style={{ marginTop: 4 }}>지금 이 단계에 있어요</Txt>}
             </View>
             {current && <Badge>지금</Badge>}
           </Row>
