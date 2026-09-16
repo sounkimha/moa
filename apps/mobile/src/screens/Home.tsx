@@ -226,10 +226,12 @@ export function Home() {
       </View>
       <View>
         <Section title="우리 동네에서 출발해요" subtitle={locationLabel + ' · 반경 2km · 여행자 위치 예시'} action="위치 확인" onPress={() => void locate()} />
-        {nearbyTravelers.map(({ user, trip: nearbyTrip, distance }) => user && nearbyTrip && <Pressable key={user.id} accessibilityRole="button" accessibilityLabel={user.nickname + '님의 여행 보기'} onPress={() => a.nav('profile', { id: user.id })} style={{ paddingVertical: 14, borderBottomWidth: 1, borderColor: c.border }}>
-          <Row><Avatar user={user} size={44} /><View style={{ flex: 1 }}><Txt size={16} weight="600">{user.nickname} · {nearbyTrip.destinationCity}</Txt><Txt size={13} color={c.secondary}>{shortDate(nearbyTrip.startDate)} – {shortDate(nearbyTrip.endDate)} · {distance.toFixed(1)}km 예시</Txt></View><ChevronRight size={18} color={c.muted} /></Row>
-        </Pressable>)}
-        {!nearbyTravelers.length && <Txt color={c.secondary}>이 위치 근처에는 공개된 예시 여행이 없어요.</Txt>}
+        <View style={{ backgroundColor: c.paper, borderWidth: 1, borderColor: '#DCE5F2', borderRadius: 20, overflow: 'hidden' }}>
+          {nearbyTravelers.map(({ user, trip: nearbyTrip, distance }, index) => user && nearbyTrip && <Pressable key={user.id} accessibilityRole="button" accessibilityLabel={user.nickname + '님의 여행 보기'} onPress={() => a.nav('profile', { id: user.id })} style={({ pressed }) => ({ paddingHorizontal: 16, paddingVertical: 14, minHeight: 76, borderBottomWidth: index < nearbyTravelers.length - 1 ? 1 : 0, borderColor: c.border, opacity: pressed ? 0.7 : 1 })}>
+            <Row><Avatar user={user} size={44} /><View style={{ flex: 1 }}><Txt size={16} weight="600">{user.nickname} · {nearbyTrip.destinationCity}</Txt><Txt size={13} color={c.secondary}>{shortDate(nearbyTrip.startDate)} – {shortDate(nearbyTrip.endDate)} · {distance.toFixed(1)}km 예시</Txt></View><ChevronRight size={18} color={c.muted} /></Row>
+          </Pressable>)}
+          {!nearbyTravelers.length && <Txt color={c.secondary} style={{ padding: 16 }}>이 위치 근처에는 공개된 예시 여행이 없어요.</Txt>}
+        </View>
       </View>
       <View>
         <Section title="부탁이 모이는 장소" action="모두 보기" onPress={() => a.tab('search')} />
