@@ -2,6 +2,7 @@ export type Role = 'buyer' | 'traveler';
 import { Currency, Country, DEMO_FX_RATES, CURRENCY_SYMBOLS } from './destinations';
 export * from './destinations';
 export type Status =
+  | 'PAYMENT_PENDING'
   | 'REQUESTED'
   | 'OFFER_RECEIVED'
   | 'MATCHED'
@@ -221,6 +222,8 @@ export interface Price {
   priceSource: 'DEMO_FIXED';
 }
 export interface Transaction extends Entity, Price {
+  /** True only when the buyer funded this request before selecting an applicant. */
+  prepaid?: boolean;
   requestId: string;
   offerId: string;
   travelerId: string;
@@ -229,6 +232,16 @@ export interface Transaction extends Entity, Price {
   revision: number;
   transport: Transport;
   estimatedDeliveryDate: string;
+}
+/** A buyer's prepaid quote, before any traveler is selected. No real funds in demo. */
+export interface RequestFunding extends Entity, Price {
+  requestId: string;
+  buyerId: string;
+  status: 'HELD' | 'MATCHED' | 'REFUNDED';
+  provider: 'MOCK_CARD' | 'MOCK_EASY_PAY';
+  providerRef: string;
+  paymentMethodId: string;
+  transactionId?: string;
 }
 export interface Payment extends Entity {
   transactionId: string;
@@ -401,6 +414,7 @@ export interface Database {
   transactions: Transaction[];
   paymentMethods: PaymentMethod[];
   payments: Payment[];
+  requestFundings: RequestFunding[];
   escrows: Escrow[];
   receipts: Receipt[];
   shipments: Shipment[];
@@ -449,10 +463,11 @@ export const CATEGORIES: Record<Category, string> = {
   CONCERT: '콘서트 MD',
 };
 export const STATUS_LABEL: Record<Status, string> = {
-  REQUESTED: '여행자의 수락을 기다려요',
+  PAYMENT_PENDING: '결제 후 공개돼요',
+  REQUESTED: '여행자의 지원을 기다려요',
   OFFER_RECEIVED: '여행자가 손들었어요',
-  MATCHED: '결제를 기다려요',
-  PAYMENT_HELD: '결제금 보관 중',
+  MATCHED: '이전 거래 · 결제 대기',
+  PAYMENT_HELD: '매칭 완료 · 구매 준비 중',
   PURCHASED: '구매를 마쳤어요',
   TRAVELING: '한국으로 오고 있어요',
   SHIPPED: '배송 중이에요',

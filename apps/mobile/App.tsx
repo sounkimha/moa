@@ -123,7 +123,7 @@ function Shell() {
   const desktop = width >= 1060;
   const Current = screens[a.route.name] || Home;
   useEffect(() => {
-    if (Platform.OS === 'web') document.title = 'MOA · 가는 김에, 하나 더.';
+    if (Platform.OS === 'web') document.title = 'MOA · 여행에 취향을 싣다.';
   }, []);
   const navigation = (vertical = false) => (
     <View
@@ -243,7 +243,7 @@ function Shell() {
               <View style={{ backgroundColor: c.mint, borderRadius: 20, padding: 18, gap: 12 }}>
                 <Plane size={25} color={c.darkGreen} />
                 <Txt size={14} weight="700">
-                  여행은 그대로.{'\n'}작은 보상은 덤으로.
+                  이번 여행,{'\n'}보상까지 챙겨요.
                 </Txt>
                 <Pressable
                   accessibilityRole="button"

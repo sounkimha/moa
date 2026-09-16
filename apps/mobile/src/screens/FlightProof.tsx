@@ -47,7 +47,7 @@ export function FlightProofScreen() {
       <Row style={{ justifyContent: 'space-between' }}><Txt size={12} weight="600" color={c.navyText}>MY ROUND TRIP</Txt><Badge>{TRIP_VERIFICATION_LABEL[trip.verificationStatus]}</Badge></Row>
       <Row style={{ alignItems: 'center', gap: 12 }}><Stack gap={4} style={{ flex: 1, minWidth: 0 }}><Txt size={trip.departureCity.length > 5 ? 18 : 22} weight="800" color={c.onPrimary}>{trip.departureCity}</Txt><Txt size={12} color={c.navyText}>{trip.startDate}</Txt></Stack><Plane size={22} color={c.navyTextBright} /><Stack gap={4} style={{ flex: 1, minWidth: 0, alignItems: 'flex-end' }}><Txt size={trip.destinationCity.length > 5 ? 18 : 22} weight="800" color={c.onPrimary} style={{ textAlign: 'right' }}>{trip.destinationCity}</Txt><Txt size={12} color={c.navyText}>{trip.endDate}</Txt></Stack></Row>
     </Stack></Card>
-    <Notice>체험에서는 항공권 정보를 대조해요. 실제 발권·본인 인증은 아직 연결되지 않아, 새 일정으로는 부탁을 수락할 수 없어요.</Notice>
+    <Notice>체험에서는 항공권 정보를 대조해요. 실제 발권·본인 인증은 아직 연결되지 않아, 새 일정으로는 부탁에 지원할 수 없어요.</Notice>
     {trip.flightProof && <Card><Stack gap={14}>
       <Txt size={17} weight="700">최근 항공권 대조 결과</Txt>
       {legs('가는 편', trip.flightProof.outbound)}

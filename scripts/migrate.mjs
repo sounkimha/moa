@@ -13,7 +13,7 @@ try {
   await client.query(
     'CREATE TABLE IF NOT EXISTS moa.schema_migrations (version integer PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())',
   );
-  for (const [version, file] of [[1, '001_initial.sql'], [2, '002_asia_currency.sql'], [3, '003_auth_wallet.sql']]) {
+  for (const [version, file] of [[1, '001_initial.sql'], [2, '002_asia_currency.sql'], [3, '003_auth_wallet.sql'], [4, '004_request_prepayment.sql']]) {
     const applied = await client.query('SELECT version FROM moa.schema_migrations WHERE version=$1', [version]);
     if (!applied.rowCount) {
       await client.query(await readFile(`database/${file}`, 'utf8'));
@@ -21,7 +21,7 @@ try {
     }
   }
   await client.query('COMMIT');
-  console.log('Schema is at version 3. Existing payloads are preserved.');
+  console.log('Schema is at version 4. Existing payloads are preserved.');
 } catch (e) {
   await client.query('ROLLBACK');
   throw e;

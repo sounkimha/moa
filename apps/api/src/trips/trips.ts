@@ -82,7 +82,11 @@ export class TripsController {
     return this.store.read((db) => {
       const trip = get(db.trips, id);
       owner(r.actorId, trip.travelerId);
-      return groupForTrip(db, trip);
+      return groupForTrip(db, trip).map((bundle) => ({ ...bundle, requests: bundle.requests.map((request) => ({
+        ...request, deliveryAddressId: undefined, deliveryRecipient: undefined, deliveryPhone: undefined,
+        deliveryPostalCode: undefined, deliveryAddress1: undefined, deliveryAddress2: undefined,
+        meetupPoint: undefined, meetupLocation: undefined,
+      })) }));
     });
   }
 }

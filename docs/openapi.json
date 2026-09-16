@@ -807,7 +807,7 @@
     },
     "/requests": {
       "post": {
-        "summary": "구매 요청 생성",
+        "summary": "비공개 결제 대기 부탁 생성 (PAYMENT_PENDING)",
         "operationId": "post_requests",
         "responses": {
           "201": {
@@ -1303,7 +1303,7 @@
     },
     "/offers/{id}/accept": {
       "post": {
-        "summary": "여행자 선택 및 거래 생성",
+        "summary": "선결제된 부탁에서 한 명 선택 · PAYMENT_HELD 거래 생성 · 추가 청구 없음",
         "operationId": "post_offers_id_accept",
         "responses": {
           "201": {
@@ -1691,6 +1691,27 @@
           }
         }
       }
+    },
+    "/requests/{id}/pay": {
+      "post": {
+        "summary": "구매자 선결제 후 부탁 공개",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "Idempotency-Key", "in": "header", "required": true, "schema": { "type": "string", "minLength": 8, "maxLength": 100 } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "additionalProperties": false, "required": ["expectedRevision", "paymentMethod", "paymentReference"], "properties": { "expectedRevision": { "type": "integer", "minimum": 0 }, "paymentMethod": { "type": "string", "enum": ["CARD", "ACCOUNT"] }, "paymentReference": { "type": "string", "minLength": 4, "maxLength": 40 }, "simulateFailure": { "type": "boolean", "default": false } } } } } },
+        "responses": { "201": { "description": "한 번만 모의 보관 후 공개된 부탁", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProductRequest" } } } }, "409": { "description": "상태 충돌, 권한 불일치, 이미 결제됨 또는 모의 승인 실패" } }
+      }
+    },
+    "/requests/{id}/cancel": {
+      "post": {
+        "summary": "여행자 선택 전 부탁 취소·모의 결제 전액 환불",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "Idempotency-Key", "in": "header", "required": true, "schema": { "type": "string", "minLength": 8, "maxLength": 100 } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "additionalProperties": false, "required": ["expectedRevision"], "properties": { "expectedRevision": { "type": "integer", "minimum": 0 } } } } } },
+        "responses": { "201": { "description": "취소된 부탁", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProductRequest" } } } }, "409": { "description": "이미 선택됨 또는 revision/권한 충돌" } }
+      }
+    },
+    "/rooms/{id}/replies": {
+      "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "get": { "summary": "참여자 전용 상황별 기본 답장 추천 · 외부 AI 호출 없음", "responses": { "200": { "description": "기본 추천", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ChatReplies" } } } }, "403": { "description": "대화방 참여자 아님" } } },
+      "post": { "summary": "동의 후 AI 초안 추천 · 미설정/실패 시 기본 추천", "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "additionalProperties": false, "required": ["useAI"], "properties": { "useAI": { "type": "boolean", "enum": [true] } } } } } }, "responses": { "201": { "description": "AI 또는 기본 초안 · 자동 전송하지 않음", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ChatReplies" } } } }, "403": { "description": "대화방 참여자 아님" } } }
     },
     "/rooms/{id}/messages": {
       "post": {
@@ -2329,6 +2350,7 @@
           "status": {
             "type": "string",
             "enum": [
+              "PAYMENT_PENDING",
               "REQUESTED",
               "OFFER_RECEIVED",
               "MATCHED",
@@ -2416,9 +2438,11 @@
           }
         }
       },
+      "ChatReplies": { "type": "object", "required": ["source", "suggestions", "aiAvailable", "notice"], "properties": { "source": { "type": "string", "enum": ["AI", "BASIC"] }, "suggestions": { "type": "array", "minItems": 1, "maxItems": 3, "items": { "type": "string", "maxLength": 100 } }, "aiAvailable": { "type": "boolean" }, "notice": { "type": "string" } } },
       "Transaction": {
         "type": "object",
         "properties": {
+          "prepaid": { "type": "boolean", "description": "True when funded before buyer selection; absent for legacy matches" },
           "id": {
             "type": "string"
           },

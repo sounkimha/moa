@@ -101,7 +101,7 @@ test('request and trip form state regressions', async (t) => {
       assert.equal(app.requestDraft.transport, 'DOMESTIC_PARCEL');
       await click('어디에서 만날까요? 닫기');
       assert.equal(app.requestDraft.transport, 'DOMESTIC_PARCEL');
-      await click('부탁 등록하기');
+      await click('결제 금액 확인하기');
       assert.equal(app.submitted.transport, 'DOMESTIC_PARCEL');
     });
     await t.test('canceling an edit restores the existing confirmed meetup, committing replaces it', async () => {
@@ -112,7 +112,7 @@ test('request and trip form state regressions', async (t) => {
       assert.deepEqual(app.requestDraft.meetupPoint, point);
       await click('직거래 위치 변경'); await click('지도 확정');
       assert.deepEqual(app.requestDraft.meetupPoint, selectedPoint);
-      await click('부탁 등록하기'); assert.deepEqual(app.submitted.meetupPoint, selectedPoint);
+      await click('결제 금액 확인하기'); assert.deepEqual(app.submitted.meetupPoint, selectedPoint);
     });
     await t.test('canceling country and address editors restores the saved delivery data', async () => {
       await mount(RequestForm, draft('MEETUP'));
@@ -158,11 +158,11 @@ test('request and trip form state regressions', async (t) => {
       assert.equal(app.requestDraft.deliveryCity, '서울'); assert.deepEqual(app.requestDraft.meetupPoint, point);
       await click('수령 지역 변경'); await input('수령 도시', '부산'); await click('이 지역에서 받을게요');
       assert.equal(app.requestDraft.deliveryCity, '부산'); assert.equal(app.requestDraft.meetupPoint, undefined);
-      await click('부탁 등록하기'); assert.equal(app.submitted, undefined);
+      await click('결제 금액 확인하기'); assert.equal(app.submitted, undefined);
     });
     await t.test('submission revalidates past dates and whitespace addresses before calling API', async () => {
       await mount(RequestForm, draft());
-      await input('희망 수령일', '2000-01-01'); await click('부탁 등록하기');
+      await input('희망 수령일', '2000-01-01'); await click('결제 금액 확인하기');
       assert.equal(app.submitted, undefined); assert.match(host.textContent, /오늘 이후/);
       await input('희망 수령일', future(10)); await click('받을 배송지 변경'); await input('주소', '   ');
       assert.equal([...host.querySelectorAll('button')].find((item) => item.getAttribute('aria-label') === '이 배송지로 받을게요').disabled, true);

@@ -25,6 +25,8 @@ import { Place, Transaction, money, shortDate, STATUS_LABEL, TRANSPORT_LABEL, tr
 import { useApp } from '../state/AppContext';
 import { MeetupSummary } from '../components/MeetupSummary';
 import { PlaneRouteAnimation } from '../components/travel-route';
+import { RequestPaymentScreen } from './RequestPayment';
+import { ChatReplies } from '../components/chat-replies';
 import { colors as c, radius, space, typography } from '../theme/tokens';
 import { pickImage } from '../lib/images';
 import demoImages from '../lib/demo-images.json';
@@ -69,11 +71,11 @@ export function TradesScreen() {
   const myTransactions = d.transactions.filter((t) => buyer ? t.buyerId === d.me.id : t.travelerId === d.me.id);
   const completed = (t: Transaction) => ['CONFIRMED', 'SETTLED', 'CANCELLED'].includes(t.status);
   const transactions = myTransactions.filter((t) => filter === '완료' ? completed(t) : !completed(t)).slice().reverse();
-  const waitingLabel = buyer ? '내 요청' : '수락한 부탁';
+  const waitingLabel = buyer ? '내 요청' : '지원한 부탁';
   const requests = d.requests.filter((r) => r.requesterId === d.me.id && !myTransactions.some((t) => t.requestId === r.id));
   const offers = d.offers.filter((o) => o.travelerId === d.me.id && !myTransactions.some((t) => t.offerId === o.id));
   const actionLabel = (t: Transaction) => {
-    if (t.status === 'MATCHED') return buyer ? '결제를 완료해주세요' : '구매자의 결제를 기다려요';
+    if (t.status === 'MATCHED') return buyer ? '결제를 완료해주세요' : '이전 거래 · 결제 확인이 필요해요';
     if (t.status === 'PAYMENT_HELD') return buyer ? '여행자가 구매할 차례예요' : '구매 후 사진을 올려주세요';
     if (t.status === 'PURCHASED') return '약속한 방법으로 전달을 준비해요';
     if (t.status === 'TRAVELING') return buyer ? '전달 소식을 기다려요' : t.transport === 'MEETUP' ? '만날 약속을 등록해주세요' : '국내 택배 정보를 등록해주세요';
@@ -95,13 +97,13 @@ export function TradesScreen() {
           )) : offers.map((o) => {
             const r = d.requests.find((r) => r.id === o.requestId);
             return <Card key={o.id}><Stack gap={12}>
-              <Row style={{ justifyContent: 'space-between' }}><Badge>{o.status === 'PENDING' ? '구매자 확인 대기' : o.status === 'ACCEPTED' ? '수락 완료' : '종료된 부탁'}</Badge><Txt weight="700">{money(o.reward)}</Txt></Row>
+              <Row style={{ justifyContent: 'space-between' }}><Badge>{o.status === 'PENDING' ? '구매자 확인 대기' : o.status === 'ACCEPTED' ? '매칭 완료' : o.status === 'REJECTED' ? '다른 여행자가 선택됐어요' : '취소된 부탁'}</Badge><Txt weight="700">{money(o.reward)}</Txt></Row>
               <Txt weight="600">{r?.productName || '종료된 부탁'}</Txt>
               <Txt size={13} color={c.secondary}>{shortDate(o.estimatedDeliveryDate)} 전달 예정</Txt>
               {r && <Button small kind="secondary" label="요청 보기" onPress={() => a.nav('request', { id: r.id })} />}
             </Stack></Card>;
           })}
-          {(buyer ? !requests.length : !offers.length) && <Empty title={buyer ? '기다리는 부탁이 없어요' : '기다리는 수락이 없어요'} body={buyer ? '원하는 장소에서 첫 부탁을 남겨보세요.' : '가는 길의 부탁을 찾아보세요.'} action={buyer ? '이거 부탁하기' : '내 동선 보기'} onPress={() => buyer ? a.nav('request-form') : a.tab('home')} />}
+          {(buyer ? !requests.length : !offers.length) && <Empty title={buyer ? '기다리는 부탁이 없어요' : '지원한 부탁이 없어요'} body={buyer ? '원하는 장소에서 첫 부탁을 남겨보세요.' : '가는 길의 부탁을 찾아보세요.'} action={buyer ? '이거 부탁하기' : '내 동선 보기'} onPress={() => buyer ? a.nav('request-form') : a.tab('home')} />}
         </Stack>
       ) : (
         <Stack gap={14}>
@@ -122,13 +124,17 @@ export function TradesScreen() {
               {partner && room && <View style={{ borderTopWidth: 1, borderTopColor: c.border, paddingHorizontal: 18, paddingVertical: 10 }}><Row style={{ justifyContent: 'space-between' }}><Row><Avatar user={partner} size={28} /><Txt size={13} color={c.secondary}>{partner.nickname}</Txt></Row><Button small kind="ghost" icon={MessageCircle} label="대화하기" onPress={() => a.nav('chat', { id: t.id })} /></Row></View>}
             </Card>;
           })}
-          {!transactions.length && <Empty title={filter === '완료' ? '아직 완료된 거래가 없어요' : '진행 중인 거래가 없어요'} body={filter === '완료' ? '전달을 마친 부탁이 여기에 모여요.' : buyer ? '등록한 부탁은 내 요청에서 확인해요.' : '부탁을 수락하면 거래와 대화가 시작돼요.'} action={filter === '완료' ? undefined : buyer ? '내 요청 보기' : '가는 길의 부탁 보기'} onPress={() => buyer ? setFilter(waitingLabel) : a.tab('home')} />}
+          {!transactions.length && <Empty title={filter === '완료' ? '아직 완료된 거래가 없어요' : '진행 중인 거래가 없어요'} body={filter === '완료' ? '전달을 마친 부탁이 여기에 모여요.' : buyer ? '등록한 부탁은 내 요청에서 확인해요.' : '지원한 부탁에서 구매자가 나를 선택하면 거래와 대화가 시작돼요.'} action={filter === '완료' ? undefined : buyer ? '내 요청 보기' : '가는 길의 부탁 보기'} onPress={() => buyer ? setFilter(waitingLabel) : a.tab('home')} />}
         </Stack>
       )}
     </Page>
   );
 }
 export function PaymentScreen() {
+  const a = useApp();
+  return a.route.requestIds?.[0] ? <RequestPaymentScreen key={a.route.requestIds[0]} requestId={a.route.requestIds[0]} /> : <LegacyPaymentScreen />;
+}
+function LegacyPaymentScreen() {
   const a = useApp(), d = a.data!, t = d.transactions.find((x) => x.id === a.route.id);
   const [agreed, setAgreed] = useState(false);
   const [fail, setFail] = useState(false);
@@ -866,6 +872,7 @@ export function ChatScreen() {
   const nearBottom = useRef(true);
   const [connectionFailed, setConnectionFailed] = useState(false);
   const room = d.rooms.find((r) => r.transactionId === t?.id);
+  useEffect(() => { setText(''); nearBottom.current = true; }, [room?.id, d.me.id]);
   useEffect(() => {
     const timer = setInterval(() => a.refresh().then(() => setConnectionFailed(false)).catch(() => setConnectionFailed(true)), 5000);
     return () => clearInterval(timer);
@@ -882,8 +889,9 @@ export function ChatScreen() {
   const messages = d.messages.filter((m) => m.roomId === room.id);
   const send = async () => {
     nearBottom.current = true;
-    const v = await a.mutate(`/rooms/${room.id}/messages`, { text });
-    if (v) setText('');
+    const sent = text;
+    const v = await a.mutate(`/rooms/${room.id}/messages`, { text: sent });
+    if (v) setText((current) => current === sent ? '' : current);
   };
   return (
     <Page
@@ -891,15 +899,7 @@ export function ChatScreen() {
       scroll={false}
       footer={
         <Stack gap={10}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: 8 }}
-          >
-            {(t.buyerId === d.me.id ? ['재고 있나요?', '다른 색상도 가능한가요?', '영수증 부탁드려요.'] : ['매장에 도착했어요.', '구매 완료했어요.', '전달 시간을 정할까요?']).map((v) => (
-              <Chip key={v} label={v} onPress={() => setText(v)} />
-            ))}
-          </ScrollView>
+          <ChatReplies key={room.id} roomId={room.id} contextKey={`${d.me.id}:${t.status}:${t.revision}:${messages.at(-1)?.id || ''}`} draft={text} onSelect={setText} />
           <Row style={{ alignItems: 'flex-end' }}>
             <Field
               style={{ flex: 1 }}

@@ -6,6 +6,19 @@ import { Database } from '@moa/domain';
 import { seedDatabase } from '@moa/domain/dist/seed';
 import { migrateLegacyDelivery } from './delivery-migration';
 
+function migratePrepayment(db: Database) {
+  let changed = false;
+  for (const request of db.requests) {
+    if (!['REQUESTED', 'OFFER_RECEIVED'].includes(request.status) ||
+        db.requestFundings.some((funding) => funding.requestId === request.id && funding.status === 'HELD')) continue;
+    // Never invent a payment for saved requests from the old accept-then-pay flow.
+    request.status = 'PAYMENT_PENDING';
+    request.revision++;
+    changed = true;
+  }
+  return changed;
+}
+
 function addMissingDestinationPlaces(db: Database) {
   const defaults = seedDatabase();
   const missing = defaults.places.filter((p) => !db.places.some((saved) => saved.id === p.id));
@@ -56,6 +69,7 @@ export const TABLES: (keyof Database)[] = [
   'verifications',
   'paymentMethods',
   'payments',
+  'requestFundings',
   'escrows',
   'receipts',
   'shipments',
@@ -97,14 +111,15 @@ export class Store implements OnModuleDestroy {
         let shapeChanged = false;
         for (const key of TABLES)
           if (!Array.isArray(this.db![key])) {
-            (this.db![key] as unknown[]) = defaults[key];
+            (this.db![key] as unknown[]) = key === 'requestFundings' ? [] : defaults[key];
             shapeChanged = true;
           }
         const draft = structuredClone(this.db!);
         const deliveryChanged = migrateLegacyDelivery(draft);
         const destinationsChanged = addMissingDestinationPlaces(draft);
         const trustChanged = hydrateTrustAndFinance(draft);
-        if (shapeChanged || deliveryChanged || destinationsChanged || trustChanged) {
+        const fundingChanged = migratePrepayment(draft);
+        if (shapeChanged || deliveryChanged || destinationsChanged || trustChanged || fundingChanged) {
           // Keep the exact original bytes before the one-time compatibility migration.
           await fs.copyFile(this.filename, `${this.filename}.before-${deliveryChanged ? 'domestic-delivery' : destinationsChanged ? 'asia-destinations' : 'trust-wallet'}-${Date.now()}.bak`);
           const tmp = `${this.filename}.${process.pid}.tmp`;
@@ -176,6 +191,7 @@ export class Store implements OnModuleDestroy {
         migrateLegacyDelivery(draft);
         addMissingDestinationPlaces(draft);
         hydrateTrustAndFinance(draft);
+        migratePrepayment(draft);
         const result = fn(draft);
         await this.writePg(client, before, draft);
         await client.query('COMMIT');

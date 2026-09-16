@@ -193,6 +193,7 @@ export class CatalogService {
       );
       const ids = new Set(transactions.map((t) => t.id));
       const requestIds = new Set(transactions.map((t) => t.requestId));
+      const appliedRequestIds = new Set(db.offers.filter((offer) => offer.travelerId === actor).map((offer) => offer.requestId));
       const rooms = db.rooms.filter((r) => ids.has(r.transactionId));
       const roomIds = new Set(rooms.map((r) => r.id));
       const privateRequestIds = new Set([
@@ -221,7 +222,7 @@ export class CatalogService {
           (r) =>
             ['REQUESTED', 'OFFER_RECEIVED'].includes(r.status) ||
             r.requesterId === actor ||
-            requestIds.has(r.id),
+            requestIds.has(r.id) || appliedRequestIds.has(r.id),
         ).map((request) => privateRequestIds.has(request.id) ? request : ({
           ...request,
           deliveryAddressId: undefined,
@@ -241,6 +242,7 @@ export class CatalogService {
         ),
         bundles: db.bundles.filter((b) => b.travelerId === actor),
         paymentMethods: db.paymentMethods.filter((method) => method.userId === actor),
+        requestFundings: db.requestFundings.filter((funding) => funding.buyerId === actor),
         payments: db.payments.filter((p) => ids.has(p.transactionId)),
         escrows: db.escrows.filter((e) => ids.has(e.transactionId)),
         receipts: db.receipts.filter((r) => ids.has(r.transactionId)),

@@ -40,8 +40,10 @@ flowchart TD
 | 이전                 | 명령                    | 다음           | 주체              |
 | -------------------- | ----------------------- | -------------- | ----------------- |
 | REQUESTED            | 제안 생성               | OFFER_RECEIVED | 여행자            |
-| OFFER_RECEIVED       | 제안 선택               | MATCHED        | 요청자            |
-| MATCHED              | PAY                     | PAYMENT_HELD   | 구매자            |
+| PAYMENT_PENDING      | 요청 선결제             | REQUESTED      | 구매자            |
+| REQUESTED/OFFER_RECEIVED | 여행자 지원          | OFFER_RECEIVED | 여행자            |
+| OFFER_RECEIVED       | 한 명 선택·기존 보관금 연결 | PAYMENT_HELD | 구매자            |
+| MATCHED (이전 거래만) | PAY                     | PAYMENT_HELD   | 구매자            |
 | PAYMENT_HELD         | PURCHASE + 증빙         | PURCHASED      | 여행자            |
 | PURCHASED            | TRAVEL                  | TRAVELING      | 여행자            |
 | TRAVELING            | SHIP + 운송장/전달 약속 | SHIPPED        | 여행자            |
@@ -49,6 +51,7 @@ flowchart TD
 | SHIPPED              | RECEIVE                 | DELIVERED      | 구매자            |
 | DELIVERED            | CONFIRM                 | CONFIRMED      | 구매자            |
 | CONFIRMED            | SETTLE                  | SETTLED        | 여행자, Mock 전용 |
+| PAYMENT_PENDING/REQUESTED/OFFER_RECEIVED | 요청 취소·선택 전 전액 환불 | CANCELLED | 구매자 |
 | MATCHED/PAYMENT_HELD | CANCEL                  | CANCELLED      | 구매자            |
 | 결제 후~구매 확정    | DISPUTE                 | DISPUTED       | 거래 참여자       |
 

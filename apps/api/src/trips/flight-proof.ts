@@ -105,7 +105,7 @@ export class FlightProofController {
         current.flightProof = proof;
         current.verificationStatus = proof.itineraryMatches ? 'PENDING_REVIEW' : 'NEEDS_REVIEW';
         return { tripId: current.id, verificationStatus: current.verificationStatus, proof,
-          notice: '항공권 인식 결과를 저장했어요. 항공사·본인확인 서비스가 연결되지 않아 최종 인증과 부탁 수락은 아직 제한돼요.' };
+          notice: '항공권 인식 결과를 저장했어요. 항공사·본인확인 서비스가 연결되지 않아 최종 인증과 부탁 지원은 아직 제한돼요.' };
       }));
     } finally { this.active.delete(req.actorId); }
   }

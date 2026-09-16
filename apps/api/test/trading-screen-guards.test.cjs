@@ -63,5 +63,5 @@ test('missing request place and missing traveler offer data keep the matching sc
   const db = fixture(); context.route.id = 'r-1'; db.places = [];
   assert.match(render(matching.RequestScreen), /구매 장소를 불러오지 못했어요/);
   db.users = [db.me];
-  assert.match(render(matching.OffersScreen), /아직 수락한 여행자가 없어요/);
+  assert.match(render(matching.OffersScreen), /아직 지원한 여행자가 없어요/);
 });

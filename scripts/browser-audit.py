@@ -89,7 +89,7 @@ with tempfile.TemporaryDirectory(prefix='moa-isolated-ui-') as tmp:
                     expect(page.get_by_text('예시 상품을 채웠어요', exact=True)).to_be_visible()
                     button(page,'수령 방법 정하기').click()
                     field(page,'여행자 보상 (원)').fill('5000')
-                    button(page,'부탁 등록하기').scroll_into_view_if_needed()
+                    button(page,'결제 금액 확인하기').scroll_into_view_if_needed()
                     check_layout(page, 'request-'+str(width), output)
                     page.reload()
                     expect(field(page,'여행자 보상 (원)')).to_have_value('5000')

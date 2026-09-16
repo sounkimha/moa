@@ -79,7 +79,7 @@ export function IdentityScreen() {
   return (
     <Page title="본인확인">
       <View style={{ width: 72, height: 72, backgroundColor: c.primarySoft, borderRadius: radius.lg, justifyContent: 'center', alignItems: 'center' }}><ShieldCheck size={36} color={c.primary} /></View>
-      <Stack gap={space.sm}><Badge>{verified ? '체험 확인 완료' : '확인 필요'}</Badge><Txt size={typography.hero} weight="800">서로 믿고 부탁할 수 있게{`\n`}본인을 확인해요.</Txt><Txt color={c.secondary}>부탁을 수락하거나 정산금을 받기 전 한 번 확인해요.</Txt></Stack>
+      <Stack gap={space.sm}><Badge>{verified ? '체험 확인 완료' : '확인 필요'}</Badge><Txt size={typography.hero} weight="800">서로 믿고 부탁할 수 있게{`\n`}본인을 확인해요.</Txt><Txt color={c.secondary}>부탁에 지원하거나 정산금을 받기 전 한 번 확인해요.</Txt></Stack>
       <View style={{ paddingVertical: space.lg, gap: space.lg }}><Row><CheckCircle2 size={20} color={c.primary} /><Txt size={14}>상대에게는 인증 여부만 보여요</Txt></Row><Row><LockKeyhole size={20} color={c.primary} /><Txt size={14}>신분증과 주민등록번호를 받지 않아요</Txt></Row></View>
       <Button label={verified ? 'PASS 체험 다시 확인' : 'PASS로 체험 확인'} onPress={() => verify('PASS')} loading={a.busy} />
       <Button kind="secondary" label="SMS로 체험 확인" onPress={() => verify('SMS')} loading={a.busy} />

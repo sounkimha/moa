@@ -12,6 +12,19 @@ import copy, json, os, re, requests, subprocess, tempfile, threading, uuid
 ROOT = Path(__file__).resolve().parents[1]
 def button(page, name): return page.get_by_role('button', name=name, exact=True)
 
+def check_plane_shape(page):
+    plane=page.get_by_test_id('route-airplane').first
+    expect(plane).to_be_visible()
+    geometry=plane.evaluate('''el => {
+      const svg=el.querySelector('svg'), path=svg.querySelector('path');
+      const box=path.getBBox(), bounds=svg.viewBox.baseVal;
+      return {svgTransform:getComputedStyle(svg).transform,pathTransform:getComputedStyle(path).transform,
+        wrapperTransform:getComputedStyle(svg.parentElement).transform,
+        inside:box.x>=bounds.x && box.y>=bounds.y && box.x+box.width<=bounds.x+bounds.width && box.y+box.height<=bounds.y+bounds.height};
+    }''')
+    assert geometry['svgTransform']=='none' and geometry['pathTransform']=='none', 'Lucide SVG/path must not receive a duplicate rotation'
+    assert geometry['wrapperTransform']!='none' and geometry['inside'], 'Rotate the complete airplane, keeping its silhouette inside the SVG'
+
 class QuietStatic(SimpleHTTPRequestHandler):
     def log_message(self, *args): pass
     def handle(self):
@@ -47,6 +60,10 @@ with tempfile.TemporaryDirectory(prefix='moa-redesign-state-') as tmp:
         assert response.ok, 'Seed traveler selection must succeed: '+str(response.status_code)
         transaction=response.json()
         matched=requests.get(api_url+'/api/snapshot',headers=headers,timeout=10).json()
+        draft_body={key:value for key,value in baseline['requests'][0].items() if key in ['productName','productUrl','productImage','storeName','art','placeId','localPrice','quantity','requestedReward','desiredDate','deliveryCountry','deliveryCity','category','option','transport','deliveryRecipient','deliveryPhone','deliveryPostalCode','deliveryAddress1','deliveryAddress2','meetupLocation','meetupPoint']}
+        draft_response=requests.post(api_url+'/api/requests',headers={**headers,'Idempotency-Key':str(uuid.uuid4())},json=draft_body,timeout=10)
+        assert draft_response.ok, draft_response.text
+        unpaid=draft_response.json()
         with sync_playwright() as p:
             browser=p.chromium.launch(channel='chrome',headless=True)
             try:
@@ -67,12 +84,18 @@ with tempfile.TemporaryDirectory(prefix='moa-redesign-state-') as tmp:
                     page.route('**/*',route_local)
                     page.goto(app_url)
                     expect(page.get_by_text('01 · 부탁하기',exact=True)).to_be_visible()
+                    expect(page.get_by_text('여행에 취향을 싣다.',exact=True)).to_be_visible()
                     inspect(page,'guide-1-'+str(width),output)
                     button(page,'다음').click()
                     expect(page.get_by_test_id('plane-route')).to_be_visible()
+                    check_plane_shape(page)
                     inspect(page,'guide-2-'+str(width),output)
                     button(page,'다음').click()
                     inspect(page,'guide-3-'+str(width),output)
+                    button(page,'이전').click()
+                    expect(page.get_by_text('02 · 가는 길에 묶기',exact=True)).to_be_visible()
+                    button(page,'다음').click()
+                    expect(page.get_by_text('앞의 안내',exact=True)).to_have_count(0)
                     button(page,'모아 시작하기').click()
                     expect(button(page,'체험 계정으로 로그인')).to_be_visible()
                     inspect(page,'login-'+str(width),output)
@@ -99,6 +122,18 @@ with tempfile.TemporaryDirectory(prefix='moa-redesign-state-') as tmp:
                     go('bundle?placeId=p-shibuya&tripId=trip-u-me'); inspect(page,'bundle-'+str(width),output)
                     go('settings'); button(page,'부탁하기 모드로 전환').click()
                     fixture['snapshot']=copy.deepcopy(matched)
+                    go('chat/'+transaction['id'])
+                    expect(page.get_by_text('상황별 답장 추천',exact=True)).to_be_visible()
+                    expect(page.get_by_text('AI 연결 전이라 거래 단계에 맞춘 기본 추천을 보여드려요.',exact=True)).to_be_visible()
+                    inspect(page,'chat-replies-'+str(width),output)
+                    button(page,'구매 전 상품과 옵션을 한 번 더 확인 부탁드려요.').click()
+                    expect(page.get_by_role('textbox',name='메시지',exact=True)).to_have_value('구매 전 상품과 옵션을 한 번 더 확인 부탁드려요.')
+                    expect(button(page,'전송')).to_be_enabled()
+                    messages=requests.get(api_url+'/api/snapshot',headers=headers,timeout=10).json()['messages']
+                    assert len(messages)==len(matched['messages']), 'Selecting a draft must never send it'
+                    fixture['snapshot']['requests'].append(copy.deepcopy(unpaid))
+                    go('payment?requestId='+unpaid['id']); inspect(page,'prepayment-'+str(width),output)
+                    expect(page.get_by_role('button',name=re.compile('결제 체험하기$')).first).to_be_disabled()
                     go('payment/'+transaction['id']); inspect(page,'payment-'+str(width),output)
                     go('transaction/'+transaction['id']); inspect(page,'transaction-'+str(width),output)
                     go('trades'); inspect(page,'trades-'+str(width),output)
@@ -140,6 +175,7 @@ with tempfile.TemporaryDirectory(prefix='moa-redesign-state-') as tmp:
                 page.goto(app_url+'/#trip-route/trip-u-min?placeId=p-station'); page.reload()
                 plane=page.get_by_test_id('route-airplane').first
                 expect(plane).to_be_visible()
+                check_plane_shape(page)
                 start=plane.bounding_box(); page.wait_for_timeout(650); middle=plane.bounding_box()
                 assert start and middle and abs(middle['x']-start['x'])>5, 'Plane must move along the route'
                 page.wait_for_timeout(1200)

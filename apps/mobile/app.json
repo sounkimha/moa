@@ -26,7 +26,7 @@
     },
     "web": {
       "bundler": "metro",
-      "name": "MOA · 가는 김에, 하나 더.",
+      "name": "MOA · 여행에 취향을 싣다.",
       "shortName": "MOA",
       "lang": "ko",
       "favicon": "./assets/moa-app-icon.png",

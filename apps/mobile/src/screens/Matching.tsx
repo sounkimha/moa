@@ -52,6 +52,7 @@ import {
 import { Avatar, MoneyBreakdown, PlaceCover, ProductArt, ProductRow } from '../components/visuals';
 
 export function RequestScreen() {
+  const [confirmCancel, setConfirmCancel] = useState(false);
   const a = useApp(),
     d = a.data!,
     r = d.requests.find((x) => x.id === a.route.id);
@@ -77,7 +78,7 @@ export function RequestScreen() {
     transaction
       ? a.nav(transaction.status === 'MATCHED' && mine ? 'payment' : 'transaction', { id: transaction.id })
       : mine
-        ? a.nav('offers', { id: r.id })
+        ? r.status === 'PAYMENT_PENDING' ? a.nav('payment', { requestIds: [r.id] }) : a.nav('offers', { id: r.id })
         : a.nav('offer-form', { id: r.id });
   return (
     <Page
@@ -88,10 +89,10 @@ export function RequestScreen() {
             transaction
               ? '거래 이어가기'
               : mine
-                ? `수락한 여행자 보기 · ${offers.length}명`
-                : alreadyAccepted ? '수락을 보냈어요' : '이 부탁 수락하기'
+                ? r.status === 'PAYMENT_PENDING' ? '결제하고 부탁 공개하기' : `지원한 여행자 보기 · ${offers.length}명`
+                : alreadyAccepted ? '지원을 보냈어요' : '가져오겠다고 지원하기'
           }
-          disabled={(!active && !transaction) || (alreadyAccepted && !transaction)}
+          disabled={(!active && !transaction && !(mine && r.status === 'PAYMENT_PENDING')) || (alreadyAccepted && !transaction)}
           icon={ArrowRight}
           onPress={act}
         />
@@ -187,8 +188,18 @@ export function RequestScreen() {
       <Stack gap={14}>
         {r.transport === 'MEETUP' && <MeetupSummary point={r.meetupPoint} />}
         <ProductOriginal text={r.originalText} />
-        <Section title="예상 결제금액" subtitle={r.requestedReward !== undefined ? '구매자가 정한 보상을 포함했어요.' : '이전 부탁은 여행자의 보상을 확인한 뒤 결제해요.'} />
+        <Section title={r.status === 'PAYMENT_PENDING' ? '예상 결제금액' : '부탁 금액'} subtitle="구매자가 정한 상품·보상·전달비예요." />
         <MoneyBreakdown price={transaction || quote(r, r.requestedReward ?? 0, r.transport)} rewardPending={!transaction && r.requestedReward === undefined} />
+        {mine && !transaction && <Notice>{r.status === 'PAYMENT_PENDING' ? '결제 전에는 나에게만 보여요. 결제를 마치면 여행자들이 지원할 수 있어요.' : r.status === 'CANCELLED' ? '취소된 부탁이에요. 결제했다면 전액 모의 환불됐어요.' : '결제금은 모의 보관 중이에요. 여러 여행자의 일정과 프로필을 비교하고 한 명을 선택해주세요.'}</Notice>}
+        {mine && !transaction && ['PAYMENT_PENDING', 'REQUESTED', 'OFFER_RECEIVED'].includes(r.status) && <Stack gap={8}>
+          {confirmCancel && <Notice>부탁을 취소할까요? 지원한 여행자에게 안내하고, 보관된 결제금은 전액 모의 환불해요.</Notice>}
+          <Button kind="ghost" label={confirmCancel ? '취소 확정하기' : '부탁 취소하기'} loading={a.busy} onPress={async () => {
+            if (!confirmCancel) { setConfirmCancel(true); return; }
+            const result = await a.mutate(`/requests/${r.id}/cancel`, { expectedRevision: r.revision }, '부탁을 취소했어요. 결제금이 있다면 전액 모의 환불했어요.');
+            if (result) a.tab('trades');
+          }} />
+          {confirmCancel && <Button kind="ghost" label="계속 기다릴게요" onPress={() => setConfirmCancel(false)} />}
+        </Stack>}
         <Txt size={13} color={c.secondary}>여행자가 직접 가져와 귀국 후 전달해요.</Txt>
       </Stack>
     </Page>
@@ -201,7 +212,7 @@ export function OffersScreen() {
   const [sort, setSort] = useState('추천순');
   if (!r)
     return (
-      <Page title="수락한 여행자">
+      <Page title="지원한 여행자">
         <Empty />
       </Page>
     );
@@ -215,24 +226,27 @@ export function OffersScreen() {
           : d.users.find((u) => u.id === b.travelerId)!.completed -
             d.users.find((u) => u.id === a.travelerId)!.completed,
     );
-  if (r.requesterId !== d.me.id) return <Page title="수락한 여행자"><Empty title="내가 보낸 부탁에서 확인할 수 있어요" action="부탁 상세 보기" onPress={() => a.nav('request', { id: r.id })} /></Page>;
+  if (r.requesterId !== d.me.id) return <Page title="지원한 여행자"><Empty title="내가 보낸 부탁에서 확인할 수 있어요" action="부탁 상세 보기" onPress={() => a.nav('request', { id: r.id })} /></Page>;
+  if (r.status === 'PAYMENT_PENDING') return <Page title="지원한 여행자"><Empty title="먼저 결제를 완료해주세요" body="결제한 부탁에 여행자들이 지원할 수 있어요." action="결제하고 부탁 공개하기" onPress={() => a.nav('payment', { requestIds: [r.id] })} /></Page>;
+  if (!['REQUESTED', 'OFFER_RECEIVED'].includes(r.status)) return <Page title="지원한 여행자"><Empty title="선택이 끝난 부탁이에요" action="부탁 확인하기" onPress={() => a.nav('request', { id: r.id })} /></Page>;
   const select = async (o: TravelerOffer) => {
     const result = await a.mutate<Transaction>(
       `/offers/${o.id}/accept`,
       { expectedRevision: r.revision },
       '함께할 여행자를 선택했어요.',
     );
-    if (result) a.nav('payment', { id: result.id });
+    if (result) a.nav('transaction', { id: result.id });
   };
   return (
     <Page title="누가 가져올까요?">
+      <Txt size={13} color={c.secondary}>결제 완료 · 한 명을 선택하면 매칭과 채팅이 시작돼요.</Txt>
       <Pressable accessibilityRole="button" accessibilityLabel={`${r.productName} 부탁 상세`} onPress={() => a.nav('request', { id: r.id })} style={({ pressed }) => ({ opacity: pressed ? 0.72 : 1 })}>
         <Row style={{ gap: 12 }}><ProductArt art={r.art} image={r.productImage} featured={r.productName.includes('치이카와')} size={48} /><Stack gap={3} style={{ flex: 1, minWidth: 0 }}><Txt size={14} weight="600" lines={1}>{r.productName}</Txt><Txt size={12} color={c.secondary}>{r.quantity}개 · {shortDate(r.desiredDate)}까지 받아요</Txt></Stack><ChevronRight size={17} color={c.muted} /></Row>
       </Pressable>
       <Row style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
         <Row style={{ flexWrap: 'wrap', gap: 8 }}>{(r.requestedReward === undefined ? ['추천순', '낮은 보상순', '빠른 수령순'] : ['추천순', '빠른 수령순']).map((v) => (
           <Chip key={v} label={v} selected={sort === v} onPress={() => setSort(v)} />
-        ))}</Row><Txt size={12} color={c.secondary}>수락 {offers.length}명</Txt>
+        ))}</Row><Txt size={12} color={c.secondary}>지원 {offers.length}명</Txt>
       </Row>
       {offers.map((o, i) => {
         const u = d.users.find((x) => x.id === o.travelerId)!;
@@ -288,7 +302,7 @@ export function OffersScreen() {
               <Divider />
               <Row style={{ justifyContent: 'space-between' }}>
                 <Txt size={13} color={c.secondary}>
-                  예상 총 결제
+                  보관 중인 결제금
                 </Txt>
                 <Txt size={20} weight="700">{money(quote(r, o.reward, o.transport).totalPrice)}</Txt>
               </Row>
@@ -307,10 +321,10 @@ export function OffersScreen() {
       })}
       {!offers.length && (
         <Empty
-          title="아직 수락한 여행자가 없어요"
-          body="가는 길이 맞는 여행자가 부탁을 수락하면 바로 알려드려요."
-          action="여행자 계정 체험"
-          onPress={() => a.nav('settings')}
+          title="아직 지원한 여행자가 없어요"
+          body="가는 길이 맞는 여행자가 지원하면 알려드려요. 부탁 상세에서 취소·전액 환불할 수 있어요."
+          action="부탁 확인하기"
+          onPress={() => a.nav('request', { id: r.id })}
         />
       )}
     </Page>
@@ -433,7 +447,7 @@ export function BundleScreen() {
       title="한 번 가서, 함께 가져와요"
       footer={
         <Button
-          label={`${requests.length}건 한 번에 수락하기`}
+          label={`${requests.length}건 한 번에 지원하기`}
           icon={Layers}
           disabled={!requests.length || requests.length > 10 || items > remaining}
           onPress={() =>
@@ -536,7 +550,7 @@ export function BundleScreen() {
         <Notice tone="error">이 여행은 {remaining}개를 더 가져올 수 있어요. 한 번에 10건 이하로 선택해주세요.</Notice>
       )}
       <Notice>
-        수락하면 각 구매자와 거래방이 바로 열려요. 결제가 완료된 부탁만 구매해주세요.
+        같은 장소의 부탁에 한 번에 지원해요. 각 구매자가 나를 선택하면 거래방이 열려요.
         재고와 매장 구매 제한도 방문 전에 확인해야 해요.
       </Notice>
     </Page>
@@ -587,13 +601,13 @@ export function OfferForm() {
   };
   if (!first || requests.length !== ids.length)
     return (
-      <Page title="부탁 수락하기">
+      <Page title="부탁에 지원하기">
         <Empty title="선택한 부탁을 다시 확인해주세요" body="일부 부탁 정보를 불러오지 못했어요." action="가는 길의 부탁 보기" onPress={() => a.tab('home')} />
       </Page>
     );
   if (!trips.length)
     return (
-      <Page title="부탁 수락하기">
+      <Page title="부탁에 지원하기">
         <Empty
           title="이 부탁과 맞는 여행 일정이 없어요"
           body="방문 장소, 귀국 도시와 수령일이 맞는 일정을 등록해주세요."
@@ -612,7 +626,7 @@ export function OfferForm() {
         phone: identityPhone,
         birthDate: identityBirth,
         consent: identityConsent,
-      }, '본인인증을 완료했어요. 이제 부탁을 수락할 수 있어요.');
+      }, '본인인증을 완료했어요. 이제 부탁에 지원할 수 있어요.');
     };
     return (
       <Page
@@ -634,7 +648,7 @@ export function OfferForm() {
         </Stack>
         {!identityStarted ? (
           <Stack gap={10}>
-            <Card><Row><ShieldCheck size={22} color={c.green} /><View style={{ flex: 1 }}><Txt weight="700">본인 여부 확인</Txt><Txt size={13} color={c.secondary}>인증된 계정만 부탁을 수락할 수 있어요.</Txt></View></Row></Card>
+            <Card><Row><ShieldCheck size={22} color={c.green} /><View style={{ flex: 1 }}><Txt weight="700">본인 여부 확인</Txt><Txt size={13} color={c.secondary}>인증된 계정만 부탁에 지원할 수 있어요.</Txt></View></Row></Card>
             <Card><Row><CheckCircle2 size={22} color={c.green} /><View style={{ flex: 1 }}><Txt weight="700">노쇼 위험 줄이기</Txt><Txt size={13} color={c.secondary}>본인인증 후 왕복 일정까지 확인해요.</Txt></View></Row></Card>
           </Stack>
         ) : (
@@ -671,18 +685,18 @@ export function OfferForm() {
       transport,
     };
     const result = await a.mutate(
-      ids.length > 1 ? '/bundles/claim' : `/requests/${first.id}/claim`,
+      ids.length > 1 ? '/bundles/offers' : `/requests/${first.id}/offers`,
       ids.length > 1 ? { ...body, requestIds: ids, rewards: Object.fromEntries(requests.map((r) => [r.id, rewardFor(r.id)!])) } : body,
-      '부탁을 수락했어요. 바로 대화를 시작할 수 있어요.',
+      '지원을 보냈어요. 구매자가 선택하면 매칭과 채팅이 시작돼요.',
     );
-    if (result) ids.length === 1 ? a.nav('transaction', { id: (result as Transaction).id }) : a.tab('trades');
+    if (result) a.tab('trades');
   };
   return (
     <Page
-      title={ids.length > 1 ? '묶음 부탁 수락하기' : '가는 김에 수락하기'}
+      title={ids.length > 1 ? '묶음 부탁 지원하기' : '가는 김에 가져올게요'}
       footer={
         <Button
-          label={canAcceptTrip(trip) ? `${ids.length}건 부탁 수락하기` : '먼저 왕복 항공권 인증하기'}
+          label={canAcceptTrip(trip) ? `${ids.length}건 부탁에 지원하기` : '먼저 왕복 항공권 인증하기'}
           disabled={canAcceptTrip(trip) ? !agree || !validRewards || !datesValid || !requestsOpen || !message.trim() : !trip}
           loading={a.busy}
           onPress={() => canAcceptTrip(trip) ? submit() : trip && a.nav('flight-proof', { id: trip.id })}
@@ -756,7 +770,7 @@ export function OfferForm() {
         </Notice>
       </Stack>
       {trip && <Badge>{TRIP_VERIFICATION_LABEL[trip.verificationStatus]}</Badge>}
-      {!canAcceptTrip(trip) && <Notice>인증이 완료된 여행 일정에서만 부탁을 수락할 수 있어요. 항공권 사진·QR 인식 후에도 실제 발권 확인이 필요해요.</Notice>}
+      {!canAcceptTrip(trip) && <Notice>인증이 완료된 여행 일정에서만 부탁에 지원할 수 있어요. 항공권 사진·QR 인식 후에도 실제 발권 확인이 필요해요.</Notice>}
       <Field label="구매자에게 한마디" value={message} onChange={setMessage} multiline />
       {requests.map((r) => (
         <Card key={r.id}>

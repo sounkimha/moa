@@ -434,10 +434,11 @@ export function MoneyBreakdown({ price, compact = false, rewardPending = false }
   );
 }
 export function Timeline({ transaction, domestic = false }: { transaction: Transaction; domestic?: boolean }) {
-  const index = TIMELINE.indexOf(transaction.status);
+  const steps = transaction.prepaid ? TIMELINE.filter((step) => step !== 'MATCHED') : TIMELINE;
+  const index = steps.indexOf(transaction.status);
   return (
     <View>
-      {TIMELINE.map((s, i) => {
+      {steps.map((s, i) => {
         const past = i < index,
           current = i === index;
         return (
@@ -463,7 +464,7 @@ export function Timeline({ transaction, domestic = false }: { transaction: Trans
                   />
                 ) : null}
               </View>
-              {i < TIMELINE.length - 1 && (
+              {i < steps.length - 1 && (
                 <View
                   style={{ width: 2, flex: 1, minHeight: current ? 42 : 28, backgroundColor: past ? c.primaryTint : c.border }}
                 />
@@ -475,7 +476,7 @@ export function Timeline({ transaction, domestic = false }: { transaction: Trans
                 weight={current ? '700' : '400'}
                 color={current ? c.primaryStrong : past ? c.secondary : c.muted}
               >
-                {s === 'TRAVELING' && domestic ? '약속한 곳으로 이동해요' : s === 'SHIPPED' && transaction.transport === 'MEETUP' ? '만날 약속이 준비됐어요' : TIMELINE_LABEL[s] || STATUS_LABEL[s]}
+                {s === 'PAYMENT_HELD' && transaction.prepaid ? '결제 후 여행자를 선택했어요' : s === 'TRAVELING' && domestic ? '약속한 곳으로 이동해요' : s === 'SHIPPED' && transaction.transport === 'MEETUP' ? '만날 약속이 준비됐어요' : TIMELINE_LABEL[s] || STATUS_LABEL[s]}
               </Txt>
               {current && <Txt size={12} color={c.secondary} style={{ marginTop: 4 }}>지금 이 단계에 있어요</Txt>}
             </View>

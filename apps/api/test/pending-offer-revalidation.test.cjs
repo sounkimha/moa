@@ -2,6 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { randomUUID } = require('node:crypto');
 const { seedDatabase } = require('@moa/domain/dist/seed');
+const { quote } = require('@moa/domain');
 const { TransactionsService } = require('../dist/transactions/transactions');
 const future = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
 
@@ -43,6 +44,7 @@ test('pending selection rechecks changed travel route, delivery deadline and ide
 test('buyer reward remains authoritative at final pending selection; repeat command creates one trade', () => {
   const f = fixture(), key = randomUUID();
   f.request.requestedReward = 0;
+  Object.assign(f.db.requestFundings.find((funding) => funding.requestId === f.request.id), quote(f.request, 0, f.request.transport));
   f.offer.reward = 9000;
   const result = f.service.accept('u-me', key, f.offer.id, { expectedRevision: 0 });
   const retry = f.service.accept('u-me', key, f.offer.id, { expectedRevision: 0 });
@@ -50,4 +52,11 @@ test('buyer reward remains authoritative at final pending selection; repeat comm
   assert.equal(result.id, retry.id);
   assert.equal(f.state().transactions.length, 1);
   assert.equal(f.state().rooms.length, 1);
+});
+test('changing a prepaid quote cannot change the amount at selection', () => {
+  const f = fixture();
+  f.request.requestedReward = 9000;
+  assert.throws(f.accept, /결제한 조건과 달라요/);
+  assert.equal(f.state().transactions.length, 0);
+  assert.equal(f.state().requestFundings.find((funding) => funding.requestId === f.request.id).status, 'HELD');
 });

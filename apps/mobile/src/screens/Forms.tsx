@@ -508,11 +508,11 @@ function RequestFormContent() {
           deliveryAddress2: deliveryAddress2.trim(),
         } : { meetupLocation: meetupLocation.trim(), meetupPoint }),
       },
-      '부탁을 등록했어요. 가는 길의 여행자가 수락하면 알려드릴게요.',
+      '부탁을 저장했어요. 결제하면 여행자에게 공개돼요.',
     );
     if (request) {
       a.setRequestDraft(null);
-      a.nav('request', { id: request.id });
+      a.nav('payment', { requestIds: [request.id] });
     }
   };
   return (
@@ -524,11 +524,11 @@ function RequestFormContent() {
         <Stack gap={6}>
           {step === 2 && (
             <Txt size={12} color={c.secondary} style={{ textAlign: 'center' }}>
-              지금은 결제하지 않아요. 여행자가 수락한 뒤 결제해요.
+              결제 후 지원한 여행자 중 한 명을 직접 선택해요.
             </Txt>
           )}
           <Button
-            label={step === 1 ? '수령 방법 정하기' : '부탁 등록하기'}
+            label={step === 1 ? '수령 방법 정하기' : '결제 금액 확인하기'}
             icon={step === 1 ? ArrowRight : Check}
             loading={a.busy || resolving || linkStatus === 'checking'}
             onPress={step === 1 ? next : submit}
@@ -851,7 +851,7 @@ function RequestFormContent() {
           <Divider />
           <DateField label="희망 수령일" value={desired} onChange={setDesired} min={future(0)} />
           <Stack gap={10}><Txt size={19} weight="700">고마운 마음, 얼마를 전할까요?</Txt><Field label="여행자 보상 (원)" value={requestedReward} onChange={(value) => { setRequestedReward(value.replace(/[^0-9]/g, '').slice(0, 7)); setError(''); }} keyboard="numeric" placeholder="직접 금액을 정해주세요" hint="보상은 부탁하는 사람이 자유롭게 정해요." /></Stack>
-          <Card><Stack gap={20}><Row><ShieldCheck size={20} color={c.primary} /><Txt size={18} weight="700">예상 결제금액</Txt></Row><MoneyBreakdown price={q} rewardPending={requestedReward === ''} /><Txt size={12} color={c.secondary}>여행자가 수락하면 결제해요. 상품을 받은 뒤 여행자에게 정산돼요.</Txt></Stack></Card>
+          <Card><Stack gap={20}><Row><ShieldCheck size={20} color={c.primary} /><Txt size={18} weight="700">예상 결제금액</Txt></Row><MoneyBreakdown price={q} rewardPending={requestedReward === ''} /><Txt size={12} color={c.secondary}>먼저 결제하고 지원한 여행자를 선택해요. 상품을 받은 뒤 정산돼요.</Txt></Stack></Card>
           <Sheet visible={editingMeetup} title="어디에서 만날까요?" onClose={cancelDeliveryEditor}>
             {editingMeetup && <MeetupPicker key={deliveryCountry} country={deliveryCountry} value={meetupPoint} legacyName={meetupLocation} history={completedMeetups} onChange={(point) => {
               setMeetupPoint(point);
@@ -1035,7 +1035,7 @@ function TripFormContent() {
       </View>
       <Divider />
       <Row style={{ justifyContent: 'space-between', gap: 12 }}><View style={{ flex: 1, gap: 5 }}><Txt size={16} weight="700">가져올 수 있는 수량</Txt><Txt size={12} color={c.secondary}>짐과 일정에 맞게 정해주세요.</Txt></View><Row style={{ gap: 8 }}><IconButton icon={Minus} label="여행 상품 수량 줄이기" onPress={() => setCapacity(String(Math.max(1, Number(capacity) - 1)))} /><Txt size={23} weight="800">{capacity}</Txt><IconButton icon={Plus} label="여행 상품 수량 늘리기" onPress={() => setCapacity(String(Math.min(20, Number(capacity) + 1)))} /></Row></Row>
-      <Row style={{ gap: 8, padding: 16, borderRadius: 16, backgroundColor: c.primarySoft }}><ShieldCheck size={19} color={c.primaryStrong} /><Txt size={13} color={c.primaryDeep} style={{ flex: 1 }}>저장 후 항공권을 확인해요. 인증을 마쳐야 부탁을 수락할 수 있어요.</Txt></Row>
+      <Row style={{ gap: 8, padding: 16, borderRadius: 16, backgroundColor: c.primarySoft }}><ShieldCheck size={19} color={c.primaryStrong} /><Txt size={13} color={c.primaryDeep} style={{ flex: 1 }}>저장 후 항공권을 확인해요. 인증을 마쳐야 부탁에 지원할 수 있어요.</Txt></Row>
       <Sheet visible={editingOrigin} title="어디에서 출발하세요?" onClose={cancelOriginEditor} footer={<Button label="이 출발지로 설정" disabled={!departure.trim() || departure.trim().length > 40} onPress={finishOriginEditor} />}>
         {Platform.OS !== 'web' ? <Button kind="secondary" icon={LocateFixed} label="현재 위치로 바꾸기" loading={locating} onPress={() => void locateDeparture()} /> : <Txt size={13} color={c.secondary}>웹에서는 출발 도시를 직접 선택해주세요.</Txt>}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>

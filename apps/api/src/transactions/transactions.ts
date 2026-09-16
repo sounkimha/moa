@@ -149,24 +149,37 @@ export class TransactionsService {
         );
         offer.reward = request.requestedReward ?? offer.reward;
         const price = quote(request, offer.reward, offer.transport);
+        const funding = db.requestFundings.find((f) => f.requestId === request.id && f.status === 'HELD');
+        check(funding && funding.buyerId === actor, '먼저 부탁의 결제를 완료해주세요.');
+        check(Object.entries(price).every(([field, value]) => funding[field as keyof typeof price] === value),
+          '결제한 조건과 달라요. 부탁을 취소하고 새 조건으로 등록해주세요.');
         const t: Transaction = {
           ...base(),
           ...price,
           requestId: request.id,
+          prepaid: true,
           offerId: offer.id,
           travelerId: offer.travelerId,
           buyerId: actor,
-          status: 'MATCHED',
+          status: 'PAYMENT_HELD',
           revision: 0,
           transport: offer.transport,
           estimatedDeliveryDate: offer.estimatedDeliveryDate,
         };
         db.transactions.push(t);
-        request.status = 'MATCHED';
+        request.status = 'PAYMENT_HELD';
         request.revision++;
+        funding.status = 'MATCHED'; funding.transactionId = t.id;
+        // Attach the existing hold; selecting a traveler must never charge again.
+        db.payments.push({ ...base(), transactionId: t.id, buyerId: actor, amount: funding.totalPrice,
+          provider: funding.provider, providerRef: funding.providerRef, paymentMethodId: funding.paymentMethodId, status: 'HELD' });
+        db.escrows.push({ ...base(), transactionId: t.id, amount: funding.totalPrice, holder: 'MOCK_LEDGER', status: 'HELD' });
         db.offers
           .filter((o) => o.requestId === request.id)
           .forEach((o) => (o.status = o.id === id ? 'ACCEPTED' : 'REJECTED'));
+        for (const other of db.offers.filter((o) => o.requestId === request.id && o.id !== id))
+          db.notifications.push({ ...base(), userId: other.travelerId, requestId: request.id, read: false,
+            title: '지원한 부탁에 다른 여행자가 선택됐어요.' });
         db.rooms.push({
           ...base(),
           transactionId: t.id,
@@ -178,7 +191,7 @@ export class TransactionsService {
           actor,
           t,
           'OFFER_RECEIVED',
-          '여행자가 매칭됐어요. 결제를 완료하면 구매를 시작해요.',
+          '구매자가 여행자를 선택했어요. 결제금은 이미 모의 보관 중이며, 채팅으로 구매 정보를 확인해주세요.',
         );
         return t;
       }),
@@ -458,6 +471,7 @@ export class TransactionsService {
         }
         t.revision++;
         request.status = t.status;
+        if (t.status === 'CANCELLED') db.requestFundings.filter((f) => f.transactionId === t.id).forEach((f) => { f.status = 'REFUNDED'; });
         request.revision++;
         this.audit(db, actor, t, from, note);
         return t;

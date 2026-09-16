@@ -47,7 +47,7 @@ export function PlaneRouteAnimation({ departure, destination, active = true, onA
   const samples = Array.from({ length: 21 }, (_, index) => index / 20);
   const path = `M 36 56 Q ${width / 2} -14 ${Math.max(36, width - 36)} 56`;
   return (
-    <View testID="plane-route" accessible accessibilityLabel={`${departure}에서 ${destination}으로 이동하는 여행 일정`}
+    <View testID="plane-route" accessible accessibilityLabel={`${departure} → ${destination} 여행 일정`}
       onLayout={(event) => { const next = Math.round(event.nativeEvent.layout.width); if (next > 0) setWidth(next); }}
       style={{ borderRadius: 20, backgroundColor: c.primaryDeep, overflow: 'hidden' }}>
       <Row style={{ justifyContent: 'space-between', paddingHorizontal: compact ? 16 : 20, paddingTop: compact ? 14 : 20, alignItems: 'flex-start' }}>
@@ -66,7 +66,10 @@ export function PlaneRouteAnimation({ departure, destination, active = true, onA
           { translateY: progress.interpolate({ inputRange: samples, outputRange: samples.map((t) => -140 * t * (1 - t)) }) },
           { rotate: progress.interpolate({ inputRange: [0, 1], outputRange: ['-22deg', '22deg'] }) },
         ] }}>
-          <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: c.surface, alignItems: 'center', justifyContent: 'center' }}><Plane size={20} color={c.primaryStrong} style={{ transform: [{ rotate: '45deg' }] }} /></View>
+          <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: c.surface, alignItems: 'center', justifyContent: 'center' }}>
+            {/* Rotate the wrapper: Lucide forwards icon styles to its SVG paths too. */}
+            <View style={{ width: 20, height: 20, transform: [{ rotate: '45deg' }] }}><Plane size={20} color={c.primaryStrong} /></View>
+          </View>
         </Animated.View>
       </View>
       {!compact && <Row style={{ borderTopWidth: 1, borderTopColor: c.navyDivider, paddingHorizontal: 20, paddingVertical: 12, justifyContent: 'space-between' }}>

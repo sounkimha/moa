@@ -2,7 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { randomUUID } = require('node:crypto');
 const { seedDatabase } = require('@moa/domain/dist/seed');
-const { travelerEarnings, groupForTrip } = require('@moa/domain');
+const { travelerEarnings, groupForTrip, quote } = require('@moa/domain');
 const { RequestsService } = require('../dist/requests/requests');
 const future = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
 function fixture() {
@@ -14,6 +14,7 @@ function fixture() {
     status: 'REQUESTED', revision: 0, quantity: 1, requestedReward: index ? 8000 : 5000, desiredDate: future(12),
     transport: index ? 'MEETUP' : 'DOMESTIC_PARCEL', meetupLocation: index ? '서울역' : undefined }));
   db.offers = []; db.transactions = [];
+  db.requestFundings = db.requests.map((r) => ({ id: `fund-${r.id}`, requestId: r.id, buyerId: r.requesterId, status: 'HELD', ...quote(r, r.requestedReward, r.transport) }));
   const service = new RequestsService({ transaction: async (fn) => {
     const next = structuredClone(db), result = fn(next); db = next; return result;
   } });
@@ -32,8 +33,9 @@ test('traveler net reward plus commission equals gross, including half-won round
 test('same-place bundle retains each buyer delivery choice and buyer-set reward', async () => {
   const f = fixture();
   const result = await f.service.claimBundle('u-min', randomUUID(), f.body);
-  assert.equal(result.transactions.length, 2);
-  assert.deepEqual(result.transactions.map((t) => t.shippingFee), [3500, 0]);
+  assert.equal(result.offerIds.length, 2);
+  assert.equal(f.snapshot().transactions.length, 0, 'Applications do not create transactions before buyer selection');
+  assert.deepEqual(f.snapshot().requestFundings.map((f) => f.shippingFee), [3500, 0]);
   assert.deepEqual(f.snapshot().offers.map((o) => o.transport), ['DOMESTIC_PARCEL', 'MEETUP']);
   assert.deepEqual(f.snapshot().offers.map((o) => o.reward), [5000, 8000]);
 });

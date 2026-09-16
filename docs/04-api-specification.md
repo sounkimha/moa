@@ -38,12 +38,26 @@ Base URL: `http://localhost:4000/api`. 기계가 읽을 수 있는 상세 규격
 | GET    | /trips/:id/bundles        | 일정 소유자   | 날짜·장소·처리 상태로 묶음 후보 조회  |
 | POST   | /requests/:id/offers      | 여행자        | 단건 제안                             |
 | POST   | /bundles/offers           | 여행자        | 동일 장소 복수 제안 원자적 생성       |
-| POST   | /requests/:id/claim       | 여행자        | 단건 부탁 수락·거래/대화방 생성       |
-| POST   | /bundles/claim            | 여행자        | 동일 장소 복수 부탁 원자적 수락       |
-| POST   | /offers/:id/accept        | 요청자        | 제안 선택·금액 확정·거래/대화방 생성  |
+| POST   | /requests/:id/pay         | 요청자        | 미공개 부탁 선결제·공개 |
+| POST   | /requests/:id/cancel      | 요청자        | 선택 전 취소·보관금 전액 모의 환불 |
+| POST   | /requests/:id/claim       | 여행자        | 단건 지원 호환 별칭 · 매칭하지 않음 |
+| POST   | /bundles/claim            | 여행자        | 같은 장소 복수 지원 · 매칭하지 않음 |
+| POST   | /offers/:id/accept        | 요청자        | 한 명 선택·이미 보관한 금액 연결·거래/대화방 생성 |
 | POST   | /transactions/:id/actions | 거래 참여자   | 허용 명령과 주체에 따른 상태 변경     |
 | POST   | /transactions/:id/reviews | 거래 참여자   | 구매 확정 후 후기 1개 작성            |
 | POST   | /rooms/:id/messages       | 대화방 참여자 | 텍스트 메시지 저장                    |
+| GET    | /rooms/:id/replies        | 대화방 참여자 | 거래·최근 질문 기반 기본 추천, 외부 AI 호출 없음 |
+| POST   | /rooms/:id/replies        | 대화방 참여자 | `{useAI:true}` 동의 후 AI 초안, 실패 시 기본 추천 |
+
+### 선결제 계약 (이전 명세보다 우선)
+
+`POST /requests`는 `PAYMENT_PENDING`을 반환하며 나에게만 보인다. `/requests/:id/pay` body는 `{expectedRevision,paymentMethod:"CARD"|"ACCOUNT",paymentReference,simulateFailure?:boolean}`. 서버 계산 견적을 `requestFundings`에 한 번만 보관하고 `REQUESTED`(기존 지원이 있으면 `OFFER_RECEIVED`)로 공개한다. 모의 승인 실패는 409이며 보관 기록을 남기지 않는다.
+
+여행자는 결제된 요청에만 지원 가능하다. 지원으로 거래나 채팅을 만들지 않는다. `/offers/:id/accept`는 최신 요청 revision으로 한 명만 선택하며 `PAYMENT_HELD`, `prepaid:true` 거래를 반환한다. 이미 보관한 providerRef와 금액을 거래에 연결하고 다시 승인하지 않는다. 경쟁 지원은 REJECTED, 결과 알림을 보낸다. 기존 PAY 명령은 이전의 진짜 미결제 MATCHED 거래에만 허용한다.
+
+선택 전 `/requests/:id/cancel`은 `{expectedRevision}`을 받아 REQUESTED/OFFER_RECEIVED/PAYMENT_PENDING을 취소하고 HELD 보관금을 한 번만 전액 모의 환불한다. 선택·취소·결제는 저장소 트랜잭션과 멱등 키로 직렬화한다. 선택 이후에는 기존 거래 취소/분쟁 규칙이 적용된다. Snapshot의 requestFundings는 구매자 본인에게만 반환한다.
+
+답장 추천은 source `AI|BASIC`, suggestions(1~3), aiAvailable, notice를 반환한다. POST는 외부 호출이므로 별도 사용자 동의 UI를 거치며 12초 간격으로 제한한다. 대화방 참여자가 아닌 사용자는 403. 공급자 실패/키 누락은 BASIC 응답이다. 대화 저장이나 거래 상태 변경은 하지 않는다. OpenAPI의 과거 상세 예시보다 이 계약을 우선한다.
 
 ## 로그인
 

@@ -1,4 +1,4 @@
-import { Database, Place, ProductRequest, Product, User, currencyForCountry } from './index';
+import { Database, Place, ProductRequest, Product, User, currencyForCountry, quote } from './index';
 import { asiaPlaces } from './asia-places';
 
 export function seedDatabase(now = new Date()): Database {
@@ -429,6 +429,11 @@ export function seedDatabase(now = new Date()): Database {
     transactions: [],
     paymentMethods,
     payments: [],
+    requestFundings: requests.map((request) => ({
+      ...base(`funding-${request.id}`), ...quote(request, request.requestedReward ?? 0, request.transport),
+      requestId: request.id, buyerId: request.requesterId, status: 'HELD',
+      provider: 'MOCK_CARD', providerRef: `mock-seed-${request.id}`, paymentMethodId: 'demo-seed',
+    })),
     escrows: [],
     receipts: [],
     shipments: [],

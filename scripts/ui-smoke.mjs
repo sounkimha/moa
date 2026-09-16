@@ -254,9 +254,13 @@ try {
   }, 'preserved selected delivery fee');
   if (interactiveMap) await expectText('직거래 위치가 저장됐어요');
   assert.equal(document.querySelector('input[aria-label="여행자 보상 (원)"]').value, '5000', 'Back preserves buyer reward');
-  await click('부탁 등록하기');
-  await expectText('여행자의 수락을 기다려요');
-  console.log('PASS: onboarding → real API login → link metadata → request creation');
+  await click('결제 금액 확인하기');
+  await expectText('결제하고 부탁 공개하기');
+  await click('결제 금액 확인', 'checkbox');
+  const requestPay = await wait(() => [...document.querySelectorAll('[role="button"]')].find((e) => (e.getAttribute('aria-label') || '').includes('결제 체험하기')), 'prepayment CTA');
+  requestPay.click();
+  await expectText('아직 지원한 여행자가 없어요');
+  console.log('PASS: onboarding → real API login → request → buyer prepayment → applicant waiting');
   await click('홈', 'tab');
   await click('MY', 'tab');
   await click('이용 모드 설정');
@@ -275,13 +279,13 @@ try {
   const proposal = await wait(
     () =>
       [...document.querySelectorAll('[role="button"]')].find((e) =>
-        /건 한 번에 수락하기/.test(e.getAttribute('aria-label') || ''),
+        /건 한 번에 지원하기/.test(e.getAttribute('aria-label') || ''),
       ),
     'bundle offer CTA',
   );
   proposal.click();
   await wait(
-    () => document.body.textContent.includes('본인인증부터') || document.body.textContent.includes('묶음 부탁 수락하기'),
+    () => document.body.textContent.includes('본인인증부터') || document.body.textContent.includes('묶음 부탁 지원하기'),
     'bundle offer or identity screen',
   );
   if (document.body.textContent.includes('본인인증부터')) {
@@ -292,7 +296,7 @@ try {
     await click('본인인증 동의', 'checkbox');
     await click('본인인증 완료하기');
   }
-  await expectText('묶음 부탁 수락하기');
+  await expectText('묶음 부탁 지원하기');
   const rewardInputs = [...document.querySelectorAll('input[aria-label$="보상금 (원)"]')];
   assert.equal(rewardInputs.length, 0, 'Buyer-set rewards must not be editable by travelers');
   for (const [index, input] of rewardInputs.entries()) await fill(input, String(5000 + index * 1000));
@@ -302,12 +306,12 @@ try {
   const send = await wait(
     () =>
       [...document.querySelectorAll('[role="button"]')].find((e) =>
-        /건 부탁 수락하기/.test(e.getAttribute('aria-label') || ''),
+        /건 부탁에 지원하기/.test(e.getAttribute('aria-label') || ''),
       ),
     'send offers',
   );
   send.click();
-  await expectText('수락한 부탁');
+  await expectText('지원한 부탁');
   console.log('PASS: traveler home → bundle selection → bulk offer submission');
   await click('홈', 'tab');
   await click('MY', 'tab');
@@ -319,7 +323,7 @@ try {
   const offers = await wait(
     () =>
       [...document.querySelectorAll('[role="button"]')].find((e) =>
-        (e.getAttribute('aria-label') || '').includes('수락한 여행자 보기 · 3명'),
+        (e.getAttribute('aria-label') || '').includes('지원한 여행자 보기 · 3명'),
       ),
     'seed offers',
   );
@@ -329,19 +333,8 @@ try {
   await expectText('일정 한눈에 보기');
   await click('뒤로');
   await click('민트로드님과 함께하기');
-  await expectText('어떻게 결제할까요?');
-  await click('카드로 결제', 'radio');
-  await click('이 결제수단으로 계속');
-  await click('결제 금액 확인', 'checkbox');
-  const pay = await wait(
-    () =>
-      [...document.querySelectorAll('[role="button"]')].find((e) =>
-        (e.getAttribute('aria-label') || '').includes('결제 체험하기'),
-      ),
-    'mock payment',
-  );
-  pay.click();
-  await expectText('결제 체험을 완료했어요.');
+  await expectText('거래 상세');
+  assert.ok(!document.body.textContent.includes('어떻게 결제할까요?'), 'Selection must not ask for a second payment');
   const transactionHash = dom.window.location.hash;
   const switchTransactionAccount = async (name) => {
     await click('MY', 'tab');
@@ -390,7 +383,7 @@ try {
   assert.equal(dom.window.location.hash, '#request-form');
   console.log('PASS: direct #request-form URL restores the request form');
   console.log(
-    'PASS: offer selection → payment → purchase proof → shipping → receipt → confirmation → payout',
+    'PASS: prepayment → applications → buyer selection without recharging → purchase proof → shipping → receipt → confirmation → payout',
   );
   const unexpected = errors.filter(
     (e) =>

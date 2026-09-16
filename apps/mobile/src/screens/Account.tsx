@@ -64,6 +64,7 @@ type AccountPanel = 'identity' | 'meetups' | 'payments' | 'settlement' | 'notifi
 function AccountDetails({ panel, onClose }: { panel: AccountPanel; onClose: () => void }) {
   const a = useApp(), d = a.data!;
   const ownPayments = d.payments.filter((payment) => payment.buyerId === d.me.id);
+  const waitingPayments = (d.requestFundings || []).filter((funding) => funding.buyerId === d.me.id && !funding.transactionId);
   const completed = d.transactions.filter((trade) => ['DELIVERED', 'CONFIRMED', 'SETTLED'].includes(trade.status) && (trade.buyerId === d.me.id || trade.travelerId === d.me.id));
   const meetups = completed.flatMap((trade) => {
     const request = d.requests.find((item) => item.id === trade.requestId);
@@ -105,6 +106,7 @@ function AccountDetails({ panel, onClose }: { panel: AccountPanel; onClose: () =
       <Stack gap={8}><CreditCard size={28} color={c.green} /><Txt size={21} weight="700">결제할 때 수단을 선택해요</Txt>
         <Txt color={c.secondary}>카드 또는 계좌를 선택하고 금액을 확인한 후 결제해요.</Txt></Stack>
       <Notice>체험에서는 실제로 결제되지 않아요. 카드·계좌 정보도 저장하지 않으며, 간편결제 등록은 결제 서비스 연결 후 사용할 수 있어요.</Notice>
+      {!!waitingPayments.length && <View><Txt size={13} weight="600" color={c.secondary}>여행자 선택 전 결제</Txt>{waitingPayments.slice().reverse().slice(0, 3).map((funding) => <AccountRow key={funding.id} icon={CreditCard} title={d.requests.find((request) => request.id === funding.requestId)?.productName || '부탁 결제'} detail={`${funding.status === 'REFUNDED' ? '환불' : '보관'} ${money(funding.totalPrice)}`} onPress={() => { onClose(); a.nav('request', { id: funding.requestId }); }} />)}</View>}
       {!!ownPayments.length && <View><Txt size={13} weight="600" color={c.secondary}>최근 결제 체험</Txt>
         {ownPayments.slice().reverse().slice(0, 3).map((payment) => {
           const trade = d.transactions.find((item) => item.id === payment.transactionId);
@@ -124,7 +126,7 @@ function AccountDetails({ panel, onClose }: { panel: AccountPanel; onClose: () =
     </Stack>}
     {panel === 'notifications' && <Stack gap={20}>
       <Row style={{ justifyContent: 'space-between' }}><Txt weight="600">앱 안에서 받는 소식</Txt><Badge>사용 중</Badge></Row>
-      <Txt size={14} color={c.secondary}>부탁 수락, 새 메시지, 구매와 전달 소식을 알림함에서 확인해요.</Txt>
+      <Txt size={14} color={c.secondary}>여행자 지원·매칭, 새 메시지, 구매와 전달 소식을 알림함에서 확인해요.</Txt>
       <View style={{ borderTopWidth: 1, borderColor: c.border, paddingTop: 20, gap: 8 }}>
         <Row style={{ justifyContent: 'space-between' }}><Txt weight="600">휴대폰 푸시 알림</Txt><Txt size={13} color={c.muted}>준비 중</Txt></Row>
         <Txt size={14} color={c.secondary}>푸시 서비스가 연결되면 거래·메시지 알림을 각각 설정할 수 있어요.</Txt>
@@ -367,7 +369,7 @@ export function NotificationsScreen() {
           </Pressable>
         ))}
       {!d.notifications.length && (
-        <Empty title="새 소식이 없어요" body="수락과 구매, 전달 소식만 알려드릴게요." />
+        <Empty title="새 소식이 없어요" body="지원과 매칭, 구매·전달 소식만 알려드릴게요." />
       )}
     </Page>
   );

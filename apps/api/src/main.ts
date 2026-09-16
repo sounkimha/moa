@@ -51,7 +51,8 @@ export async function bootstrap() {
     .getHttpAdapter()
     .get('/health', (_req: Request, res: Response) => res.json({
       status: 'ok', mode: 'demo', apiVersion: 'recognition-v2',
-      capabilities: { metadata: true, recognizeSample: true, recognizeImage: Boolean(process.env.OPENAI_API_KEY) },
+      capabilities: { metadata: true, recognizeSample: true, recognizeImage: Boolean(process.env.OPENAI_API_KEY),
+        prepaidApplications: true, chatReplies: true, aiChatReplies: Boolean(process.env.OPENAI_API_KEY) },
   }));
   app.setGlobalPrefix('api');
   if (process.env.MOA_SERVE_WEB === '1') {

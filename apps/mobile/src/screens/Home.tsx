@@ -76,7 +76,7 @@ export function Onboarding() {
   return (
     <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 24, paddingTop: 48, paddingBottom: 32, gap: 28, justifyContent: 'center' }}>
       <Logo size={46} />
-      <Stack gap={10}><Txt size={30} weight="800">가는 김에, 하나 더.</Txt><Txt size={15} color={c.secondary}>갖고 싶은 마음과 떠나는 여행이 만나요.</Txt></Stack>
+      <Stack gap={10}><Txt size={30} weight="800">여행에 취향을 싣다.</Txt><Txt size={15} color={c.secondary}>갖고 싶은 마음과 떠나는 여행이 만나요.</Txt></Stack>
       <Stack gap={12}>
         <Txt size={15} weight="600">어떻게 시작할까요?</Txt>
         {([{ role: 'buyer', label: '부탁할게요', detail: '그곳에 가는 사람에게 물건 부탁하기', icon: ShoppingBag }, { role: 'traveler', label: '가져올게요', detail: '내가 가는 길에서 보상받기', icon: Plane }] as const).map(({ role, label, detail, icon: Icon }) => (
@@ -128,7 +128,7 @@ export function GuideScreen({ onComplete }: { onComplete?: () => void }) {
   const firstEntry = !a.data;
   return (
     <View style={{ flex: 1, backgroundColor: c.paper }}>
-      <Row style={{ paddingHorizontal: 24, paddingTop: 20, paddingBottom: 12, justifyContent: 'space-between' }}><Logo size={34} /><Txt size={12} color={c.secondary}>가는 김에, 하나 더.</Txt></Row>
+      <Row style={{ paddingHorizontal: 24, paddingTop: 20, paddingBottom: 12, justifyContent: 'space-between' }}><Logo size={34} /><Txt size={12} color={c.secondary}>여행에 취향을 싣다.</Txt></Row>
       <PageTransition routeKey={`guide-${index}`}><ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24, gap: 24 }}>
         <Stack gap={10}><Txt size={12} weight="700" color={c.primaryStrong}>{slide.eyebrow}</Txt><Txt size={32} weight="800">{slide.title}</Txt><Txt size={15} color={c.secondary} style={{ maxWidth: 320 }}>{slide.body}</Txt></Stack>
         <View style={{ minHeight: 280, justifyContent: 'center', paddingVertical: 16 }}>
@@ -143,7 +143,7 @@ export function GuideScreen({ onComplete }: { onComplete?: () => void }) {
           </View>}
         </View>
       </ScrollView></PageTransition>
-      <Stack gap={20} style={{ padding: 24, paddingTop: 12 }}><Row style={{ justifyContent: 'center', gap: 7 }}>{guideSlides.map((item, dot) => <View key={item.eyebrow} style={{ width: dot === index ? 24 : 6, height: 6, borderRadius: 4, backgroundColor: dot === index ? c.primaryStrong : c.border }} />)}</Row><Button label={last ? (firstEntry ? '모아 시작하기' : '홈으로 가기') : '다음'} icon={ArrowRight} onPress={() => last ? (onComplete ? onComplete() : a.tab('home')) : setIndex((current) => current + 1)} />{index > 0 && <Button small label="앞의 안내" kind="ghost" onPress={() => setIndex(index - 1)} />}</Stack>
+      <Stack gap={20} style={{ padding: 24, paddingTop: 12 }}><Row style={{ justifyContent: 'center', gap: 7 }}>{guideSlides.map((item, dot) => <View key={item.eyebrow} style={{ width: dot === index ? 24 : 6, height: 6, borderRadius: 4, backgroundColor: dot === index ? c.primaryStrong : c.border }} />)}</Row><Button label={last ? (firstEntry ? '모아 시작하기' : '홈으로 가기') : '다음'} icon={ArrowRight} onPress={() => last ? (onComplete ? onComplete() : a.tab('home')) : setIndex((current) => current + 1)} />{index > 0 && <Button small label="이전" kind="ghost" onPress={() => setIndex(index - 1)} />}</Stack>
     </View>
   );
 }
@@ -238,7 +238,7 @@ export function Home() {
       {!!recentPlaces.length && <View><Section title="최근 본 장소" /><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>{recentPlaces.map((place) => <Chip key={place.id} label={place.name} onPress={() => openPlace(place)} />)}</ScrollView></View>}
       {featured && <View><Section title="이런 부탁도 있어요" /><ProductRow request={featured} krw onPress={() => a.nav('request', { id: featured.id })} /></View>}
     </> : trip ? <>
-      <Stack gap={16}><View style={{ gap: 6 }}><Txt size={13} color={c.secondary}>{d.me.nickname}님의 이번 여행</Txt><Txt size={30} weight="800">여행은 그대로,{ '\n' }보상은 덤으로.</Txt></View><View><PlaneRouteAnimation departure={trip.departureCity} destination={tripCities.join(' · ') || trip.destinationCity} /><Row style={{ paddingHorizontal: 4, paddingTop: 8, justifyContent: 'space-between' }}><Txt size={14} color={c.secondary}>{shortDate(trip.startDate)} – {shortDate(trip.endDate)}</Txt><Pressable accessibilityRole="button" accessibilityLabel="일정 관리" onPress={() => a.nav('trips')} style={{ minHeight: 44, paddingHorizontal: 10, justifyContent: 'center' }}><Txt size={13} color={c.darkGreen}>일정 관리 →</Txt></Pressable></Row></View></Stack>
+      <Stack gap={16}><View style={{ gap: 6 }}><Txt size={13} color={c.secondary}>{d.me.nickname}님의 이번 여행</Txt><Txt size={30} weight="800">이번 여행,{ '\n' }보상까지 챙겨요.</Txt></View><View><PlaneRouteAnimation departure={trip.departureCity} destination={tripCities.join(' · ') || trip.destinationCity} /><Row style={{ paddingHorizontal: 4, paddingTop: 8, justifyContent: 'space-between' }}><Txt size={14} color={c.secondary}>{shortDate(trip.startDate)} – {shortDate(trip.endDate)}</Txt><Pressable accessibilityRole="button" accessibilityLabel="일정 관리" onPress={() => a.nav('trips')} style={{ minHeight: 44, paddingHorizontal: 10, justifyContent: 'center' }}><Txt size={13} color={c.darkGreen}>일정 관리 →</Txt></Pressable></Row></View></Stack>
       <View style={{ padding: 22, borderRadius: 20, backgroundColor: c.paper, gap: 14, borderWidth: 1, borderColor: c.border }}>
         <Txt size={14} color={c.secondary}>가는 길에 받을 수 있는 보상</Txt>
         <Txt size={availableReward ? 36 : 24} weight="800" color={c.primaryStrong}>{availableReward ? money(availableReward) : '부탁에서 확인해요'}</Txt>
