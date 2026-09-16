@@ -10,7 +10,14 @@
 
 **준비물: Node.js 22.13 이상과 npm.** 권장 Node 22 LTS. 가장 먼저 웹 체험으로 실행하면 Xcode·Android Studio·DB 설치가 필요 없습니다.
 
-1. ZIP을 풀고 **package.json이 들어 있는 `moa` 폴더**를 VS Code로 엽니다.
+1. VS Code에서 GitHub 저장소를 클론하거나, 이미 클론했다면 `main` 브랜치를 최신으로 받습니다. **package.json이 들어 있는 `moa` 폴더**를 여세요.
+
+```bash
+git clone https://github.com/sounkimha/moa.git
+cd moa
+# 이미 클론한 폴더라면: git pull origin main
+```
+
 2. 터미널에서 실행합니다.
 
 ```bash
@@ -55,6 +62,8 @@ Codespaces의 브라우저 체험은 8081 웹 주소에서 API도 함께 전달�
 - 직거래는 고정 예시 목록 없이 장소 검색 → 지도 이동/확대 → 상세 설명 → 위치 확정 순서입니다. 완료된 본인 거래에 좌표 기록이 있을 때만 이전 장소를 보여줍니다. 정확한 좌표·상세 설명은 구매자와 매칭된 상대에게만 공개합니다.
 
 국내 장소 검색을 사용하려면 `apps/api/.env`에 `KAKAO_REST_API_KEY`, 직거래 지도를 표시하려면 `apps/mobile/.env`에 `EXPO_PUBLIC_KAKAO_MAPS_JS_KEY`를 설정하고 서버와 Metro를 다시 실행하세요. 키가 없거나 공급자가 실패하면 실제 오류 안내를 표시하며 예시 결과로 대체하지 않습니다. 검색어는 카카오로 전송됩니다. [카카오 로컬 API 문서](https://developers.kakao.com/docs/latest/ko/local/dev-guide)와 [카카오맵 API 공통 가이드](https://developers.kakao.com/docs/latest/ko/kakaomap/common)를 참고하세요.
+
+`.env` 파일과 실제 API 키는 보안을 위해 Git에 올라가지 않습니다. 다른 PC의 VS Code에서 지도·관리자 로그인을 계속 사용하려면 `apps/api/.env.example`과 `apps/mobile/.env.example`을 각각 같은 폴더의 `.env`로 복사한 뒤 **본인 키와 관리자 설정값을 다시 입력**하세요. Kakao Developers의 JavaScript 키 허용 도메인에는 로컬 웹 주소 `http://localhost:8081`을 추가해야 합니다. Codespaces 주소만 등록되어 있으면 로컬 PC에서는 카카오 지도 타일이 표시되지 않습니다. Google Maps 웹 키의 HTTP 리퍼러 제한에도 로컬 주소를 허용해야 여행 일정 지도가 표시됩니다. 키를 바꾼 뒤에는 API와 Expo 개발 서버를 모두 재시작하세요.
 
 여행자가 등록한 일정 지도는 웹에서 `EXPO_PUBLIC_GOOGLE_MAPS_WEB_API_KEY`, Android/iOS 개발 빌드에서 각각 `GOOGLE_MAPS_ANDROID_API_KEY`, `GOOGLE_MAPS_IOS_API_KEY`를 사용합니다. 표시되는 선은 등록한 방문 순서를 연결한 것으로 실제 이동 경로·실시간 GPS가 아닙니다. 웹 키에는 HTTP referrer, 네이티브 키에는 패키지·서명 또는 번들 ID 제한을 적용하세요.
 
