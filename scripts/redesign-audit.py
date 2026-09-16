@@ -123,11 +123,11 @@ with tempfile.TemporaryDirectory(prefix='moa-redesign-state-') as tmp:
                     go('settings'); button(page,'부탁하기 모드로 전환').click()
                     fixture['snapshot']=copy.deepcopy(matched)
                     go('chat/'+transaction['id'])
-                    expect(page.get_by_text('상황별 답장 추천',exact=True)).to_be_visible()
-                    expect(page.get_by_text('AI 연결 전이라 거래 단계에 맞춘 기본 추천을 보여드려요.',exact=True)).to_be_visible()
+                    expect(page.get_by_text('이렇게 말해볼까요?',exact=True)).to_be_visible()
+                    expect(page.get_by_text('상황에 맞춘 기본 추천이에요.',exact=True)).to_be_visible()
                     inspect(page,'chat-replies-'+str(width),output)
-                    button(page,'구매 전 상품과 옵션을 한 번 더 확인 부탁드려요.').click()
-                    expect(page.get_by_role('textbox',name='메시지',exact=True)).to_have_value('구매 전 상품과 옵션을 한 번 더 확인 부탁드려요.')
+                    button(page,'옵션 확인 부탁해요').click()
+                    expect(page.get_by_role('textbox',name='메시지',exact=True)).to_have_value('옵션 확인 부탁해요')
                     expect(button(page,'전송')).to_be_enabled()
                     messages=requests.get(api_url+'/api/snapshot',headers=headers,timeout=10).json()['messages']
                     assert len(messages)==len(matched['messages']), 'Selecting a draft must never send it'

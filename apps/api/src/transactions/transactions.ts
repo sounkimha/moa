@@ -191,7 +191,7 @@ export class TransactionsService {
           actor,
           t,
           'OFFER_RECEIVED',
-          '구매자가 여행자를 선택했어요. 결제금은 이미 모의 보관 중이며, 채팅으로 구매 정보를 확인해주세요.',
+          '매칭됐어요! 편하게 인사 나눠요.',
         );
         return t;
       }),

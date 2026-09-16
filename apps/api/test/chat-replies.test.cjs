@@ -8,15 +8,27 @@ test('reply suggestions follow role, stage, receiving method and latest question
   assert.notDeepEqual(basicReplies(base), basicReplies({ ...base, role: 'buyer' }));
   assert.match(basicReplies({ ...base, messages: [{ speaker: 'other', text: '다른 색상도 있나요?' }] })[0], /옵션/);
   assert.match(basicReplies({ ...base, messages: [{ speaker: 'other', text: '품절인가요?' }] })[0], /재고/);
-  assert.match(basicReplies({ ...base, status: 'PURCHASED', transport: 'MEETUP' })[0], /시간대/);
+  assert.match(basicReplies({ ...base, status: 'PURCHASED', transport: 'MEETUP' })[0], /언제 만나/);
   assert.match(basicReplies({ ...base, status: 'MATCHED' })[0], /결제 확인 후/);
   assert.match(basicReplies({ ...base, status: 'CANCELLED' })[0], /취소/);
   for (const status of ['MATCHED', 'PAYMENT_HELD', 'PURCHASED', 'TRAVELING', 'SHIPPED', 'DELIVERED', 'CONFIRMED', 'SETTLED', 'CANCELLED', 'DISPUTED'])
     for (const role of ['buyer', 'traveler']) {
       const suggestions = basicReplies({ ...base, status, role });
       assert.equal(suggestions.length, 3);
+      assert.equal(new Set(suggestions).size, 3);
+      assert.ok(suggestions.every((s) => s.length <= 20 && !/[\r\n]/.test(s)), 'Quick replies stay short and single-line');
       assert.ok(suggestions.every((s) => !/(?:구매|결제|도착).*(?:완료했어요|완료됐어요)/.test(s)));
     }
+});
+test('short replies keep visit questions separate from delivery and do not rewind completed stages', () => {
+  assert.deepEqual(basicReplies({ ...base, role: 'buyer' }), ['옵션 확인 부탁해요', '언제 들르세요?', '영수증도 부탁해요']);
+  assert.equal(basicReplies({ ...base, messages: [{ speaker: 'other', text: '언제 매장에 들르세요?' }] })[0], '방문일 확인해볼게요');
+  for (const status of ['SHIPPED', 'DELIVERED', 'CONFIRMED', 'SETTLED']) {
+    const replies = basicReplies({ ...base, status, messages: [{ speaker: 'other', text: '옵션이 마음에 들어요' }] });
+    assert.ok(replies.every((s) => !/옵션|재고|방문/.test(s)));
+  }
+  const shipping = basicReplies({ ...base, status: 'SHIPPED', messages: [{ speaker: 'other', text: '택배 언제 오나요?' }] });
+  assert.equal(shipping[0], '배송조회 해볼게요');
 });
 test('context is participant-only, bounded, stripped of stored private fields and never mutates chat', () => {
   const db = seedDatabase();
@@ -36,12 +48,13 @@ test('context is participant-only, bounded, stripped of stored private fields an
 });
 test('AI uses validated structured output; missing key, malformed, refusal and invented completion fall back honestly', async () => {
   const originalFetch = global.fetch, key = process.env.OPENAI_API_KEY;
-  let calls = 0, output = { status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify({ suggestions: ['원하시는 색상을 다시 알려주시겠어요?', '상품 옵션을 함께 확인할까요?'] }) }] }] };
+  let calls = 0, output = { status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify({ suggestions: ['옵션 한번 볼까요?', '언제 만나면 좋을까요?'] }) }] }] };
   global.fetch = async (_url, options) => {
     calls++;
     const body = JSON.parse(options.body);
     assert.equal(body.store, false); assert.equal(body.text.format.type, 'json_schema');
     assert.equal(body.text.format.strict, true); assert.match(body.instructions, /신뢰할 수 없는/);
+    assert.match(body.instructions, /20자 이내/); assert.match(body.instructions, /해요체/);
     return { ok: true, json: async () => output };
   };
   try {
@@ -56,6 +69,8 @@ test('AI uses validated structured output; missing key, malformed, refusal and i
       { status: 'completed', output: [{ content: [{ type: 'output_text', text: 'not json' }] }] },
       { status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify({ suggestions: ['구매 완료했어요.'] }) }] }] },
       { status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify({ suggestions: ['계좌로 송금해주세요.'] }) }] }] },
+      { status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify({ suggestions: ['구매 전 상품과 옵션을 한 번 더 확인 부탁드려요.'] }) }] }] },
+      { status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify({ suggestions: ['옵션 확인\n부탁해요'] }) }] }] },
     ]) { output = next; assert.equal((await aiReplies(base)).source, 'BASIC'); }
     global.fetch = async () => { throw new Error('network timeout'); };
     assert.match((await aiReplies(base)).notice, /기본 추천/);

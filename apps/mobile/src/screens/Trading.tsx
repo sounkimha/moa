@@ -906,7 +906,7 @@ export function ChatScreen() {
               label="메시지"
               value={text}
               onChange={setText}
-              placeholder="거래에 필요한 이야기를 나눠요"
+              placeholder="편하게 이야기 나눠요"
             />
             <Button
               label="전송"
@@ -937,7 +937,8 @@ export function ChatScreen() {
             }}
           >
             <Txt size={12} color={c.secondary} style={{ textAlign: 'center' }}>
-              {m.text}
+              {m.text === '구매자가 여행자를 선택했어요. 결제금은 이미 모의 보관 중이며, 채팅으로 구매 정보를 확인해주세요.'
+                ? '매칭됐어요! 편하게 인사 나눠요.' : m.text}
             </Txt>
           </View>
         ) : (

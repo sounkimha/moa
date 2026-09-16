@@ -2438,7 +2438,7 @@
           }
         }
       },
-      "ChatReplies": { "type": "object", "required": ["source", "suggestions", "aiAvailable", "notice"], "properties": { "source": { "type": "string", "enum": ["AI", "BASIC"] }, "suggestions": { "type": "array", "minItems": 1, "maxItems": 3, "items": { "type": "string", "maxLength": 100 } }, "aiAvailable": { "type": "boolean" }, "notice": { "type": "string" } } },
+      "ChatReplies": { "type": "object", "required": ["source", "suggestions", "aiAvailable", "notice"], "properties": { "source": { "type": "string", "enum": ["AI", "BASIC"] }, "suggestions": { "type": "array", "minItems": 1, "maxItems": 3, "items": { "type": "string", "maxLength": 20 } }, "aiAvailable": { "type": "boolean" }, "notice": { "type": "string" } } },
       "Transaction": {
         "type": "object",
         "properties": {
