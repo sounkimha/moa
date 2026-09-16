@@ -10,5 +10,6 @@ apps/mobile/dist-android/
 .data/
 coverage/
 test-results/
+scripts/share-proxy.mjs
 ios/
 android/
