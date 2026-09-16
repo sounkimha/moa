@@ -23,6 +23,7 @@ import {
 import { Place, Transaction, money, shortDate, STATUS_LABEL, TRANSPORT_LABEL, travelerEarnings } from '@moa/domain';
 import { useApp } from '../state/AppContext';
 import { MeetupSummary } from '../components/MeetupSummary';
+import { PlaneRouteAnimation } from '../components/travel-route';
 import { colors as c } from '../theme/tokens';
 import { pickImage } from '../lib/images';
 import demoImages from '../lib/demo-images.json';
@@ -198,7 +199,6 @@ export function TransactionScreen() {
     [problem, setProblem] = useState(false),
     [reason, setReason] = useState(''),
     [cancelConfirm, setCancelConfirm] = useState(false),
-    [showSchedule, setShowSchedule] = useState(false),
     [showPrice, setShowPrice] = useState(false);
   if (!t)
     return (
@@ -404,6 +404,12 @@ export function TransactionScreen() {
       <Row style={{ backgroundColor: frozen ? c.dangerBg : c.canvas, padding: 14, borderRadius: 12, alignItems: 'flex-start' }}><LockKeyhole size={17} color={frozen ? c.danger : c.secondary} /><Txt size={13} color={frozen ? c.danger : c.secondary} style={{ flex: 1 }}>{frozen ? '문제를 확인하는 동안 정산을 멈췄어요.' : held ? '결제 체험 완료 · 구매 확정 후 정산해요.' : escrow?.status === 'RELEASED' ? '정산 체험을 완료했어요.' : escrow?.status === 'REFUNDED' ? '체험 결제금이 환불됐어요.' : '결제가 완료되면 구매를 시작해요.'}</Txt></Row>
       {!['DISPUTED', 'CANCELLED'].includes(t.status) ? (
         <View style={{ paddingHorizontal: 4, paddingVertical: 8 }}>
+          {t.status === 'TRAVELING' && trip && (
+            <Stack gap={8} style={{ marginBottom: 18 }}>
+              <PlaneRouteAnimation departure={trip.destinationCity} destination={trip.departureCity} />
+              <Txt size={11} color={c.secondary}>여행 일정 기준 귀국 단계 · 실제 항공편이나 GPS 위치가 아니에요.</Txt>
+            </Stack>
+          )}
           <Timeline transaction={t} />
         </View>
       ) : (
@@ -413,21 +419,19 @@ export function TransactionScreen() {
             : '이 거래는 취소되었어요. 결제된 모의 금액은 전액 환불됐어요.'}
         </Notice>
       )}
-      <Divider />
-      {trip && <View>
-        <Button kind="ghost" label={showSchedule ? '일정 접기' : '여행 일정 보기'} icon={Plane} onPress={() => setShowSchedule(!showSchedule)} />
-        {showSchedule && <Card style={{ marginTop: 12, backgroundColor: c.canvas }}>
+      {trip && <Card style={{ backgroundColor: c.canvas }}>
         <Stack gap={13}>
-          <Txt size={17} weight="700">{travelerUser.nickname}님의 여행</Txt>
-          <Txt weight="700">{trip.departureCity} → {[...new Set(trip.placeIds.map((id) => d.places.find((place) => place.id === id)?.city).filter(Boolean))].join(' · ') || trip.destinationCity}</Txt>
+          <Row style={{ justifyContent: 'space-between' }}><View style={{ flex: 1 }}><Txt size={18} weight="700">{travelerUser.nickname}님의 공개 여행 일정</Txt><Txt size={12} color={c.secondary}>일정을 보며 자연스럽게 이야기할 수 있어요.</Txt></View><Plane size={23} color={c.green} /></Row>
+          <Txt weight="700">{trip.departureCity} → {[...new Set(trip.placeIds.map((id) => d.places.find((place) => place.id === id)?.city).filter(Boolean))].join(' · ')}</Txt>
           <Txt size={13} color={c.secondary}>{trip.startDate} — {trip.endDate}</Txt>
           <Divider />
-          <Txt size={14} weight="700">방문 예정지</Txt>
-          {routePlaces.map((place, index) => place && <Row key={place.id}><Badge>{index + 1}</Badge><View style={{ flex: 1 }}><Txt weight="600">{place.name}</Txt><Txt size={12} color={c.secondary}>{place.city} · {place.region}</Txt></View></Row>)}
-          <Txt size={12} color={c.secondary}>가까운 장소 순으로 안내해요. 실제 이동 시간과 영업시간은 방문 전에 확인해주세요.</Txt>
+          <Txt size={14} weight="700">수락한 부탁 기준 추천 동선</Txt>
+          {routePlaces.map((place, index) => place && <Row key={place.id}><Badge>{index + 1}</Badge><View style={{ flex: 1 }}><Txt weight="600">{place.name}</Txt><Txt size={12} color={c.secondary}>{place.city} {place.region} · 동선 추가 약 {place.extraMinutes}분</Txt></View></Row>)}
+          <Txt size={11} color={c.secondary}>좌표 기반 가까운 장소 순서의 예시 동선이에요. 실제 교통편·영업시간을 연결하면 다시 계산해요.</Txt>
+          <Button small kind="secondary" icon={Plane} label="여행 경로 전체 보기" onPress={() => a.nav('trip-route', { id: trip.id, placeId: r.placeId })} />
           <Button small kind="secondary" icon={MessageCircle} label="일정 이야기하기" onPress={() => a.nav('chat', { id: t.id })} />
         </Stack>
-      </Card>}</View>}
+      </Card>}
       <View><Button kind="ghost" label={showPrice ? '금액 접기' : '결제금액 자세히 보기'} icon={Wallet} onPress={() => setShowPrice(!showPrice)} />{showPrice && <View style={{ paddingTop: 16 }}><MoneyBreakdown price={t} /></View>}</View>
       {t.transport === 'MEETUP' && <MeetupSummary point={r.meetupPoint} />}
       {receipt && (

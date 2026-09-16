@@ -1,13 +1,13 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, View } from 'react-native';
+import React, { useState } from 'react';
+import { Pressable, View } from 'react-native';
 import {
   ArrowRight,
+  Calendar,
   CheckCircle2,
   ChevronRight,
   Clock,
   Layers,
   MapPin,
-  Plane,
   ShieldCheck,
   Star,
 } from 'lucide-react-native';
@@ -19,8 +19,6 @@ import {
   shortDate,
   STATUS_LABEL,
   Transaction,
-  Trip,
-  Place,
   TravelerOffer,
   Transport,
   TRANSPORT_LABEL,
@@ -50,38 +48,6 @@ import {
   Txt,
 } from '../components/ui';
 import { Avatar, MoneyBreakdown, ProductArt, ProductRow } from '../components/visuals';
-
-function TravelerSchedule({ trip, places }: { trip: Trip; places: Place[] }) {
-  const progress = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const motion = Animated.loop(Animated.sequence([
-      Animated.timing(progress, { toValue: 1, duration: 1900, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(progress, { toValue: 0, duration: 1900, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
-    ]));
-    motion.start();
-    return () => motion.stop();
-  }, [progress]);
-  const cities = [...new Set(places.map((place) => place.city))];
-  return (
-    <View accessibilityLabel={`${trip.departureCity}에서 ${cities.join(' · ') || trip.destinationCity} 왕복 일정`} style={{ padding: 16, borderRadius: 16, backgroundColor: c.canvas, gap: 12, overflow: 'hidden' }}>
-      <Row style={{ justifyContent: 'space-between' }}>
-        <View><Txt size={12} color={c.secondary}>출발</Txt><Txt weight="700">{trip.departureCity}</Txt></View>
-        <View style={{ alignItems: 'flex-end' }}><Txt size={12} color={c.secondary}>여행지</Txt><Txt weight="700">{cities.join(' · ') || trip.destinationCity}</Txt></View>
-      </Row>
-      <View style={{ height: 34, justifyContent: 'center' }}>
-        <View style={{ height: 2, marginHorizontal: 7, backgroundColor: c.border }} />
-        <View style={{ position: 'absolute', left: 2, width: 8, height: 8, borderRadius: 4, backgroundColor: c.green }} />
-        <View style={{ position: 'absolute', right: 2, width: 8, height: 8, borderRadius: 4, backgroundColor: c.green }} />
-        <Animated.View style={{ position: 'absolute', left: 7, width: 30, height: 30, borderRadius: 15, backgroundColor: c.paper, alignItems: 'center', justifyContent: 'center', transform: [{ translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [0, 190] }) }, { rotate: progress.interpolate({ inputRange: [0, 0.49, 0.5, 1], outputRange: ['0deg', '0deg', '180deg', '180deg'] }) }] }}>
-          <Plane size={17} color={c.green} fill={c.mint} />
-        </Animated.View>
-      </View>
-      <Row style={{ justifyContent: 'space-between' }}><Txt size={13} color={c.secondary}>{shortDate(trip.startDate)} 출발</Txt><Txt size={13} color={c.secondary}>{shortDate(trip.endDate)} 귀국</Txt></Row>
-      <Txt size={13} color={c.secondary} lines={2}>방문 예정 · {places.map((place) => place.name).join(' · ')}</Txt>
-      <Row style={{ gap: 6 }}><ShieldCheck size={15} color={c.green} /><Txt size={12} color={c.green}>{TRIP_VERIFICATION_LABEL[trip.verificationStatus]}</Txt></Row>
-    </View>
-  );
-}
 
 export function RequestScreen() {
   const a = useApp(),
@@ -230,7 +196,6 @@ export function OffersScreen() {
     d = a.data!,
     r = d.requests.find((x) => x.id === a.route.id);
   const [sort, setSort] = useState('추천순');
-  const [openTrip, setOpenTrip] = useState<string | null>(null);
   if (!r)
     return (
       <Page title="수락한 여행자">
@@ -268,7 +233,6 @@ export function OffersScreen() {
       {offers.map((o, i) => {
         const u = d.users.find((x) => x.id === o.travelerId)!;
         const trip = d.trips.find((item) => item.id === o.tripId);
-        const places = trip ? trip.placeIds.map((id) => d.places.find((place) => place.id === id)).filter((place): place is Place => Boolean(place)) : [];
         return (
           <Card key={o.id} style={i === 0 ? { borderColor: c.green, borderWidth: 1.5 } : undefined}>
             <Stack gap={17}>
@@ -318,8 +282,7 @@ export function OffersScreen() {
               <Txt size={14} color={c.secondary}>
                 {o.message}
               </Txt>
-              {trip && <Button small kind="secondary" label={openTrip === o.id ? '일정 접기' : '일정 보기'} icon={Plane} onPress={() => setOpenTrip(openTrip === o.id ? null : o.id)} />}
-              {trip && openTrip === o.id && <TravelerSchedule trip={trip} places={places} />}
+              {trip && <Button kind="secondary" icon={Calendar} label="이 사람의 일정 보기" onPress={() => a.nav('trip-route', { id: o.tripId, placeId: r.placeId })} />}
               <Divider />
               <Row style={{ justifyContent: 'space-between' }}>
                 <Txt size={13} color={c.secondary}>
@@ -413,6 +376,7 @@ export function ProfileScreen() {
                 <Txt size={13}>
                   {t.placeIds.map((id) => d.places.find((p) => p.id === id)?.name).join(' · ')}
                 </Txt>
+                <Button small kind="secondary" icon={Calendar} label="경로와 시간 보기" onPress={() => a.nav('trip-route', { id: t.id })} />
               </Stack>
             </Card>
           ))}

@@ -312,10 +312,10 @@ try {
     'seed offers',
   );
   offers.click();
-  await click('일정 보기');
-  await expectText('방문 예정');
-  await expectText('귀국');
-  await click('일정 접기');
+  await click('이 사람의 일정 보기');
+  await expectText('정말 그곳에 가는지');
+  await expectText('시간별 공개 일정');
+  await click('여행자 비교로');
   await click('민트로드님과 함께하기');
   await expectText('어떻게 결제할까요?');
   await click('카드로 결제', 'radio');
