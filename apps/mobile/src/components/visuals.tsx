@@ -32,17 +32,12 @@ import { getPlacePhoto } from '../lib/place-photos';
 import { PhotoCredit } from './PhotoCredit';
 export function Logo({ size = 38 }: { size?: number }) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 40 40">
-      <Rect width="40" height="40" rx="13" fill={c.green} />
-      <Path
-        d="M9 27V18a5 5 0 0 1 10 0v9m2 0V14a5 5 0 0 1 10 0v13"
-        stroke={c.lime}
-        strokeWidth="5"
-        fill="none"
-        strokeLinecap="round"
-      />
-      <Circle cx="30" cy="9" r="3" fill="white" />
-    </Svg>
+    <Image
+      source={require('../../assets/moa-logo.png')}
+      accessibilityLabel="MOA"
+      resizeMode="contain"
+      style={{ width: size * 2.5, height: size }}
+    />
   );
 }
 export function ProductArt({

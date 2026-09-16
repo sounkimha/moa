@@ -11,10 +11,11 @@ import { MeetupController } from './meetup/meetup';
 import { FlightProofController } from './trips/flight-proof';
 import { OAuthController, OAuthService } from './auth/oauth';
 import { FinanceController, FinanceService } from './finance/finance';
+import { AdminController, AdminGuard, AdminSessions } from './admin/admin';
 @Global()
 @Module({
-  providers: [Store, Sessions, AuthGuard, CatalogCache, MockPaymentProvider, MockPayoutProvider, MockIdentityProvider],
-  exports: [Store, Sessions, AuthGuard, CatalogCache, MockPaymentProvider, MockPayoutProvider, MockIdentityProvider],
+  providers: [Store, Sessions, AuthGuard, AdminSessions, AdminGuard, CatalogCache, MockPaymentProvider, MockPayoutProvider, MockIdentityProvider],
+  exports: [Store, Sessions, AuthGuard, AdminSessions, AdminGuard, CatalogCache, MockPaymentProvider, MockPayoutProvider, MockIdentityProvider],
 })
 class InfrastructureModule {}
 @Module({ controllers: [RequestsController, TripsController, FlightProofController], providers: [RequestsService] })
@@ -25,7 +26,7 @@ class TradingModule {}
 class FinanceModule {}
 @Module({
   imports: [InfrastructureModule, MatchingModule, TradingModule, FinanceModule],
-  controllers: [AuthController, OAuthController, CatalogController, MeetupController],
+  controllers: [AuthController, OAuthController, CatalogController, MeetupController, AdminController],
   providers: [CatalogService, OAuthService],
 })
 export class AppModule {}

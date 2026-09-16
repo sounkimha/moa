@@ -7,15 +7,31 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "ios": { "supportsTablet": true, "bundleIdentifier": "com.moa.prototype" },
-    "android": { "package": "com.moa.prototype", "adaptiveIcon": { "backgroundColor": "#F8FAFD" } },
+    "icon": "./assets/moa-app-icon.png",
+    "splash": {
+      "image": "./assets/moa-logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F7FAFF"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.moa.prototype"
+    },
+    "android": {
+      "package": "com.moa.prototype",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/moa-app-icon.png",
+        "backgroundColor": "#FFFFFF"
+      }
+    },
     "web": {
       "bundler": "metro",
       "name": "MOA · 가는 김에, 하나 더.",
       "shortName": "MOA",
       "lang": "ko",
-      "backgroundColor": "#F8FAFD",
-      "themeColor": "#4F8DF7"
+      "favicon": "./assets/moa-app-icon.png",
+      "backgroundColor": "#F7FAFF",
+      "themeColor": "#0877F9"
     },
     "plugins": [
       [
@@ -28,10 +44,15 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "반경 2km 안에서 공개된 여행 일정을 찾기 위해 현재 위치를 사용해요."
+          "locationWhenInUsePermission": "내 주변 여행 일정과 직거래 위치를 지도에서 확인하기 위해 현재 위치를 사용해요."
         }
       ],
       "expo-secure-store"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "ac4c52c2-9276-4ea8-9a59-16d2e854d4e4"
+      }
+    }
   }
 }
