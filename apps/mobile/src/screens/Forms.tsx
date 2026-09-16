@@ -7,7 +7,6 @@ import {
   Link,
   MapPin,
   Minus,
-  Plane,
   Plus,
   ShieldCheck,
   Sparkles,
@@ -20,7 +19,6 @@ import {
   ProductRequest,
   ProductOriginalText,
   MeetupPoint,
-  Trip,
   Transport,
   quote,
   money,
@@ -857,166 +855,6 @@ function RequestFormContent() {
           </Notice>
         </>
       )}
-    </Page>
-  );
-}
-export function TripForm() {
-  const a = useApp(),
-    d = a.data!;
-  const [departure, setDeparture] = useState('서울'),
-    [depCountry, setDepCountry] = useState<'KR' | 'JP'>('KR'),
-    [country, setCountry] = useState<Country>('JP'),
-    [cities, setCities] = useState<string[]>(['도쿄']),
-    [start, setStart] = useState(future(4)),
-    [end, setEnd] = useState(future(7)),
-    [places, setPlaces] = useState<string[]>(['p-shibuya', 'p-station']),
-    [capacity, setCapacity] = useState('8'),
-    [error, setError] = useState('');
-  const available = d.places.filter((p) => p.country === country && cities.includes(p.city));
-  const submit = async () => {
-    if (!departure.trim() || !Number.isInteger(Number(capacity)) || Number(capacity) < 1) {
-      setError('출발 도시와 1개 이상의 처리 가능 수량을 입력해주세요.');
-      return;
-    }
-    if (start < future(0) || end < start) {
-      setError('오늘 이후의 시작일과 그 이후의 종료일을 선택해주세요.');
-      return;
-    }
-    if (!cities.length || cities.some((city) => !places.some((id) => d.places.find((p) => p.id === id)?.city === city))) {
-      setError('선택한 도시마다 방문할 장소를 하나 이상 골라주세요.');
-      return;
-    }
-    if (!places.length) {
-      setError('방문할 장소를 하나 이상 골라주세요.');
-      return;
-    }
-    const t = await a.mutate<Trip>(
-      '/trips',
-      {
-        departureCountry: depCountry,
-        departureCity: departure,
-        destinationCountry: country,
-        destinationCity: cities[0],
-        startDate: start,
-        endDate: end,
-        placeIds: places,
-        maxItems: Number(capacity),
-      },
-      '여행을 등록했어요. 왕복 항공권을 확인해주세요.',
-    );
-    if (t) {
-      a.setRole('traveler');
-      a.nav('flight-proof', { id: t.id });
-    }
-  };
-  return (
-    <Page
-      title="어디로 떠나세요?"
-      resetScrollKey={error}
-      footer={
-        <Button
-          label="일정 저장하고 항공권 인증하기"
-          icon={ArrowRight}
-          loading={a.busy}
-          onPress={submit}
-        />
-      }
-    >
-      <Stack gap={8}>
-        <Badge>여행 일정 등록</Badge>
-        <Txt size={29} weight="800">
-          원래 가는 그 길에,{'\n'}작은 보상을 더해요.
-        </Txt>
-      </Stack>
-      {error.length > 0 && <Notice tone="error">{error}</Notice>}
-      <Field label="출발 도시" value={departure} onChange={setDeparture} />
-      <Row>
-        <Chip
-          label="한국 출발"
-          selected={depCountry === 'KR'}
-          onPress={() => { setDepCountry('KR'); setDeparture('서울'); }}
-        />
-        <Chip
-          label="일본 출발"
-          selected={depCountry === 'JP'}
-          onPress={() => {
-            setDepCountry('JP');
-            setDeparture('도쿄');
-          }}
-        />
-      </Row>
-      <Stack gap={10}>
-        <Txt size={14} weight="600">
-          어디로 여행 가시나요? · 여러 곳 선택 가능
-        </Txt>
-        <DestinationPicker country={country} cities={cities} multiple onChange={(nextCountry, selectedCities) => {
-          if (nextCountry === 'ALL') return;
-          setCountry(nextCountry); setCities(selectedCities); setError('');
-          setPlaces(places.filter((id) => { const place = d.places.find((p) => p.id === id); return place?.country === nextCountry && selectedCities.includes(place.city); }));
-        }} />
-        <Txt size={12} color={c.secondary}>한 여행에서는 선택한 국가·지역 안의 여러 도시를 묶어요.</Txt>
-      </Stack>
-      <DateField label="여행 시작일" value={start} onChange={(value) => { setStart(value); if (end < value) setEnd(value); setError(''); }} min={future(0)} />
-      <DateField label="여행 종료일" value={end} onChange={setEnd} min={start} />
-      <View>
-        <Section title="들를 곳을 골라주세요" subtitle="예정된 장소에 있는 부탁만 추천해요." />
-        {available.map((p) => (
-          <Pressable
-            key={p.id}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: places.includes(p.id) }}
-            accessibilityLabel={p.name}
-            onPress={() =>
-              setPlaces(
-                places.includes(p.id) ? places.filter((id) => id !== p.id) : [...places, p.id],
-              )
-            }
-            style={{
-              backgroundColor: places.includes(p.id) ? c.mint : c.paper,
-              borderWidth: 1,
-              borderColor: places.includes(p.id) ? c.green : c.border,
-              borderRadius: 16,
-              padding: 18,
-              marginBottom: 10,
-            }}
-          >
-            <Row>
-              <MapPin size={22} color={c.green} />
-              <View style={{ flex: 1 }}>
-                <Txt weight="700">{p.name}</Txt>
-                <Txt size={12} color={c.secondary}>
-                  {p.region} · 예시 요청 {p.requestCount}건
-                </Txt>
-              </View>
-              <View
-                style={{
-                  width: 23,
-                  height: 23,
-                  borderRadius: 7,
-                  borderWidth: 1,
-                  borderColor: places.includes(p.id) ? c.green : c.border,
-                  backgroundColor: places.includes(p.id) ? c.green : c.paper,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                {places.includes(p.id) && <Check size={16} color="white" />}
-              </View>
-            </Row>
-          </Pressable>
-        ))}
-      </View>
-      <Field
-        label="최대 처리 가능한 상품 수량"
-        value={capacity}
-        onChange={(v) => setCapacity(v.replace(/[^0-9]/g, ''))}
-        keyboard="numeric"
-        hint="여유 시간을 생각해 1~20개 사이로 정해주세요."
-      />
-      <Notice>
-        다음 화면에서 왕복 항공권을 인식하고 일정과 대조해요. 항공권 인식은 발권 진위 확인과 다르며,
-        실제 항공사·본인확인 연동 전에는 새 일정으로 부탁을 수락할 수 없어요.
-      </Notice>
     </Page>
   );
 }

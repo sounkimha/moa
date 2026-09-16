@@ -5,6 +5,12 @@ import { Art, Category, Country, Role, Snapshot, Transport } from '@moa/domain';
 import { api, ApiError, setToken } from '../lib/api';
 import { parseRoute, routeHash, Route, Screen } from './navigation';
 import { clearDraft, readDraft, writeDraft } from './draft-session';
+import {
+  clearTripDraft,
+  readTripDraft,
+  TripDraft,
+  writeTripDraft,
+} from './trip-draft-session';
 export type { Route, Screen } from './navigation';
 const webRoute = (): Route => Platform.OS === 'web' ? parseRoute(window.location.hash) : { name: 'home' };
 export type RequestDraft = {
@@ -60,6 +66,8 @@ type AppValue = {
   toast: string;
   requestDraft: RequestDraft | null;
   setRequestDraft: (draft: RequestDraft | null) => void;
+  tripDraft: TripDraft | null;
+  setTripDraft: (draft: TripDraft | null) => void;
   notify: (s: string) => void;
   mutate: <T>(path: string, body: unknown, success?: string) => Promise<T | undefined>;
 };
@@ -86,7 +94,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
     [toast, setToast] = useState(''),
-    [requestDraft, updateRequestDraft] = useState<RequestDraft | null>(null);
+    [requestDraft, updateRequestDraft] = useState<RequestDraft | null>(null),
+    [tripDraft, updateTripDraft] = useState<TripDraft | null>(null);
   const history = useRef<Route[]>([]),
     mutationLock = useRef(false);
   const session = useRef(0), actor = useRef<string | null>(null), authLock = useRef(false);
@@ -106,6 +115,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     }
   };
+  const setTripDraft = (draft: TripDraft | null) => {
+    if (!data?.me.id || actor.current !== data.me.id) return;
+    updateTripDraft(draft);
+    if (Platform.OS === 'web') {
+      let saved = false;
+      try { saved = writeTripDraft(window.sessionStorage, data.me.id, draft); } catch {}
+      if (!saved && !draftStorageWarning.current) {
+        draftStorageWarning.current = true;
+        notify('임시 저장 공간을 사용할 수 없어요. 입력은 유지되지만 새로고침하면 사라질 수 있어요.');
+      }
+    }
+  };
   useEffect(() => {
     if (toast) {
       const timer = setTimeout(() => setToast(''), 4500);
@@ -118,12 +139,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setToken('');
     setData(null);
     updateRequestDraft(null);
+    updateTripDraft(null);
     setError('');
     setToast('');
     history.current = [];
     draftStorageWarning.current = false;
     if (Platform.OS === 'web') {
-      try { clearDraft(window.sessionStorage); } catch {}
+      try {
+        clearDraft(window.sessionStorage);
+        clearTripDraft(window.sessionStorage);
+      } catch {}
     }
     await storage.clear().catch(() => {});
   };
@@ -135,10 +160,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (generation !== session.current || sequence !== refreshSequence.current) return;
       if (actor.current !== next.me.id) {
         let restored: RequestDraft | null = null;
+        let restoredTrip: TripDraft | null = null;
         if (Platform.OS === 'web') {
-          try { restored = readDraft(window.sessionStorage, next.me.id); } catch {}
+          try {
+            restored = readDraft(window.sessionStorage, next.me.id);
+            restoredTrip = readTripDraft(window.sessionStorage, next.me.id);
+          } catch {}
         }
         updateRequestDraft(restored);
+        updateTripDraft(restoredTrip);
         actor.current = next.me.id;
       }
       setData(next);
@@ -324,6 +354,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         toast,
         requestDraft,
         setRequestDraft,
+        tripDraft,
+        setTripDraft,
         notify,
         mutate,
       }}

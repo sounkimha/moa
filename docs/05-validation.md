@@ -11,7 +11,7 @@ Node.js 24.20.0, npm 11.19.0, Linux. 소스의 Node 요구 버전은 22.13 이�
 | 한 명령 실행 | 통과 | npm run dev로 API health·Expo web HTTP 200 확인 |
 | 전체 TypeScript 검사 | 통과 | 모바일·API·공유 도메인 |
 | 정적 Lint | 통과 | 충돌 마커·공백·금지 용어·Screen 직접 색상 검사 |
-| NestJS/API 테스트 | 56개 통과 | 실제 HTTP 요청·임시 파일 저장소·도메인 검증 |
+| NestJS/API 테스트 | 58개 통과 | 실제 HTTP 요청·임시 파일 저장소·도메인 검증 |
 | PostgreSQL SQL 제약 | 통과 | PGlite의 PostgreSQL 엔진에서 초기 DDL·seed·FK·금액 CHECK |
 | 웹 export | 통과 | 실제 Expo 웹 bundle 생성 |
 | iOS export | 통과 | Hermes 코드 bundle 생성 |
@@ -37,6 +37,7 @@ Node.js 24.20.0, npm 11.19.0, Linux. 소스의 Node 요구 버전은 22.13 이�
 14. PostgreSQL DDL·seed·FK·금액 CHECK를 실제 PostgreSQL 호환 엔진에서 검증.
 15. 보관함 결제의 단일 차감·정확한 환불, 정산금 적립, 잔액 초과/중복 출금 차단.
 16. Mock PASS/SMS 확인 전 정산계좌 등록 차단, 충전·출금 멱등성, 민감 계좌정보 미저장.
+17. 여행 등록 초안의 계정 격리·부분 입력 복원·손상 데이터 폐기와 등록 후 삭제.
 
 ## DOM 통합 시나리오
 

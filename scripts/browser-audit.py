@@ -54,8 +54,16 @@ const make=async(from,to,d)=>{const r=await w.writeBarcode('M1'+'SAMPLE/TRAVELER
                 page.get_by_text('여행자의 수락을 기다려요',exact=False).wait_for()
                 assert page.evaluate('sessionStorage.getItem("moa-request-draft-v1")') is None
                 page.goto('http://localhost:8081/#trip-form',wait_until='domcontentloaded')
+                field(page,'출발 도시').fill('부산')
+                field(page,'최대 처리 가능한 상품 수량').fill('12')
+                page.reload(wait_until='domcontentloaded')
+                assert field(page,'출발 도시').input_value()=='부산'
+                assert field(page,'최대 처리 가능한 상품 수량').input_value()=='12'
+                assert page.evaluate('sessionStorage.getItem("moa-trip-draft-v1")') is not None
+                field(page,'출발 도시').fill('서울')
                 button(page,'일정 저장하고 항공권 인증하기').click()
                 page.get_by_text('가는 편도, 오는 편도',exact=False).wait_for()
+                assert page.evaluate('sessionStorage.getItem("moa-trip-draft-v1")') is None
                 for label,key in [('가는 편 항공권 사진 올리기','out'),('오는 편 항공권 사진 올리기','back')]:
                     with page.expect_file_chooser() as chooser: button(page,label).click()
                     chooser.value.set_files({'name':'synthetic-boarding-qr.png','mimeType':'image/png','buffer':base64.b64decode(fixture[key])})
