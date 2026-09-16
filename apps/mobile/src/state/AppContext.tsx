@@ -6,15 +6,16 @@ import { Art, Category, Country, Role, Snapshot, Transport } from '@moa/domain';
 import { api, ApiError, setToken } from '../lib/api';
 import { parseRoute, routeHash, Route, Screen } from './navigation';
 import { clearDraft, readDraft, writeDraft } from './draft-session';
-import { writeTripDraft } from './trip-draft';
+import {
+  clearTripDraft,
+  readTripDraft,
+  TripDraft,
+  writeTripDraft,
+} from './trip-draft-session';
 export type { Route, Screen } from './navigation';
-const webRoute = (): Route => Platform.OS === 'web' ? parseRoute(window.location.hash) : { name: 'home' };
-const savedRole = (): Role => {
-  if (Platform.OS !== 'web') return 'buyer';
-  try { return window.localStorage.getItem('moa-role') === 'traveler' ? 'traveler' : 'buyer'; } catch { return 'buyer'; }
-};
-WebBrowser.maybeCompleteAuthSession();
 export type OAuthProvider = 'GOOGLE' | 'KAKAO' | 'NAVER';
+WebBrowser.maybeCompleteAuthSession();
+const webRoute = (): Route => Platform.OS === 'web' ? parseRoute(window.location.hash) : { name: 'home' };
 export type RequestDraft = {
   sourceRequestId?: string;
   entryPlaceId?: string;
@@ -71,6 +72,8 @@ type AppValue = {
   toast: string;
   requestDraft: RequestDraft | null;
   setRequestDraft: (draft: RequestDraft | null) => void;
+  tripDraft: TripDraft | null;
+  setTripDraft: (draft: TripDraft | null) => void;
   notify: (s: string) => void;
   mutate: <T>(path: string, body: unknown, success?: string) => Promise<T | undefined>;
 };
@@ -82,6 +85,10 @@ const writeStorage = (operation: () => void | Promise<void>): Promise<boolean> =
   });
   storageWrites = next;
   return next;
+};
+const savedRole = (): Role => {
+  if (Platform.OS !== 'web') return 'buyer';
+  try { return window.localStorage.getItem('moa-role') === 'traveler' ? 'traveler' : 'buyer'; } catch { return 'buyer'; }
 };
 const storage = {
   get: async () => {
@@ -107,7 +114,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [error, setError] = useState(''),
     [toast, setToast] = useState(''),
     [oauthProviders, setOauthProviders] = useState<Record<OAuthProvider, boolean>>({ GOOGLE: false, KAKAO: false, NAVER: false }),
-    [requestDraft, updateRequestDraft] = useState<RequestDraft | null>(null);
+    [requestDraft, updateRequestDraft] = useState<RequestDraft | null>(null),
+    [tripDraft, updateTripDraft] = useState<TripDraft | null>(null);
   const history = useRef<Route[]>([]),
     mutationLock = useRef(false);
   const session = useRef(0), actor = useRef<string | null>(null), authLock = useRef(false);
@@ -120,9 +128,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     updateRole(next);
     if (Platform.OS === 'web') {
       try { window.localStorage.setItem('moa-role', next); } catch {}
-    } else {
-      SecureStore.setItemAsync('moa-role', next).catch(() => {});
-    }
+    } else SecureStore.setItemAsync('moa-role', next).catch(() => {});
   };
   useEffect(() => {
     if (Platform.OS === 'web') return;
@@ -144,6 +150,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     }
   };
+  const setTripDraft = (draft: TripDraft | null) => {
+    if (authLock.current || !data?.me.id || actor.current !== data.me.id) return;
+    updateTripDraft(draft);
+    if (Platform.OS === 'web') {
+      let saved = false;
+      try { saved = writeTripDraft(window.sessionStorage, data.me.id, draft); } catch {}
+      if (!saved && !draftStorageWarning.current) {
+        draftStorageWarning.current = true;
+        notify('임시 저장 공간을 사용할 수 없어요. 입력은 유지되지만 새로고침하면 사라질 수 있어요.');
+      }
+    }
+  };
   useEffect(() => {
     if (toast) {
       const timer = setTimeout(() => setToast(''), 4500);
@@ -152,11 +170,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [toast]);
   const clearSession = async () => {
     const generation = ++session.current;
-    if (actor.current) writeTripDraft(actor.current, null);
     actor.current = null;
     setToken('');
     setData(null);
     updateRequestDraft(null);
+    updateTripDraft(null);
     setError('');
     setToast('');
     history.current = [];
@@ -164,7 +182,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setBusy(false);
     draftStorageWarning.current = false;
     if (Platform.OS === 'web') {
-      try { clearDraft(window.sessionStorage); } catch {}
+      try {
+        clearDraft(window.sessionStorage);
+        clearTripDraft(window.sessionStorage);
+      } catch {}
     }
     await storage.clear();
     return generation;
@@ -177,10 +198,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (generation !== session.current || sequence !== refreshSequence.current) return;
       if (actor.current !== next.me.id) {
         let restored: RequestDraft | null = null;
+        let restoredTrip: TripDraft | null = null;
         if (Platform.OS === 'web') {
-          try { restored = readDraft(window.sessionStorage, next.me.id); } catch {}
+          try {
+            restored = readDraft(window.sessionStorage, next.me.id);
+            restoredTrip = readTripDraft(window.sessionStorage, next.me.id);
+          } catch {}
         }
         updateRequestDraft(restored);
+        updateTripDraft(restoredTrip);
         actor.current = next.me.id;
       }
       setData(next);
@@ -194,55 +220,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       throw e;
     }
   };
-  const activateSession = async (token: string, attempt: number): Promise<'saved' | 'memory' | undefined> => {
-    if (attempt !== authAttempt.current) return;
-    if (typeof token !== 'string' || !token) throw new Error('로그인 결과를 확인하지 못했어요. 다시 시도해주세요.');
-    const generation = await clearSession();
-    if (attempt !== authAttempt.current || generation !== session.current) return;
-    setBusy(true);
-    setToken(token);
-    const persisted = await storage.set(token);
-    if (attempt !== authAttempt.current || generation !== session.current) return;
-    await refresh();
-    if (attempt !== authAttempt.current || generation !== session.current || !actor.current) return;
-    return persisted ? 'saved' : 'memory';
-  };
-  const acceptOAuthCode = async (code: string, attempt: number) => {
-    const generation = session.current;
-    const result = await api<{ token: string; provider: OAuthProvider }>('/auth/oauth/exchange', { code });
-    if (attempt !== authAttempt.current || generation !== session.current) return false;
-    const activated = await activateSession(result.token, attempt);
-    if (!activated) return false;
-    notify(`${result.provider === 'GOOGLE' ? 'Google' : result.provider === 'KAKAO' ? '카카오' : '네이버'} 계정으로 로그인했어요.${activated === 'memory' ? ' 저장 공간을 사용할 수 없어 새로고침하면 다시 로그인해야 해요.' : ''}`);
-    return true;
-  };
   useEffect(() => {
     const generation = session.current;
-    let initialAttempt = authAttempt.current;
     let mounted = true;
     (async () => {
       try {
-        if (Platform.OS === 'web') {
-          const url = new URL(window.location.href);
-          const oauthCode = url.searchParams.get('oauth_code');
-          const oauthError = url.searchParams.get('oauth_error');
-          if (oauthCode || oauthError) {
-            url.searchParams.delete('oauth_code');
-            url.searchParams.delete('oauth_provider');
-            url.searchParams.delete('oauth_error');
-            window.history.replaceState({}, '', `${url.pathname}${url.search}#home`);
-            setRoute({ name: 'home' });
-          }
-          if (oauthError) throw new Error(oauthError);
-          if (oauthCode) {
-            const attempt = ++authAttempt.current;
-            initialAttempt = attempt;
-            authLock.current = true;
-            try { await acceptOAuthCode(oauthCode, attempt); }
-            finally { if (attempt === authAttempt.current) { authLock.current = false; setBusy(false); } }
-            return;
-          }
-        }
         const t = await storage.get();
         if (!mounted || generation !== session.current) return;
         if (t) {
@@ -250,15 +232,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
           await refresh();
         }
       } catch (e) {
-        if (mounted && initialAttempt === authAttempt.current) setError((e as Error).message);
+        if (mounted) setError((e as Error).message);
       } finally {
         if (mounted) setLoading(false);
       }
     })();
-    api<Record<OAuthProvider, boolean>>('/auth/oauth/status')
-      .then((providers) => { if (mounted) setOauthProviders(providers); })
-      .catch(() => { if (mounted) setOauthProviders({ GOOGLE: false, KAKAO: false, NAVER: false }); });
     return () => { mounted = false; };
+  }, []);
+  useEffect(() => {
+    let active = true;
+    api<Record<OAuthProvider, boolean>>('/auth/oauth/status')
+      .then((providers) => { if (active) setOauthProviders(providers); })
+      .catch(() => { if (active) setOauthProviders({ GOOGLE: false, KAKAO: false, NAVER: false }); });
+    return () => { active = false; };
   }, []);
   const nav = (name: Screen, params: Omit<Route, 'name'> = {}) => {
     const next = { name, ...params };
@@ -330,13 +316,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     authLock.current = true;
     const attempt = ++authAttempt.current;
     setBusy(true);
-    // Invalidate background reads before changing the bearer token.
     session.current++;
     try {
       const result = await api<{ token: string }>('/auth/demo', { provider, userId, reset });
-      const activated = await activateSession(result.token, attempt);
-      if (activated === 'memory') notify('로그인했어요. 저장 공간을 사용할 수 없어 새로고침하면 다시 로그인해야 해요.');
-      return !!activated;
+      if (attempt !== authAttempt.current) return false;
+      const generation = await clearSession();
+      if (attempt !== authAttempt.current || generation !== session.current) return false;
+      setToken(result.token);
+      const saved = await storage.set(result.token);
+      if (attempt !== authAttempt.current || generation !== session.current) return false;
+      await refresh();
+      if (attempt !== authAttempt.current || generation !== session.current || !actor.current) return false;
+      if (!saved) notify('로그인했어요. 저장 공간을 사용할 수 없어 새로고침하면 다시 로그인해야 해요.');
+      return true;
     } catch (e) {
       if (attempt !== authAttempt.current) return false;
       const message = (e as Error).message;
@@ -350,41 +342,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
   const socialLogin = async (provider: OAuthProvider) => {
-    if (authLock.current || mutationLock.current) return false;
+    if (authLock.current || mutationLock.current || !oauthProviders[provider]) return false;
     authLock.current = true;
     const attempt = ++authAttempt.current;
     session.current++;
     setBusy(true);
-    setError('');
     try {
       const returnUrl = Platform.OS === 'web' ? window.location.origin : 'moa://oauth';
-      const start = await api<{ authorizationUrl: string }>(
-        `/auth/oauth/${provider.toLowerCase()}/start?returnUrl=${encodeURIComponent(returnUrl)}`,
-      );
+      const start = await api<{ authorizationUrl: string }>(`/auth/oauth/${provider.toLowerCase()}/start?returnUrl=${encodeURIComponent(returnUrl)}`);
       if (attempt !== authAttempt.current) return false;
-      const result = await WebBrowser.openAuthSessionAsync(start.authorizationUrl, returnUrl, {
-        preferEphemeralSession: false,
-      });
+      const result = await WebBrowser.openAuthSessionAsync(start.authorizationUrl, returnUrl, { preferEphemeralSession: false });
       if (attempt !== authAttempt.current) return false;
-      if (result.type !== 'success') {
-        if (result.type !== 'cancel' && result.type !== 'dismiss') throw new Error('소셜 로그인을 완료하지 못했어요.');
-        return false;
-      }
+      if (result.type !== 'success') return false;
       const callback = new URL(result.url);
-      const oauthError = callback.searchParams.get('oauth_error');
-      const oauthCode = callback.searchParams.get('oauth_code');
-      if (oauthError) throw new Error(oauthError);
-      if (!oauthCode) throw new Error('로그인 결과를 확인하지 못했어요. 다시 시도해주세요.');
-      return await acceptOAuthCode(oauthCode, attempt);
+      const code = callback.searchParams.get('oauth_code');
+      if (!code) throw new Error('로그인 결과를 확인하지 못했어요.');
+      const exchanged = await api<{ token: string }>('/auth/oauth/exchange', { code });
+      if (attempt !== authAttempt.current) return false;
+      const generation = await clearSession();
+      if (attempt !== authAttempt.current || generation !== session.current) return false;
+      setToken(exchanged.token);
+      await storage.set(exchanged.token);
+      if (attempt !== authAttempt.current || generation !== session.current) return false;
+      await refresh();
+      if (attempt !== authAttempt.current || generation !== session.current || !actor.current) return false;
+      notify('소셜 계정으로 로그인했어요.');
+      return true;
     } catch (e) {
       if (attempt !== authAttempt.current) return false;
-      const message = (e as Error).message;
-      setError(message);
-      notify(message);
+      notify((e as Error).message);
       return false;
-    } finally {
-      if (attempt === authAttempt.current) { authLock.current = false; setBusy(false); }
-    }
+    } finally { if (attempt === authAttempt.current) { authLock.current = false; setBusy(false); } }
   };
   const logout = async () => {
     const attempt = ++authAttempt.current;
@@ -394,9 +382,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await clearSession();
     setRole('buyer');
     tab('home');
-    try {
-      await revocation;
-    } finally { if (attempt === authAttempt.current) { authLock.current = false; setBusy(false); } }
+    try { await revocation; }
+    finally { if (attempt === authAttempt.current) { authLock.current = false; setBusy(false); } }
   };
   const switchActor = async (id: string) => {
     const ok = await login('DEMO', id);
@@ -462,6 +449,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         toast,
         requestDraft,
         setRequestDraft,
+        tripDraft,
+        setTripDraft,
         notify,
         mutate,
       }}

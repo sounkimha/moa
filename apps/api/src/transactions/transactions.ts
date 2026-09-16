@@ -10,7 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
-import { Database, Status, Transaction, quote, travelerEarnings } from '@moa/domain';
+import { Database, Payment, Payout, Status, Transaction, quote, travelerEarnings } from '@moa/domain';
 import { ActorRequest, AuthGuard } from '../auth/auth';
 import {
   amount,
@@ -27,15 +27,16 @@ import {
 } from '../common/validation';
 import { Store } from '../infrastructure/store';
 import { canAcceptTrip } from '@moa/domain';
-import { MockPaymentGateway } from '../infrastructure/adapters';
+import { MockPaymentProvider } from '../infrastructure/adapters';
 const revision = { expectedRevision: z.number().int().min(0) };
 const actionSchema = z.discriminatedUnion('action', [
   z
     .object({
       ...revision,
       action: z.literal('PAY'),
-      paymentMethod: z.enum(['CARD', 'ACCOUNT']),
-      paymentReference: z.string().trim().min(4).max(40),
+      paymentMethodId: z.string().min(1).optional(),
+      paymentMethod: z.enum(['CARD', 'ACCOUNT']).optional(),
+      paymentReference: z.string().trim().min(4).max(40).optional(),
       simulateFailure: z.boolean().default(false),
     })
     .strict(),
@@ -87,8 +88,23 @@ const actionSchema = z.discriminatedUnion('action', [
 ]);
 @Injectable()
 export class TransactionsService {
-  private gateway = new MockPaymentGateway();
-  constructor(private readonly store: Store) {}
+  constructor(
+    private readonly store: Store,
+    private readonly paymentProvider: MockPaymentProvider,
+  ) {}
+  private refundPayment(db: Database, payment: Payment) {
+    this.paymentProvider.refund(payment.providerRef);
+    payment.status = 'REFUNDED';
+    if (payment.provider !== 'MOCK_WALLET') return;
+    const wallet = db.wallets.find((item) => item.userId === payment.buyerId);
+    if (!wallet) return;
+    wallet.availableBalance += payment.amount;
+    db.walletTransactions.push({
+      ...base(), walletId: wallet.id, userId: payment.buyerId, type: 'REFUND',
+      amount: payment.amount, balanceAfter: wallet.availableBalance,
+      title: '취소 거래 보관함 환불', status: 'COMPLETED', transactionId: payment.transactionId,
+    });
+  }
   private audit(db: Database, actorId: string, t: Transaction, from: Status, note: string) {
     db.events.push({
       ...base(),
@@ -194,13 +210,30 @@ export class TransactionsService {
             at('MATCHED');
             if (data.simulateFailure)
               throw new BadRequestException('결제 승인 실패를 체험했어요. 다시 시도할 수 있어요.');
-            const result = this.gateway.hold(t.id, t.totalPrice);
+            const method = data.paymentMethodId
+              ? db.paymentMethods.find((item) => item.id === data.paymentMethodId && item.userId === actor)
+              : data.paymentMethod
+                ? { id: `legacy-${data.paymentMethod.toLowerCase()}`, type: data.paymentMethod === 'ACCOUNT' ? 'EASY_PAY' as const : 'CARD' as const }
+                : db.paymentMethods.find((item) => item.userId === actor && item.isDefault);
+            check(method, '사용할 결제수단을 선택해주세요.');
+            if (method.type === 'WALLET') {
+              const wallet = db.wallets.find((item) => item.userId === actor);
+              check(wallet && wallet.availableBalance >= t.totalPrice, '보관함 잔액이 부족해요. 충전하거나 다른 결제수단을 선택해주세요.');
+              wallet.availableBalance -= t.totalPrice;
+              db.walletTransactions.push({
+                ...base(), walletId: wallet.id, userId: actor, type: 'PAYMENT', amount: -t.totalPrice,
+                balanceAfter: wallet.availableBalance, title: request.productName,
+                status: 'COMPLETED', transactionId: id,
+              });
+            }
+            const result = this.paymentProvider.hold(t.id, t.totalPrice, method.type);
             db.payments.push({
               ...base(),
               transactionId: id,
               buyerId: actor,
               amount: t.totalPrice,
-              provider: `MOCK_${data.paymentMethod}`,
+              provider: method.type === 'WALLET' ? 'MOCK_WALLET' : method.type === 'EASY_PAY' ? 'MOCK_EASY_PAY' : 'MOCK_CARD',
+              paymentMethodId: method.id,
               status: 'HELD',
               providerRef: result.providerRef,
             });
@@ -275,10 +308,7 @@ export class TransactionsService {
             });
             db.payments
               .filter((payment) => payment.transactionId === id)
-              .forEach((payment) => {
-                this.gateway.refund(payment.providerRef);
-                payment.status = 'REFUNDED';
-              });
+              .forEach((payment) => this.refundPayment(db, payment));
             db.escrows
               .filter((escrow) => escrow.transactionId === id)
               .forEach((escrow) => (escrow.status = 'REFUNDED'));
@@ -348,7 +378,7 @@ export class TransactionsService {
               '분쟁이 해결되기 전에는 정산할 수 없어요.',
             );
             const { platformCommission, netReward } = travelerEarnings(t.travelerReward);
-            db.payouts.push({
+            const payout: Payout = {
               ...base(),
               transactionId: id,
               travelerId: actor,
@@ -360,6 +390,21 @@ export class TransactionsService {
               amount: t.productPrice + netReward + t.shippingFee,
               status: 'MOCK_SETTLED',
               providerRef: `mock-payout-${id}`,
+            };
+            db.payouts.push(payout);
+            const wallet = db.wallets.find((item) => item.userId === actor);
+            check(wallet, '여행자 보관함을 찾을 수 없어요.');
+            wallet.availableBalance += payout.amount;
+            db.walletTransactions.push({
+              ...base(), walletId: wallet.id, userId: actor, type: 'TRAVELER_REWARD',
+              amount: payout.amount, balanceAfter: wallet.availableBalance,
+              title: `${request.productName} 정산`, status: 'COMPLETED',
+              transactionId: id, payoutId: payout.id,
+            });
+            db.notifications.push({
+              ...base(), userId: actor,
+              title: `${payout.amount.toLocaleString('ko-KR')}원이 MOA 포인트 보관함에 적립됐어요.`,
+              transactionId: id, read: false,
             });
             escrow.status = 'RELEASED';
             db.payments
@@ -377,10 +422,7 @@ export class TransactionsService {
             );
             db.payments
               .filter((p) => p.transactionId === id)
-              .forEach((p) => {
-                this.gateway.refund(p.providerRef);
-                p.status = 'REFUNDED';
-              });
+              .forEach((p) => this.refundPayment(db, p));
             db.escrows
               .filter((e) => e.transactionId === id)
               .forEach((e) => (e.status = 'REFUNDED'));

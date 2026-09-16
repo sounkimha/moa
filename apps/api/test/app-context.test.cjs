@@ -48,7 +48,11 @@ async function harness(options = {}) {
     '../lib/api': { api, ApiError, setToken: (next) => { token = next; } },
     './navigation': load('state/navigation.ts', {}, dom.window),
     './draft-session': load('state/draft-session.ts', {}, dom.window),
-    './trip-draft': { writeTripDraft: (owner, draft) => { if (draft === null) clearedTrips.push(owner); return true; } },
+    './trip-draft-session': {
+      clearTripDraft: () => { clearedTrips.push('cleared'); },
+      readTripDraft: () => null,
+      writeTripDraft: () => true,
+    },
   };
   const context = load('state/AppContext.tsx', imports, dom.window);
   function Probe() { value = context.useApp(); return null; }
@@ -93,7 +97,7 @@ test('a late previous-account snapshot cannot replace the new actor and trip dra
     await app.run(async () => { oldSnapshot.resolve({ me: { id: 'u-me' }, mode: 'demo' }); await pending; });
     assert.equal(app.current.data.me.id, 'u-min');
     assert.equal(app.current.role, 'traveler');
-    assert.ok(app.clearedTrips.includes('u-me'));
+    assert.ok(app.clearedTrips.includes('cleared'));
   } finally { await app.close(); }
 });
 

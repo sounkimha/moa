@@ -76,7 +76,14 @@ export class AuthController {
       await this.store.resetDemo();
       this.sessions.clear();
     }
-    await this.store.read((db) => get(db.users, userId));
+    await this.store.transaction((db) => {
+      get(db.users, userId);
+      const providerUserId = `demo:${provider}:${userId}`;
+      if (!db.authIdentities.some((identity) => identity.provider === provider && identity.providerUserId === providerUserId))
+        db.authIdentities.push({
+          ...base(), userId, provider, providerUserId, status: 'DEMO_LINKED',
+        });
+    });
     return {
       ...this.sessions.create(userId),
       provider,

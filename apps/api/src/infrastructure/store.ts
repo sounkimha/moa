@@ -14,9 +14,35 @@ function addMissingDestinationPlaces(db: Database) {
   db.stores.push(...defaults.stores.filter((s) => missing.some((p) => p.id === s.placeId) && !db.stores.some((saved) => saved.id === s.id)));
   return true;
 }
+function hydrateTrustAndFinance(db: Database) {
+  const defaults = seedDatabase();
+  let changed = false;
+  for (const key of ['authIdentities', 'paymentMethods', 'wallets', 'walletTransactions', 'payoutAccounts'] as const) {
+    for (const row of defaults[key])
+      if (!db[key].some((saved) => saved.id === row.id)) {
+        db[key].push(row as never);
+        changed = true;
+      }
+  }
+  for (const account of db.payoutAccounts) {
+    if (account.bankName !== '모아은행 · 데모') continue;
+    account.bankName = 'MOA 데모은행';
+    changed = true;
+  }
+  for (const destination of db.destinations) {
+    if (typeof destination.sequence === 'number' && destination.visitTime) continue;
+    const trip = db.trips.find((item) => item.id === destination.tripId);
+    const sequence = Math.max(0, trip?.placeIds.indexOf(destination.placeId) ?? 0);
+    destination.sequence = sequence;
+    destination.visitTime = String(11 + sequence * 2).padStart(2, '0') + ':00';
+    changed = true;
+  }
+  return changed;
+}
 
 export const TABLES: (keyof Database)[] = [
   'users',
+  'authIdentities',
   'addresses',
   'places',
   'stores',
@@ -28,6 +54,7 @@ export const TABLES: (keyof Database)[] = [
   'bundles',
   'transactions',
   'verifications',
+  'paymentMethods',
   'payments',
   'escrows',
   'receipts',
@@ -37,6 +64,10 @@ export const TABLES: (keyof Database)[] = [
   'reviews',
   'notifications',
   'payouts',
+  'wallets',
+  'walletTransactions',
+  'payoutAccounts',
+  'withdrawals',
   'disputes',
   'favorites',
   'searches',
@@ -63,14 +94,19 @@ export class Store implements OnModuleDestroy {
       try {
         this.db = JSON.parse(await fs.readFile(this.filename, 'utf8'));
         const defaults = seedDatabase();
+        let shapeChanged = false;
         for (const key of TABLES)
-          if (!Array.isArray(this.db![key])) (this.db![key] as unknown[]) = defaults[key];
+          if (!Array.isArray(this.db![key])) {
+            (this.db![key] as unknown[]) = defaults[key];
+            shapeChanged = true;
+          }
         const draft = structuredClone(this.db!);
         const deliveryChanged = migrateLegacyDelivery(draft);
         const destinationsChanged = addMissingDestinationPlaces(draft);
-        if (deliveryChanged || destinationsChanged) {
+        const trustChanged = hydrateTrustAndFinance(draft);
+        if (shapeChanged || deliveryChanged || destinationsChanged || trustChanged) {
           // Keep the exact original bytes before the one-time compatibility migration.
-          await fs.copyFile(this.filename, `${this.filename}.before-${deliveryChanged ? 'domestic-delivery' : 'asia-destinations'}-${Date.now()}.bak`);
+          await fs.copyFile(this.filename, `${this.filename}.before-${deliveryChanged ? 'domestic-delivery' : destinationsChanged ? 'asia-destinations' : 'trust-wallet'}-${Date.now()}.bak`);
           const tmp = `${this.filename}.${process.pid}.tmp`;
           await fs.writeFile(tmp, JSON.stringify(draft, null, 2), { mode: 0o600 });
           await fs.rename(tmp, this.filename);
@@ -139,6 +175,7 @@ export class Store implements OnModuleDestroy {
         const draft = before.users.length ? structuredClone(before) : seedDatabase();
         migrateLegacyDelivery(draft);
         addMissingDestinationPlaces(draft);
+        hydrateTrustAndFinance(draft);
         const result = fn(draft);
         await this.writePg(client, before, draft);
         await client.query('COMMIT');

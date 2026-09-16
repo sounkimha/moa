@@ -19,6 +19,7 @@ import {
   Status,
   STATUS_LABEL,
   TIMELINE,
+  TIMELINE_LABEL,
   money,
   localMoney,
   DOMESTIC_PARCEL_FEE,
@@ -482,7 +483,7 @@ export function Timeline({ transaction }: { transaction: Transaction }) {
                 weight={current ? '700' : '400'}
                 color={current ? c.green : past ? c.ink : c.muted}
               >
-                {STATUS_LABEL[s]}
+                {TIMELINE_LABEL[s] || STATUS_LABEL[s]}
               </Txt>
             </View>
             {current && <Badge>지금</Badge>}

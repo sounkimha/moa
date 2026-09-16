@@ -67,7 +67,7 @@ export function FlightProofScreen() {
     <Txt size={12} color={c.secondary}>JPG·PNG·WebP 각 2MB 이하. PDF는 항공편 정보 부분을 캡처해주세요. 왕복이 한 장이면 같은 사진을 두 칸에 올릴 수 있어요. 경유 구간은 한 방향당 한 사진에 모두 보여주세요.</Txt>
     <Card><Stack gap={12}>
       <Txt size={15} weight="700">항공권은 비공개로 확인해요</Txt>
-      <Txt size={13} color={c.secondary}>모아 서버에서 먼저 바코드를 읽어요. 이름은 왕복 동일인 대조에만 사용해요. 이름·예약번호·좌석·QR 원문·사진 원본은 모아 저장소에 남기거나 상대에게 공개하지 않아요. 선택 동의 시 사진이 외부 AI로 전송되며 해당 서비스의 데이터 처리 정책이 적용돼요.</Txt>
+      <Txt size={13} color={c.secondary}>MOA 서버에서 먼저 바코드를 읽어요. 이름은 왕복 동일인 대조에만 사용해요. 이름·예약번호·좌석·QR 원문·사진 원본은 MOA 저장소에 남기거나 상대에게 공개하지 않아요. 선택 동의 시 사진이 외부 AI로 전송되며 해당 서비스의 데이터 처리 정책이 적용돼요.</Txt>
       {[{ value: consent, set: setConsent, label: '항공권의 개인정보를 일정 대조에 사용하는 데 동의해요 (필수)' },
         { value: allowAI, set: setAllowAI, label: '바코드로 읽지 못하면 항공권 사진을 OpenAI로 보내 문자 인식하는 데 동의해요 (선택)' }].map((item) => <Pressable
           key={item.label} accessibilityRole="checkbox" accessibilityLabel={item.label} accessibilityState={{ checked: item.value }} aria-checked={item.value} aria-disabled={busy} disabled={busy} onPress={() => item.set(!item.value)} style={{ paddingVertical: 8 }}>

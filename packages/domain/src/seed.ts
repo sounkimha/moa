@@ -310,7 +310,7 @@ export function seedDatabase(now = new Date()): Database {
       status: 'PENDING' as const,
     }));
   const verifications = users.flatMap((u) =>
-    (u.id === 'u-me' ? ['PHONE', 'ACCOUNT', 'TRIP'] : ['PHONE', 'ACCOUNT', 'IDENTITY', 'TRIP']).map((kind, i) => ({
+    (u.id === 'u-me' || u.id === 'u-sora' ? ['PHONE', 'ACCOUNT', 'TRIP'] : ['PHONE', 'ACCOUNT', 'IDENTITY', 'TRIP']).map((kind, i) => ({
       ...base(`verify-${u.id}-${i}`),
       userId: u.id,
       kind: kind as 'PHONE' | 'ACCOUNT' | 'IDENTITY' | 'TRIP',
@@ -318,8 +318,78 @@ export function seedDatabase(now = new Date()): Database {
       providerRef: 'demo-only',
     })),
   );
+  const authIdentities = users.map((user) => ({
+    ...base(`identity-${user.id}-demo`),
+    userId: user.id,
+    provider: 'DEMO' as const,
+    providerUserId: `demo:${user.id}`,
+    status: 'DEMO_LINKED' as const,
+  }));
+  const paymentMethods = users.flatMap((user) => [
+    {
+      ...base(`payment-${user.id}-card`),
+      userId: user.id,
+      type: 'CARD' as const,
+      provider: 'MOCK_CARD' as const,
+      label: 'VISA',
+      last4: user.id === 'u-me' ? '3821' : '1042',
+      isDefault: true,
+      status: 'DEMO_ONLY' as const,
+    },
+    {
+      ...base(`payment-${user.id}-easy`),
+      userId: user.id,
+      type: 'EASY_PAY' as const,
+      provider: 'MOCK_KAKAO_PAY' as const,
+      label: '카카오페이',
+      isDefault: false,
+      status: 'DEMO_ONLY' as const,
+    },
+    {
+      ...base(`payment-${user.id}-wallet`),
+      userId: user.id,
+      type: 'WALLET' as const,
+      provider: 'MOA_WALLET' as const,
+      label: 'MOA 포인트 보관함',
+      isDefault: false,
+      status: 'DEMO_ONLY' as const,
+    },
+  ]);
+  const wallets = users.map((user) => ({
+    ...base(`wallet-${user.id}`),
+    userId: user.id,
+    availableBalance: user.id === 'u-me' ? 86_000 : 0,
+    pendingBalance: 0,
+    withdrawalPending: 0,
+    currency: 'KRW' as const,
+    mode: 'DEMO' as const,
+  }));
+  const walletTransactions = [
+    {
+      ...base('wallet-entry-welcome'),
+      walletId: 'wallet-u-me',
+      userId: 'u-me',
+      type: 'TOP_UP' as const,
+      amount: 86_000,
+      balanceAfter: 86_000,
+      title: '체험용 시작 포인트',
+      status: 'COMPLETED' as const,
+    },
+  ];
+  const payoutAccounts = [
+    {
+      ...base('payout-account-u-min'),
+      userId: 'u-min',
+      bankName: 'MOA 데모은행',
+      accountLast4: '2048',
+      holderName: '민트로드',
+      status: 'DEMO_VERIFIED' as const,
+      providerRef: 'mock-account-u-min',
+    },
+  ];
   return {
     users,
+    authIdentities,
     addresses: [
       {
         ...base('address-home'),
@@ -343,11 +413,13 @@ export function seedDatabase(now = new Date()): Database {
     })),
     trips,
     destinations: trips.flatMap((t) =>
-      t.placeIds.map((p) => ({
+      t.placeIds.map((p, index) => ({
         ...base(`${t.id}-${p}`),
         tripId: t.id,
         placeId: p,
-        visitDate: t.startDate,
+        visitDate: day(5 + index),
+        visitTime: index === 0 ? '15:30' : '11:00',
+        sequence: index,
       })),
     ),
     products,
@@ -355,6 +427,7 @@ export function seedDatabase(now = new Date()): Database {
     offers,
     bundles: [],
     transactions: [],
+    paymentMethods,
     payments: [],
     escrows: [],
     receipts: [],
@@ -372,6 +445,10 @@ export function seedDatabase(now = new Date()): Database {
       },
     ],
     payouts: [],
+    wallets,
+    walletTransactions,
+    payoutAccounts,
+    withdrawals: [],
     disputes: [],
     favorites: [],
     searches: [],

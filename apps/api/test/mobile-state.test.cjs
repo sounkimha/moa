@@ -14,6 +14,7 @@ function load(file) {
 }
 const { routeHash, parseRoute } = load('navigation.ts');
 const { readDraft, writeDraft, clearDraft } = load('draft-session.ts');
+const { readTripDraft, writeTripDraft, clearTripDraft } = load('trip-draft-session.ts');
 const storage = () => {
   const values = new Map();
   return { getItem: (key) => values.get(key) || null, setItem: (key, value) => values.set(key, value), removeItem: (key) => values.delete(key) };
@@ -26,6 +27,9 @@ const draft = () => ({ step: 2, method: 'photo', url: '', name: '치이카와 �
   meetupLocation: '서울역', inventoryStatus: 'CHECK_REQUIRED', meetupPoint: { name: '서울역', address: '서울', detail: '1번 출구', latitude: 37.55, longitude: 126.97 },
   originalText: { productName: 'ちいかわ', storeName: '', purchaseLocation: '', option: '' },
 });
+const tripDraft = () => ({ departureCountry: 'KR', departureCity: '서울', destinationCountry: 'JP',
+  cities: ['도쿄', '오사카'], startDate: '2026-10-02', endDate: '2026-10-08',
+  placeIds: ['p-shibuya', 'p-osaka'], capacity: '8' });
 test('navigation survives refresh and browser history, including bundle IDs and photo mode', () => {
   for (const route of [ { name: 'offer-form', placeId: 'p-station', tripId: 'trip-u-me', requestIds: ['r-1', 'r-2'] },
     { name: 'request-form', id: '요청/2', method: 'photo', placeId: 'p-station' }, { name: 'home' } ])
@@ -62,4 +66,28 @@ test('corrupt, oversized or quota-denied draft does not crash or restore stale d
   assert.equal(writeDraft({ ...store, removeItem() { throw new Error('denied'); } }, 'buyer', null), false, 'failed deletion must not report success');
   writeDraft(store, 'buyer', { ...draft(), sampleFilled: 'false' });
   assert.equal(readDraft(store, 'buyer').sampleFilled, undefined, 'untrusted truthy text cannot activate sample mode');
+});
+test('trip draft restores route choices only for its owner and supports incomplete fields', () => {
+  const store = storage(), expected = tripDraft();
+  assert.equal(writeTripDraft(store, 'traveler', expected), true);
+  assert.deepEqual(readTripDraft(store, 'traveler'), expected);
+  assert.equal(readTripDraft(store, 'buyer'), null);
+  assert.equal(readTripDraft(store, 'traveler'), null, 'account mismatch clears the trip draft');
+  const partial = { ...expected, departureCity: '', cities: [], placeIds: [], capacity: '' };
+  writeTripDraft(store, 'traveler', partial);
+  assert.deepEqual(readTripDraft(store, 'traveler'), partial);
+  clearTripDraft(store);
+  assert.equal(readTripDraft(store, 'traveler'), null);
+});
+test('invalid trip drafts are discarded without affecting other session data', () => {
+  for (const invalid of [
+    { ...tripDraft(), departureCountry: 'US' },
+    { ...tripDraft(), cities: ['도쿄', '도쿄'] },
+    { ...tripDraft(), startDate: 'tomorrow' },
+    { ...tripDraft(), capacity: '200' },
+  ]) {
+    const store = storage();
+    writeTripDraft(store, 'traveler', invalid);
+    assert.equal(readTripDraft(store, 'traveler'), null);
+  }
 });

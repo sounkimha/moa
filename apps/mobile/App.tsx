@@ -1,4 +1,4 @@
-import React, { Component, ReactNode, useEffect, useState } from 'react';
+import React, { Component, ReactNode, useEffect } from 'react';
 import { ActivityIndicator, Platform, Pressable, useWindowDimensions, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -6,19 +6,24 @@ import {
   ArrowUpRight,
   Compass,
   Home as HomeIcon,
+  Layers,
   Plus,
   ShoppingBag,
   User,
   HelpCircle,
+  Plane,
   RefreshCw,
 } from 'lucide-react-native';
 import { AppProvider, Screen, useApp } from './src/state/AppContext';
 import { colors as c } from './src/theme/tokens';
-import { Badge, Button, Row, Sheet, Stack, Txt } from './src/components/ui';
+import { Badge, Button, Row, Stack, Txt } from './src/components/ui';
 import { Logo } from './src/components/visuals';
 import { CreateScreen, Home, Onboarding, PlaceScreen, SearchScreen } from './src/screens/Home';
-import { RequestForm, TripForm } from './src/screens/Forms';
+import { RequestForm } from './src/screens/Forms';
+import { TripForm } from './src/screens/TripForm';
 import { FlightProofScreen } from './src/screens/FlightProof';
+import { TripRouteScreen } from './src/screens/TripRoute';
+import { IdentityScreen, PaymentMethodsScreen, TopUpScreen, WalletScreen, WithdrawalScreen } from './src/screens/Wallet';
 import {
   BundleScreen,
   OfferForm,
@@ -56,6 +61,7 @@ const screens: Record<Screen, React.ComponentType> = {
   'request-form': RequestForm,
   'trip-form': TripForm,
   'flight-proof': FlightProofScreen,
+  'trip-route': TripRouteScreen,
   offers: OffersScreen,
   profile: ProfileScreen,
   'offer-form': OfferForm,
@@ -66,6 +72,11 @@ const screens: Record<Screen, React.ComponentType> = {
   receipt: ReceiptScreen,
   receive: ReceiveScreen,
   payouts: PayoutsScreen,
+  wallet: WalletScreen,
+  'wallet-topup': TopUpScreen,
+  'wallet-withdraw': WithdrawalScreen,
+  identity: IdentityScreen,
+  'payment-methods': PaymentMethodsScreen,
   notifications: NotificationsScreen,
   favorites: FavoritesScreen,
   trips: TripsScreen,
@@ -73,10 +84,11 @@ const screens: Record<Screen, React.ComponentType> = {
   settings: SettingsScreen,
   addresses: AddressesScreen,
   help: HelpScreen,
+  guide: HelpScreen,
 };
 const tabs: [Screen, string, typeof HomeIcon][] = [
   ['home', '홈', HomeIcon],
-  ['search', '둘러보기', Compass],
+  ['search', '찾아보기', Compass],
   ['create', '등록', Plus],
   ['trades', '거래', ShoppingBag],
   ['my', 'MY', User],
@@ -104,21 +116,9 @@ function Shell() {
   const a = useApp(),
     { width, height } = useWindowDimensions();
   const desktop = width >= 1060;
-  const [createOpen, setCreateOpen] = useState(false);
-  useEffect(() => setCreateOpen(false), [a.route.name, a.data?.me.id]);
-  const focusedFlow = ['request-form', 'trip-form', 'flight-proof', 'offer-form', 'payment', 'receipt', 'receive', 'chat'].includes(a.route.name);
   const Current = screens[a.route.name] || Home;
   useEffect(() => {
-    if (Platform.OS !== 'web') return;
-    document.title = '모아 · 가는 김에, 하나 더.';
-    if (!document.getElementById('moa-pretendard')) {
-      const font = document.createElement('link');
-      font.id = 'moa-pretendard';
-      font.rel = 'stylesheet';
-      font.crossOrigin = 'anonymous';
-      font.href = 'https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css';
-      document.head.appendChild(font);
-    }
+    if (Platform.OS === 'web') document.title = 'MOA · 가는 김에, 하나 더.';
   }, []);
   const navigation = (vertical = false) => (
     <View
@@ -138,17 +138,13 @@ function Shell() {
     >
       {tabs.map(([name, label, Icon]) => {
         const selected = a.route.name === name;
-        const resolvedLabel = name === 'create' ? '등록' : label;
         return (
           <Pressable
             key={name}
             accessibilityRole="tab"
             accessibilityLabel={label}
             accessibilityState={{ selected }}
-            aria-selected={selected}
-            onPress={() => name === 'create'
-              ? setCreateOpen(true)
-              : a.tab(name)}
+            onPress={() => a.tab(name)}
             style={({ pressed }) =>
               vertical
                 ? {
@@ -184,11 +180,11 @@ function Shell() {
               />
             )}
             <Txt
-              size={vertical ? 15 : 12}
+              size={vertical ? 15 : 11}
               weight={selected ? '700' : '500'}
               color={selected ? c.green : c.secondary}
             >
-              {resolvedLabel}
+              {vertical && name === 'create' ? '새로 등록하기' : label}
             </Txt>
           </Pressable>
         );
@@ -203,7 +199,7 @@ function Shell() {
           flex: 1,
           height,
           alignItems: 'center',
-          backgroundColor: desktop ? '#EEF4FF' : c.canvas,
+            backgroundColor: desktop ? c.desktopBackground : c.canvas,
         }}
       >
         <View
@@ -231,7 +227,7 @@ function Shell() {
               <Row style={{ gap: 10, marginTop: 13 }}>
                 <Logo size={42} />
                 <Txt size={33} weight="800" color={c.green}>
-                  모아
+                  MOA
                 </Txt>
               </Row>
               <Stack gap={8}>
@@ -239,22 +235,26 @@ function Shell() {
                   가는 김에,{'\n'}하나 더.
                 </Txt>
                 <Txt size={13} color={c.secondary}>
-                  여행자의 동선과{'\n'}필요한 부탁을 연결해요.
+                  이미 그곳에 가는 사람과{'\n'}작은 부탁을 연결해요.
                 </Txt>
               </Stack>
               {navigation(true)}
               <View style={{ flex: 1 }} />
-              <View style={{ backgroundColor: c.paper, borderRadius: 18, padding: 18, gap: 10 }}>
-                <RefreshCw size={23} color={c.green} />
-                <Txt size={14} weight="700">현재 이용 모드</Txt>
-                <Txt size={13} color={c.secondary}>{a.role === 'buyer' ? '부탁하기' : '여행하기'}</Txt>
+              <View style={{ backgroundColor: c.mint, borderRadius: 20, padding: 18, gap: 12 }}>
+                <Plane size={25} color={c.darkGreen} />
+                <Txt size={14} weight="700">
+                  여행은 그대로.{'\n'}작은 보상은 덤으로.
+                </Txt>
                 <Pressable
                   accessibilityRole="button"
-                  onPress={() => a.nav('settings')}
+                  onPress={() => {
+                    a.setRole('traveler');
+                    a.tab('home');
+                  }}
                 >
                   <Row style={{ gap: 4 }}>
                     <Txt size={12} color={c.darkGreen} weight="700">
-                      모드 설정
+                      내 동선 살펴보기
                     </Txt>
                     <ArrowUpRight size={13} color={c.darkGreen} />
                   </Row>
@@ -263,7 +263,7 @@ function Shell() {
               <Button
                 small
                 kind="ghost"
-                label="모아 이용 안내"
+                label="MOA 이용 안내"
                 icon={HelpCircle}
                 onPress={() => a.nav('help')}
               />
@@ -277,9 +277,9 @@ function Shell() {
               <Stack style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
                 <Logo size={70} />
                 <Txt size={30} weight="800" color={c.green}>
-                  모아
+                  MOA
                 </Txt>
-                <Txt color={c.secondary}>여행 경로에 부탁을 연결해요.</Txt>
+                <Txt color={c.secondary}>가는 김에, 하나 더.</Txt>
                 <ActivityIndicator color={c.green} />
               </Stack>
             ) : !a.data ? (
@@ -309,31 +309,22 @@ function Shell() {
                     <Current />
                   </Boundary>
                 </View>
-                {!desktop && !focusedFlow && navigation()}
-                <Sheet visible={createOpen} title="어떤 걸 등록할까요?" onClose={() => setCreateOpen(false)}>
-                  {[
-                    { title: '이거 부탁하기', body: '상품 링크나 사진으로 시작해요', icon: ShoppingBag, route: 'request-form' as const },
-                    { title: '여행 등록하기', body: '가는 곳의 부탁을 모아드려요', icon: Compass, route: 'trip-form' as const },
-                  ].map((item) => <Pressable key={item.route} accessibilityRole="button" accessibilityLabel={item.title} onPress={() => { setCreateOpen(false); a.nav(item.route); }} style={({ pressed }) => ({ padding: 18, borderRadius: 16, backgroundColor: pressed ? c.mint : c.canvas })}>
-                    <Row><item.icon size={24} color={c.green} /><View style={{ flex: 1, gap: 4 }}><Txt size={18} weight="700">{item.title}</Txt><Txt size={13} color={c.secondary}>{item.body}</Txt></View><ArrowUpRight size={20} color={c.muted} /></Row>
-                  </Pressable>)}
-                </Sheet>
+                {!desktop && navigation()}
               </>
             )}
             {!!a.toast && (
               <View
-                pointerEvents="none"
                 accessibilityRole="alert"
                 accessibilityLiveRegion="polite"
                 style={{
                   position: 'absolute',
-                  bottom: desktop || focusedFlow ? 22 : 83,
+                  bottom: desktop ? 22 : 83,
                   left: 18,
                   right: 18,
                   backgroundColor: c.ink,
                   borderRadius: 15,
                   padding: 16,
-                  shadowColor: '#000',
+                  shadowColor: c.shadow,
                   shadowOpacity: 0.1,
                   shadowRadius: 8,
                   elevation: 3,

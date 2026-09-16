@@ -1,29 +1,21 @@
 {
   "expo": {
-    "name": "모아",
+    "name": "MOA",
     "slug": "moa",
     "scheme": "moa",
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.moa.prototype"
-    },
-    "android": {
-      "package": "com.moa.prototype",
-      "adaptiveIcon": {
-        "backgroundColor": "#F5F6F8"
-      }
-    },
+    "ios": { "supportsTablet": true, "bundleIdentifier": "com.moa.prototype" },
+    "android": { "package": "com.moa.prototype", "adaptiveIcon": { "backgroundColor": "#F8FAFD" } },
     "web": {
       "bundler": "metro",
-      "name": "모아 · 여행 경로에 부탁을 연결해요",
-      "shortName": "모아",
+      "name": "MOA · 가는 김에, 하나 더.",
+      "shortName": "MOA",
       "lang": "ko",
-      "backgroundColor": "#F5F6F8",
-      "themeColor": "#3182F6"
+      "backgroundColor": "#F8FAFD",
+      "themeColor": "#4F8DF7"
     },
     "plugins": [
       [
@@ -39,8 +31,7 @@
           "locationWhenInUsePermission": "반경 2km 안에서 공개된 여행 일정을 찾기 위해 현재 위치를 사용해요."
         }
       ],
-      "expo-secure-store",
-      "expo-web-browser"
+      "expo-secure-store"
     ]
   }
 }
