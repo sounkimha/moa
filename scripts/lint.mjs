@@ -1,7 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
-const roots = ['apps/api/src', 'apps/mobile/src', 'packages/domain/src', 'scripts'];
+const roots = ['apps/api/src', 'apps/mobile/src', 'apps/admin/src', 'packages/domain/src', 'scripts'];
 const extensions = new Set(['.ts', '.tsx', '.js', '.mjs', '.cjs']);
 const files = [];
 async function walk(directory) {

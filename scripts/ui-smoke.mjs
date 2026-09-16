@@ -48,6 +48,56 @@ const dom = new JSDOM(html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, ''), {
       unobserve() {}
       disconnect() {}
     };
+    class KakaoLatLng {
+      constructor(latitude, longitude) {
+        this.latitude = latitude;
+        this.longitude = longitude;
+      }
+      getLat() { return this.latitude; }
+      getLng() { return this.longitude; }
+    }
+    class KakaoPoint {
+      constructor(x, y) { this.x = x; this.y = y; }
+      getX() { return this.x; }
+      getY() { return this.y; }
+    }
+    class KakaoMap {
+      constructor(_element, options) {
+        this.center = options.center;
+        this.level = options.level;
+        this.listeners = {};
+        w.__moaTestMap = this;
+      }
+      addControl() {}
+      getCenter() { return this.center; }
+      getLevel() { return this.level; }
+      getProjection() { return {
+        containerPointFromCoords: (position) => new KakaoPoint(150 + (position.getLng() - this.center.getLng()) * 1000, 150 - (position.getLat() - this.center.getLat()) * 1000),
+        coordsFromContainerPoint: (point) => new KakaoLatLng(this.center.getLat() - (point.getY() - 150) / 1000, this.center.getLng() + (point.getX() - 150) / 1000),
+      }; }
+      panTo(position) { this.center = position; w.setTimeout(() => this.listeners.idle?.(), 0); }
+      relayout() {}
+      setCenter(position) { this.center = position; }
+      setLevel(level) { this.level = level; }
+      setMapTypeId() {}
+      setDraggable(draggable) { this.draggable = draggable; }
+    }
+    w.kakao = { maps: {
+      ControlPosition: { RIGHT: 'RIGHT' },
+      MapTypeId: { ROADMAP: 'ROADMAP' },
+      LatLng: KakaoLatLng,
+      Point: KakaoPoint,
+      Map: KakaoMap,
+      ZoomControl: class {},
+      load(callback) { callback(); },
+      event: {
+        addListener(map, event, listener) {
+          map.listeners[event] = listener;
+          if (event === 'idle') w.setTimeout(listener, 0);
+        },
+        removeListener() {},
+      },
+    } };
     w.fetch = (input, init) =>
       fetch(apiRoot + new URL(input, 'http://localhost:8081').pathname, {
         ...init,
@@ -187,12 +237,33 @@ try {
   await expectText('월');
   await click('희망 수령일 달력 열기');
   await click('직접 전달 · 무료');
-  const mapFrame = await wait(() => document.querySelector('iframe[title="직거래 위치 지도"]'), 'meetup map');
-  const channel = mapFrame.srcdoc.match(/channel:"([^"]+)"/)[1];
-  dom.window.dispatchEvent(new dom.window.MessageEvent('message', {
-    source: mapFrame.contentWindow,
-    data: JSON.stringify({ channel, latitude: 37.555, longitude: 126.97 }),
-  }));
+  await wait(
+    () => document.querySelector('[role="application"][aria-label="카카오 직거래 위치 지도"]'),
+    'Kakao meetup map',
+  );
+  await expectText('내 주변 지도부터 볼까요?');
+  await click('나중에 직접 찾기');
+  assert.equal(find('이 위치에서 만날게요'), undefined, 'default map center is not a selected meetup point');
+  const testMap = await wait(() => dom.window.__moaTestMap, 'Kakao map instance');
+  assert.equal(testMap.draggable, true);
+  const dragSurface = document.querySelector('[data-testid="meetup-map-drag-surface"]');
+  assert.ok(dragSurface, 'map drag surface is present');
+  const pointer = (target, type, x, y, id = 1) => {
+    const event = new dom.window.MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0 });
+    Object.defineProperties(event, { pointerId: { value: id }, pointerType: { value: 'touch' } });
+    target.dispatchEvent(event);
+  };
+  pointer(dragSurface, 'pointerdown', 150, 100);
+  pointer(dom.window, 'pointermove', 250, 100);
+  assert.ok(testMap.getCenter().getLng() < 126.978, 'right drag moves map center west');
+  pointer(dom.window, 'pointermove', 100, 100);
+  assert.ok(testMap.getCenter().getLng() > 126.978, 'left drag moves map center east');
+  pointer(dom.window, 'pointerup', 100, 100);
+  await expectText('127.028000');
+  pointer(dragSurface, 'pointerdown', 100, 100, 2);
+  pointer(dom.window, 'pointermove', 250, 100, 2);
+  pointer(dom.window, 'pointerup', 250, 100, 2);
+  assert.ok(Math.abs(testMap.getCenter().getLng() - 126.878) < 0.001, 'a second swipe after release moves the map again');
   await click('이 위치에서 만날게요');
   await expectText('국내 전달비');
   await expectText('여행자 보상');
@@ -262,7 +333,11 @@ try {
   offers.click();
   await click('이 사람의 일정 보기');
   await expectText('시간별 공개 일정');
-  await expectText('지도 스타일 일정 · 실제 GPS 아님');
+  await wait(
+    () => document.querySelector('iframe[title="Google 여행 일정 지도"]'),
+    'Google itinerary map',
+  );
+  await expectText('항공편·GPS 실시간 위치나 방문 완료를 의미하지 않아요.');
   await click('여행자 비교로');
   await click('민트로드님과 함께하기');
   await expectText('안전하게 부탁해요');

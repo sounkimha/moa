@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, View } from 'react-native';
-import { CalendarDays, Check, MapPin, Plane } from 'lucide-react-native';
-import Svg, { Circle, Path } from 'react-native-svg';
+import { CalendarDays, Check, Plane } from 'lucide-react-native';
+import Svg, { Path } from 'react-native-svg';
 import { Place, Trip, TripDestination, shortDate } from '@moa/domain';
 import { colors as c } from '../theme/tokens';
 import { Badge, Card, Row, Stack, Txt } from './ui';
+import { ItineraryMap } from './ItineraryMap';
 
 export function PlaneRouteAnimation({
   departure,
@@ -67,19 +68,6 @@ export function PlaneRouteAnimation({
   );
 }
 
-function mapPoints(places: Place[]) {
-  if (!places.length) return [];
-  const latitudes = places.map((place) => place.latitude);
-  const longitudes = places.map((place) => place.longitude);
-  const minLat = Math.min(...latitudes), maxLat = Math.max(...latitudes);
-  const minLng = Math.min(...longitudes), maxLng = Math.max(...longitudes);
-  return places.map((place, index) => ({
-    place,
-    x: places.length === 1 ? 150 : 35 + ((place.longitude - minLng) / Math.max(maxLng - minLng, 0.001)) * 230,
-    y: places.length === 1 ? 95 : 30 + ((maxLat - place.latitude) / Math.max(maxLat - minLat, 0.001)) * 125 + index * 3,
-  }));
-}
-
 export function LocalRoutePath({ places, highlightedPlaceId }: { places: Place[]; highlightedPlaceId?: string }) {
   return (
     <Stack gap={0}>
@@ -106,30 +94,15 @@ export function LocalRoutePath({ places, highlightedPlaceId }: { places: Place[]
 }
 
 export function TravelRouteMap({ trip, places, highlightedPlaceId }: { trip: Trip; places: Place[]; highlightedPlaceId?: string }) {
-  const points = useMemo(() => mapPoints(places), [places]);
-  const path = points.map((point, index) => `${index ? 'L' : 'M'} ${point.x} ${point.y}`).join(' ');
   return (
     <Stack gap={14}>
       <PlaneRouteAnimation departure={trip.departureCity} destination={trip.destinationCity} />
       <View
         accessible
         accessibilityLabel={`현지 방문 순서: ${places.map((place) => place.name).join(', ')}`}
-        style={{ height: 220, borderRadius: 24, overflow: 'hidden', backgroundColor: c.primarySoft, borderWidth: 1, borderColor: c.border }}
+        style={{ borderRadius: 24, overflow: 'hidden', backgroundColor: c.primarySoft, borderWidth: 1, borderColor: c.border }}
       >
-        <View style={{ position: 'absolute', width: 190, height: 190, borderRadius: 95, left: -40, top: 45, backgroundColor: c.surface }} />
-        <View style={{ position: 'absolute', width: 180, height: 180, borderRadius: 90, right: -35, top: -35, backgroundColor: c.routeSoft }} />
-        <Svg width="100%" height="100%" viewBox="0 0 300 200">
-          {!!path && <Path d={path} fill="none" stroke={c.primaryStrong} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />}
-          {points.map(({ place, x, y }, index) => (
-            <Circle key={place.id} cx={x} cy={y} r={place.id === highlightedPlaceId ? 9 : 7} fill={place.id === highlightedPlaceId ? c.primaryStrong : c.primary} stroke={c.surface} strokeWidth={4} />
-          ))}
-        </Svg>
-        {points.map(({ place, x, y }, index) => (
-          <View key={place.id} style={{ position: 'absolute', left: `${Math.min(65, Math.max(4, x / 3 - 6))}%`, top: `${Math.min(66, Math.max(4, y / 2 - 9))}%`, maxWidth: 132, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 9, backgroundColor: c.softOverlay }}>
-            <Txt size={10} weight="700" lines={1}>{index + 1}. {place.region}</Txt>
-          </View>
-        ))}
-        <View style={{ position: 'absolute', left: 13, bottom: 12 }}><Badge bg={c.surface}>지도 스타일 일정 · 실제 GPS 아님</Badge></View>
+        <ItineraryMap places={places} highlightedPlaceId={highlightedPlaceId} />
       </View>
       <LocalRoutePath places={places} highlightedPlaceId={highlightedPlaceId} />
     </Stack>

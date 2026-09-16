@@ -66,7 +66,7 @@ function Guide({ onDone, doneLabel = 'MOA 시작하기' }: { onDone: () => void;
   ];
   return (
     <ScrollView contentContainerStyle={{ flexGrow: 1, width: '100%', maxWidth: 760, alignSelf: 'center', padding: compact ? 20 : 28, paddingTop: compact ? 30 : 42, gap: 22, justifyContent: 'center' }}>
-      <Row><Logo /><Txt size={30} weight="800" color={c.primary}>MOA</Txt><Badge>체험 모드</Badge></Row>
+      <Row style={{ justifyContent: 'space-between' }}><Logo size={34} /><Badge>체험 모드</Badge></Row>
       <View style={{ minHeight: compact ? 205 : 230, justifyContent: 'center' }}>
         {page === 0 && <View style={{ height: compact ? 205 : 230, borderRadius: 28, overflow: 'hidden', backgroundColor: c.primarySoft }}><Image source={require('../../assets/japan.jpg')} style={{ height: '100%', width: '100%' }} /><View style={{ position: 'absolute', inset: 0, backgroundColor: c.translucentWhite }} /><View style={{ position: 'absolute', left: 16, right: 16, bottom: 16, padding: 14, borderRadius: 16, backgroundColor: c.softOverlay }}><Row><ShoppingBag size={24} color={c.primary} /><Txt weight="700" style={{ flex: 1 }}>원하는 상품을 실제 방문 일정과 연결해요</Txt></Row></View></View>}
         {page === 1 && <PlaneRouteAnimation departure="SEOUL" destination="TOKYO" />}
@@ -92,7 +92,7 @@ export function Onboarding() {
   if (!loginStage) return <Guide onDone={() => setLoginStage(true)} />;
   return (
     <ScrollView contentContainerStyle={{ flexGrow: 1, width: '100%', maxWidth: 760, alignSelf: 'center', padding: compact ? 20 : 28, gap: 24, justifyContent: 'center' }}>
-      <Row><Logo /><Txt size={30} weight="800" color={c.primary}>MOA</Txt><Badge>체험 모드</Badge></Row>
+      <Row style={{ justifyContent: 'space-between' }}><Logo size={34} /><Badge>체험 모드</Badge></Row>
       <Stack gap={10}><Badge>한 계정으로 두 가지 모두</Badge><Txt size={31} weight="800">어디서 시작할지는{'\n'}로그인 후 골라요.</Txt><Txt color={c.secondary}>부탁도 여행도 같은 계정에서 이어집니다.</Txt></Stack>
       <Notice>지금은 예시 계정으로 시작해요. 실제 휴대폰 인증·소셜 로그인·결제는 발생하지 않아요.</Notice>
       {!!a.error && <Notice tone="error">체험 계정에 연결하지 못했어요. API 서버가 실행 중인지 확인한 뒤 다시 시도해주세요.{`\n`}{a.error}</Notice>}
@@ -148,12 +148,7 @@ export function Home() {
   return (
     <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 36, gap: 26 }}>
       <Row style={{ justifyContent: 'space-between' }}>
-        <Row style={{ gap: 9 }}>
-          <Logo size={34} />
-          <Txt size={28} weight="800" color={c.green}>
-            MOA
-          </Txt>
-        </Row>
+        <Logo size={32} />
         <Row style={{ gap: 2 }}>
           <Badge bg={c.paper} color={c.secondary}>
             체험 모드

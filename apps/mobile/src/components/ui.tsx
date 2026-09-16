@@ -26,7 +26,7 @@ import {
   Package,
   LucideIcon,
 } from 'lucide-react-native';
-import { colors as c } from '../theme/tokens';
+import { colors as c, radius } from '../theme/tokens';
 import { useApp } from '../state/AppContext';
 export function Txt({
   children,
@@ -104,12 +104,14 @@ export function Button({
 }) {
   const fg =
     kind === 'primary'
-      ? '#fff'
+      ? c.onPrimary
       : kind === 'danger'
         ? c.danger
         : kind === 'ghost'
           ? c.secondary
-          : c.ink;
+          : kind === 'secondary' || kind === 'lime'
+            ? c.primaryStrong
+            : c.ink;
   return (
     <Pressable
       testID={testID}
@@ -122,7 +124,7 @@ export function Button({
         {
           minHeight: small ? 44 : 54,
           paddingVertical: 12,
-          borderRadius: 16,
+          borderRadius: radius.md,
           paddingHorizontal: small ? 16 : 20,
           alignItems: 'center',
           justifyContent: 'center',
@@ -139,10 +141,10 @@ export function Button({
                     ? c.dangerBg
                     : 'transparent',
           shadowColor: kind === 'primary' ? c.green : 'transparent',
-          shadowOpacity: kind === 'primary' ? 0.2 : 0,
-          shadowRadius: 10,
-          shadowOffset: { width: 0, height: 5 },
-          elevation: kind === 'primary' ? 2 : 0,
+          shadowOpacity: kind === 'primary' ? 0.22 : 0,
+          shadowRadius: 14,
+          shadowOffset: { width: 0, height: 7 },
+          elevation: kind === 'primary' ? 3 : 0,
           opacity: disabled ? 0.45 : pressed ? 0.78 : 1,
         },
         style,
@@ -180,10 +182,10 @@ export function IconButton({
       style={({ pressed }) => ({
         width: 44,
         height: 44,
-        borderRadius: 22,
+        borderRadius: radius.md,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: filled ? c.paper : pressed ? c.mint : 'transparent',
+        backgroundColor: filled ? c.primarySoft : pressed ? c.primarySoft : 'transparent',
       })}
     >
       <Icon size={22} color={color} strokeWidth={1.7} />
@@ -212,7 +214,7 @@ export function Chip({
         paddingVertical: 10,
         minHeight: 44,
         maxWidth: '100%',
-        borderRadius: 14,
+        borderRadius: radius.md,
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
@@ -244,7 +246,7 @@ export function Badge({
         alignSelf: 'flex-start',
         paddingHorizontal: 9,
         paddingVertical: 5,
-        borderRadius: 8,
+        borderRadius: radius.pill,
         backgroundColor: bg,
       }}
     >
@@ -304,7 +306,7 @@ export function Field({
           borderWidth: 1,
           borderColor: error ? c.danger : c.border,
           backgroundColor: c.paper,
-          borderRadius: 14,
+          borderRadius: radius.md,
           paddingHorizontal: 15,
           paddingVertical: 14,
           fontSize: 16,
@@ -342,10 +344,10 @@ export function DateField({
   return (
     <View style={{ gap: 8 }}>
       <Txt size={14} weight="600">{label} *</Txt>
-      <Pressable accessibilityRole="button" accessibilityLabel={`${label} 달력 열기`} accessibilityState={{ expanded: open }} onPress={() => { if (!open) setMonth(new Date(selected.getFullYear(), selected.getMonth(), 1)); setOpen(!open); }} style={{ minHeight: 52, borderWidth: 1, borderColor: c.border, backgroundColor: c.paper, borderRadius: 14, paddingHorizontal: 15, alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`${label} 달력 열기`} accessibilityState={{ expanded: open }} onPress={() => { if (!open) setMonth(new Date(selected.getFullYear(), selected.getMonth(), 1)); setOpen(!open); }} style={{ minHeight: 52, borderWidth: 1, borderColor: c.border, backgroundColor: c.paper, borderRadius: radius.md, paddingHorizontal: 15, alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
         <Txt size={16}>{value}</Txt><CalendarDays size={20} color={c.green} />
       </Pressable>
-      {open && <View style={{ borderWidth: 1, borderColor: c.border, backgroundColor: c.paper, borderRadius: 18, padding: 14, gap: 12 }}>
+      {open && <View style={{ borderWidth: 1, borderColor: c.border, backgroundColor: c.paper, borderRadius: radius.lg, padding: 14, gap: 12 }}>
         <Row style={{ justifyContent: 'space-between' }}>
           <IconButton icon={ChevronLeft} label="이전 달" onPress={() => setMonth(new Date(year, monthIndex - 1, 1))} />
           <Txt weight="700">{year}년 {monthIndex + 1}월</Txt>
@@ -372,7 +374,7 @@ export function Notice({
 }) {
   const bg = tone === 'warning' ? c.butter : tone === 'error' ? c.dangerBg : c.mint;
   return (
-    <Row style={{ alignItems: 'flex-start', padding: 14, borderRadius: 14, backgroundColor: bg }}>
+    <Row style={{ alignItems: 'flex-start', padding: 15, borderRadius: radius.md, backgroundColor: bg }}>
       <Info size={17} color={tone === 'error' ? c.danger : c.green} style={{ marginTop: 2 }} />
       <View style={{ flex: 1 }}>
         <Txt size={13} color={tone === 'error' ? c.danger : c.darkGreen}>
@@ -430,8 +432,13 @@ export function Card({ children, style }: { children: ReactNode; style?: StylePr
           backgroundColor: c.paper,
           borderWidth: 1,
           borderColor: c.border,
-          borderRadius: 20,
+          borderRadius: radius.lg,
           padding: 20,
+          shadowColor: c.shadow,
+          shadowOpacity: 0.055,
+          shadowRadius: 16,
+          shadowOffset: { width: 0, height: 6 },
+          elevation: 1,
         },
         style,
       ]}
@@ -503,11 +510,11 @@ export function Page({
     >
       <Row
         style={{
-          height: 62,
-          paddingHorizontal: 12,
+          height: 66,
+          paddingHorizontal: 14,
           borderBottomWidth: 1,
           borderColor: c.border,
-          backgroundColor: c.paper,
+          backgroundColor: c.softOverlay,
         }}
       >
         {back ? (

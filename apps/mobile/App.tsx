@@ -152,7 +152,7 @@ function Shell() {
                     gap: 14,
                     alignItems: 'center',
                     padding: 16,
-                    borderRadius: 15,
+                    borderRadius: 18,
                     backgroundColor: selected ? c.mint : pressed ? c.paper : 'transparent',
                   }
                 : { flex: 1, minHeight: 53, alignItems: 'center', justifyContent: 'center', gap: 3 }
@@ -162,7 +162,7 @@ function Shell() {
               <View
                 style={{
                   backgroundColor: c.green,
-                  borderRadius: 14,
+                  borderRadius: 16,
                   width: vertical ? 34 : 42,
                   height: vertical ? 34 : 42,
                   justifyContent: 'center',
@@ -224,12 +224,7 @@ function Shell() {
                 gap: 35,
               }}
             >
-              <Row style={{ gap: 10, marginTop: 13 }}>
-                <Logo size={42} />
-                <Txt size={33} weight="800" color={c.green}>
-                  MOA
-                </Txt>
-              </Row>
+              <View style={{ marginTop: 13 }}><Logo size={42} /></View>
               <Stack gap={8}>
                 <Txt size={21} weight="700">
                   가는 김에,{'\n'}하나 더.
@@ -275,10 +270,7 @@ function Shell() {
           <View style={{ flex: 1, minWidth: 0, backgroundColor: c.canvas }}>
             {a.loading ? (
               <Stack style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                <Logo size={70} />
-                <Txt size={30} weight="800" color={c.green}>
-                  MOA
-                </Txt>
+                <Logo size={60} />
                 <Txt color={c.secondary}>가는 김에, 하나 더.</Txt>
                 <ActivityIndicator color={c.green} />
               </Stack>
