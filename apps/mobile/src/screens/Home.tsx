@@ -217,15 +217,16 @@ const guideSlides = [
   },
 ] as const;
 
-/** A concise, replayable walkthrough. It is separate from the first-login gate. */
-export function GuideScreen() {
+/** The first-entry walkthrough also remains available once a member has joined. */
+export function GuideScreen({ onComplete }: { onComplete?: () => void }) {
   const a = useApp();
   const [index, setIndex] = useState(0);
   const slide = guideSlides[index];
   const Icon = slide.icon;
   const last = index === guideSlides.length - 1;
+  const firstEntry = !a.data;
   return (
-    <Page title="MOA 이용 안내">
+    <Page title={firstEntry ? 'MOA 시작 안내' : 'MOA 이용 안내'} back={!firstEntry}>
       <Stack gap={24}>
         <Row style={{ justifyContent: 'space-between' }}>
           <Badge bg={c.lilac} color={c.green}>{index + 1} / {guideSlides.length}</Badge>
@@ -248,9 +249,9 @@ export function GuideScreen() {
           {guideSlides.map((item, dot) => <View key={item.eyebrow} style={{ width: dot === index ? 22 : 7, height: 7, borderRadius: 4, backgroundColor: dot === index ? c.green : c.border }} />)}
         </Row>
         <Button
-          label={last ? '홈으로 가기' : '다음'}
+          label={last ? (firstEntry ? '모아 시작하기' : '홈으로 가기') : '다음'}
           icon={ArrowRight}
-          onPress={() => last ? a.tab('home') : setIndex((current) => current + 1)}
+          onPress={() => last ? (onComplete ? onComplete() : a.tab('home')) : setIndex((current) => current + 1)}
         />
       </Stack>
     </Page>

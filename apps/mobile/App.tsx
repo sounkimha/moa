@@ -115,6 +115,7 @@ class Boundary extends Component<{ children: ReactNode }, { failed: boolean }> {
 function Shell() {
   const a = useApp(),
     { width, height } = useWindowDimensions();
+  const [entryGuideComplete, setEntryGuideComplete] = React.useState(false);
   const desktop = width >= 1060;
   const Current = screens[a.route.name] || Home;
   useEffect(() => {
@@ -275,7 +276,7 @@ function Shell() {
                 <ActivityIndicator color={c.green} />
               </Stack>
             ) : !a.data ? (
-              <Onboarding />
+              entryGuideComplete ? <Onboarding /> : <GuideScreen onComplete={() => setEntryGuideComplete(true)} />
             ) : (
               <>
                 {a.error && (

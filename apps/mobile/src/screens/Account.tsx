@@ -186,7 +186,6 @@ export function MyScreen() {
         {a.role === 'traveler' && <AccountRow title="정산 계좌" icon={Wallet} onPress={() => setPanel('settlement')} />}
       </AccountGroup>
       <AccountGroup title="설정과 도움말">
-        <AccountRow title="MOA 이용 안내" icon={HelpCircle} detail="3단계" onPress={() => a.nav('guide')} />
         <AccountRow title="알림" icon={Bell} detail={d.notifications.filter((notice) => !notice.read).length ? '새 소식' : undefined} onPress={() => a.nav('notifications')} />
         <AccountRow title="알림 설정" icon={Bell} onPress={() => setPanel('notifications')} />
         <AccountRow title="설정" icon={Settings} onPress={() => a.nav('settings')} />
@@ -445,7 +444,6 @@ export function SettingsScreen() {
         <AccountRow title="알림 설정" icon={Bell} onPress={() => setPanel('notifications')} />
       </AccountGroup>
       <AccountGroup title="도움말">
-        <AccountRow title="MOA 이용 안내" icon={HelpCircle} detail="3단계" onPress={() => a.nav('guide')} />
         <AccountRow title="고객센터" icon={HelpCircle} onPress={() => a.nav('help')} />
         <AccountRow title="최신 정보 불러오기" icon={RefreshCw} onPress={() => a.refresh().then(() => a.notify('최신 정보로 바꿨어요.')).catch(() => a.notify('정보를 불러오지 못했어요. 연결을 확인하고 다시 시도해주세요.'))} />
       </AccountGroup>

@@ -131,7 +131,22 @@ export function PaymentScreen() {
   const reference = method === 'CARD' ? '체험 카드 끝 4242' : '체험 계좌 끝 0001';
   const canPay = t.status === 'MATCHED' && t.buyerId === d.me.id;
   const pay = async () => {
-    if (!paymentReady || !method || !agreed || !canPay) return;
+    if (!canPay) {
+      a.nav('transaction', { id: t.id });
+      return;
+    }
+    if (!method) {
+      a.notify('카드 또는 계좌를 먼저 선택해주세요.');
+      return;
+    }
+    if (!paymentReady) {
+      setPaymentReady(true);
+      return;
+    }
+    if (!agreed) {
+      a.notify('결제 금액 확인에 체크해주세요.');
+      return;
+    }
     const result = await a.mutate<Transaction>(
       `/transactions/${t.id}/actions`,
       { action: 'PAY', expectedRevision: t.revision, paymentMethod: method, paymentReference: reference, simulateFailure: fail },
@@ -140,7 +155,7 @@ export function PaymentScreen() {
     if (result) a.nav('transaction', { id: t.id });
   };
   return (
-    <Page title="결제" footer={<Button label={!canPay ? '거래 진행 보기' : paymentReady ? money(t.totalPrice) + ' 결제 체험하기' : method ? '이 결제수단으로 계속' : '결제수단을 선택해주세요'} disabled={canPay && (!method || (paymentReady && !agreed))} loading={a.busy} icon={LockKeyhole} onPress={() => !canPay ? a.nav('transaction', { id: t.id }) : paymentReady ? void pay() : setPaymentReady(true)} />}>
+    <Page title="결제" footer={<Button label={!canPay ? '거래 진행 보기' : paymentReady ? money(t.totalPrice) + ' 결제 체험하기' : method ? '이 결제수단으로 계속' : '결제수단을 선택해주세요'} loading={a.busy} icon={LockKeyhole} onPress={() => void pay()} />}>
       <Stack gap={8}>
         <Txt size={13} color={c.secondary}>{paymentReady ? '2 / 2 · 최종 확인' : '1 / 2 · 결제수단'}</Txt>
         <Txt size={25} weight="700">{paymentReady ? '금액을 확인해주세요' : '어떻게 결제할까요?'}</Txt>
