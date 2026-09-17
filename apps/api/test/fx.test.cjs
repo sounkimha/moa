@@ -33,7 +33,6 @@ before(async () => {
   process.env.QUIET = '1';
   delete process.env.DATABASE_URL;
   delete process.env.CURRENCYAPI_KEY;
-  process.env.FX_RATE_MODE = 'LIVE';
   global.fetch = async (input, init) => {
     const requestUrl = String(input);
     if (requestUrl.startsWith('https://api.frankfurter.dev/v2/rate/')) {
@@ -55,7 +54,6 @@ before(async () => {
 
 after(async () => {
   global.fetch = originalFetch;
-  delete process.env.FX_RATE_MODE;
   await app?.close();
   if (temp) await rm(temp, { recursive: true, force: true });
 });
