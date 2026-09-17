@@ -12,10 +12,11 @@ import { FlightProofController } from './trips/flight-proof';
 import { OAuthController, OAuthService } from './auth/oauth';
 import { FinanceController, FinanceService } from './finance/finance';
 import { AdminController, AdminGuard, AdminSessions } from './admin/admin';
+import { FxController, FxService } from './fx/fx';
 @Global()
 @Module({
-  providers: [Store, Sessions, AuthGuard, AdminSessions, AdminGuard, CatalogCache, MockPaymentProvider, MockPayoutProvider, MockIdentityProvider],
-  exports: [Store, Sessions, AuthGuard, AdminSessions, AdminGuard, CatalogCache, MockPaymentProvider, MockPayoutProvider, MockIdentityProvider],
+  providers: [Store, Sessions, AuthGuard, AdminSessions, AdminGuard, CatalogCache, MockPaymentProvider, MockPayoutProvider, MockIdentityProvider, FxService],
+  exports: [Store, Sessions, AuthGuard, AdminSessions, AdminGuard, CatalogCache, MockPaymentProvider, MockPayoutProvider, MockIdentityProvider, FxService],
 })
 class InfrastructureModule {}
 @Module({ controllers: [RequestsController, TripsController, FlightProofController], providers: [RequestsService] })
@@ -26,7 +27,7 @@ class TradingModule {}
 class FinanceModule {}
 @Module({
   imports: [InfrastructureModule, MatchingModule, TradingModule, FinanceModule],
-  controllers: [AuthController, OAuthController, CatalogController, MeetupController, AdminController],
+  controllers: [AuthController, OAuthController, CatalogController, MeetupController, FxController, AdminController],
   providers: [CatalogService, OAuthService],
 })
 export class AppModule {}

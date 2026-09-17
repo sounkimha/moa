@@ -22,6 +22,7 @@ import {
   TIMELINE_LABEL,
   money,
   localMoney,
+  shortDate,
   DOMESTIC_PARCEL_FEE,
   quote,
   countryName,
@@ -355,13 +356,17 @@ export function ProductRow({
   onPress,
   aside,
   krw = true,
+  fxRate,
 }: {
   request: ProductRequest;
   onPress: () => void;
   aside?: React.ReactNode;
   krw?: boolean;
+  fxRate?: number;
 }) {
-  const converted = quote({ ...request, quantity: 1 }, 0, request.transport).productPrice;
+  const converted = fxRate === undefined
+    ? quote({ ...request, quantity: 1 }, 0, request.transport).productPrice
+    : Math.round(request.localPrice * fxRate);
   return (
     <Pressable
       accessibilityRole="button"
@@ -406,6 +411,12 @@ export function MoneyBreakdown({ price, compact = false, rewardPending = false }
   price: Price; compact?: boolean; rewardPending?: boolean;
 }) {
   const legacyFee = price.shippingFee !== 0 && price.shippingFee !== DOMESTIC_PARCEL_FEE;
+  const rate = price.fxRate.toLocaleString('ko-KR', { maximumFractionDigits: 6 });
+  const rateTime = price.fxAsOf?.includes('T') ? `${price.fxAsOf.slice(0, 16).replace('T', ' ')} UTC` : price.fxAsOf ? `${shortDate(price.fxAsOf)} 기준` : '';
+  const rateNote = price.priceSource === 'KRW_PARITY' ? '원화 상품 · 환전 없음'
+    : price.priceSource === 'PROVIDER_LATEST' ? `최신 제공 환율 · 현지 통화 1단위 = ${rate}원 · ${rateTime}`
+    : price.priceSource === 'DAILY_REFERENCE' ? `Frankfurter 기준 환율 · 현지 통화 1단위 = ${rate}원 · ${rateTime} · 일 단위 갱신`
+    : `체험용 고정 환율 · 현지 통화 1단위 = ${rate}원 (실시간 아님)`;
   const rows = [
     ['상품가격', price.productPrice],
     ['여행자 보상', rewardPending ? '보상 미정' : price.travelerReward],
@@ -435,7 +446,7 @@ export function MoneyBreakdown({ price, compact = false, rewardPending = false }
       <Txt size={12} color={c.secondary}>
         {legacyFee
           ? '이전 체험 거래의 결제 기록이에요. 현재 국내 택배 예상비는 3,500원, 직거래는 0원이에요.'
-          : `데모 환율 · 현지 통화 1단위 = ${price.fxRate}원 (실시간 아님) · 국내 택배 예상 3,500원 / 직거래 0원`}
+          : `${rateNote} · 국내 택배 예상 3,500원 / 직거래 0원`}
       </Txt>
     </Stack>
   );

@@ -44,6 +44,7 @@ import { ProductOriginal } from '../components/ProductOriginal';
 import { useApp } from '../state/AppContext';
 import { api } from '../lib/api';
 import { pickImage } from '../lib/images';
+import { useFxRate } from '../lib/use-fx-rate';
 import { readTripDraft, writeTripDraft } from '../state/trip-draft';
 import { addressValidation, productValidation, validDate, validLocalPrice, validProductUrl } from '../state/form-validation';
 import { colors as c } from '../theme/tokens';
@@ -239,11 +240,12 @@ function RequestFormContent() {
   });
   const mode = normalizeTransport(transport);
   const pricingInput = { localPrice: validLocalPrice(price) ? Number(price) : 0, quantity, currency: currencyForCountry(place.country) };
+  const fx = useFxRate(pricingInput.currency);
   const reward = Number(requestedReward) || 0;
   const previewReward = Number.isSafeInteger(reward) && reward >= 0 && reward <= MAX_DEMO_REWARD ? reward : 0;
-  const q = quote(pricingInput, previewReward, mode);
-  const parcelQuote = quote(pricingInput, previewReward, 'DOMESTIC_PARCEL');
-  const meetupQuote = quote(pricingInput, previewReward, 'MEETUP');
+  const q = quote(pricingInput, previewReward, mode, fx.rate || undefined);
+  const parcelQuote = quote(pricingInput, previewReward, 'DOMESTIC_PARCEL', fx.rate || undefined);
+  const meetupQuote = quote(pricingInput, previewReward, 'MEETUP', fx.rate || undefined);
   const completedMeetups = d.transactions.filter((t) =>
     (t.buyerId === d.me.id || t.travelerId === d.me.id) &&
     ['CONFIRMED', 'SETTLED'].includes(t.status)).map((t) => d.requests.find((r) => r.id === t.requestId))
@@ -851,7 +853,7 @@ function RequestFormContent() {
           <Divider />
           <DateField label="희망 수령일" value={desired} onChange={setDesired} min={future(0)} />
           <Stack gap={10}><Txt size={19} weight="700">고마운 마음, 얼마를 전할까요?</Txt><Field label="여행자 보상 (원)" value={requestedReward} onChange={(value) => { setRequestedReward(value.replace(/[^0-9]/g, '').slice(0, 7)); setError(''); }} keyboard="numeric" placeholder="직접 금액을 정해주세요" hint="보상은 부탁하는 사람이 자유롭게 정해요." /></Stack>
-          <Card><Stack gap={20}><Row><ShieldCheck size={20} color={c.primary} /><Txt size={18} weight="700">예상 결제금액</Txt></Row><MoneyBreakdown price={q} rewardPending={requestedReward === ''} /><Txt size={12} color={c.secondary}>먼저 결제하고 지원한 여행자를 선택해요. 상품을 받은 뒤 정산돼요.</Txt></Stack></Card>
+          <Card><Stack gap={20}><Row><ShieldCheck size={20} color={c.primary} /><Txt size={18} weight="700">예상 결제금액</Txt></Row><MoneyBreakdown price={q} rewardPending={requestedReward === ''} />{fx.loading && <Txt size={12} color={c.secondary}>최신 환율을 확인하고 있어요.</Txt>}{fx.failed && <Button small kind="ghost" label="환율 다시 확인" onPress={() => void fx.refresh()} />}<Txt size={12} color={c.secondary}>먼저 결제하고 지원한 여행자를 선택해요. 상품을 받은 뒤 정산돼요. 실제 적용 금액은 결제 전에 다시 확인해요.</Txt></Stack></Card>
           <Sheet visible={editingMeetup} title="어디에서 만날까요?" onClose={cancelDeliveryEditor}>
             {editingMeetup && <MeetupPicker key={deliveryCountry} country={deliveryCountry} value={meetupPoint} legacyName={meetupLocation} history={completedMeetups} onChange={(point) => {
               setMeetupPoint(point);

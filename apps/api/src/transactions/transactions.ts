@@ -148,9 +148,14 @@ export class TransactionsService {
           '이미 선택되었거나 종료된 제안이에요.',
         );
         offer.reward = request.requestedReward ?? offer.reward;
-        const price = quote(request, offer.reward, offer.transport);
         const funding = db.requestFundings.find((f) => f.requestId === request.id && f.status === 'HELD');
         check(funding && funding.buyerId === actor, '먼저 부탁의 결제를 완료해주세요.');
+        // The buyer's prepaid FX rate is locked: traveler selection must never reprice a held payment.
+        const price = quote(request, offer.reward, offer.transport, {
+          krwPerUnit: funding.fxRate,
+          source: funding.priceSource,
+          asOf: funding.fxAsOf,
+        });
         check(Object.entries(price).every(([field, value]) => funding[field as keyof typeof price] === value),
           '결제한 조건과 달라요. 부탁을 취소하고 새 조건으로 등록해주세요.');
         const t: Transaction = {

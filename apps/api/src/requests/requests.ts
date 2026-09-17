@@ -1,8 +1,9 @@
-import { Body, Controller, Headers, Injectable, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Injectable, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
-import { Database, ProductRequest, TravelerOffer, quote, MAX_DEMO_REWARD, currencyForCountry, canAcceptTrip } from '@moa/domain';
+import { Database, FxRate, ProductRequest, TravelerOffer, quote, MAX_DEMO_REWARD, currencyForCountry, canAcceptTrip } from '@moa/domain';
 import { Store } from '../infrastructure/store';
 import { MockPaymentProvider } from '../infrastructure/adapters';
+import { FxService } from '../fx/fx';
 import { ActorRequest, AuthGuard } from '../auth/auth';
 import {
   amount,
@@ -91,12 +92,24 @@ const bundleSchema = offerSchema.extend({
 });
 @Injectable()
 export class RequestsService {
-  constructor(private readonly store: Store, private readonly paymentProvider: MockPaymentProvider) {}
+  constructor(private readonly store: Store, private readonly paymentProvider: MockPaymentProvider, private readonly fx: FxService) {}
+  async paymentQuote(actor: string, id: string) {
+    const request = await this.store.read((db) => {
+      const current = get(db.requests, id, '부탁');
+      check(current.requesterId === actor, '본인의 부탁만 결제할 수 있어요.');
+      check(current.status === 'PAYMENT_PENDING', '이미 결제했거나 종료된 부탁이에요.');
+      return current;
+    });
+    const rate = await this.fx.latest(request.currency);
+    return quote(request, request.requestedReward ?? 0, request.transport, rate);
+  }
   pay(actor: string, key: string | undefined, id: string, input: unknown) {
     const data = parse(z.object({ expectedRevision: z.number().int().min(0),
       paymentMethod: z.enum(['CARD', 'ACCOUNT']), paymentReference: z.string().trim().min(4).max(40),
+      expectedTotal: z.number().int().min(1).max(2_600_000).optional(),
+      expectedFxRate: z.number().finite().positive().optional(),
       simulateFailure: z.boolean().default(false) }).strict(), input);
-    return this.store.transaction((db) => once(db, actor, key, `request:pay:${id}`, data, () => {
+    const commit = (rate?: FxRate) => this.store.transaction((db) => once(db, actor, key, `request:pay:${id}`, data, () => {
       const request = get(db.requests, id, '부탁');
       check(request.requesterId === actor, '본인의 부탁만 결제할 수 있어요.');
       check(request.status === 'PAYMENT_PENDING' && request.revision === data.expectedRevision,
@@ -105,8 +118,12 @@ export class RequestsService {
       check(!db.requestFundings.some((f) => f.requestId === id), '이미 결제된 부탁이에요.');
       check(!data.simulateFailure, '결제 승인 실패를 체험했어요. 다시 시도할 수 있어요.');
       request.requestedReward ??= 0;
-      const price = quote(request, request.requestedReward, request.transport);
+      const price = quote(request, request.requestedReward, request.transport, rate);
+      if (data.expectedTotal !== undefined)
+        check(data.expectedTotal === price.totalPrice && data.expectedFxRate === price.fxRate,
+          '환율이나 금액이 바뀌었어요. 새 금액을 확인하고 다시 결제해주세요.');
       check(price.totalPrice > 0, '결제 금액은 1원 이상이어야 해요. 상품가격을 확인하고 새 부탁을 작성해주세요.');
+      check(price.productPrice <= 500000, '체험에서는 상품가격 50만원 이하의 요청만 결제할 수 있어요.');
       const method = data.paymentMethod === 'ACCOUNT' ? 'EASY_PAY' : 'CARD';
       const result = this.paymentProvider.hold(`request-${id}`, price.totalPrice, method);
       db.requestFundings.push({ ...base(), ...price, requestId: id, buyerId: actor, status: 'HELD',
@@ -124,6 +141,13 @@ export class RequestsService {
       db.events.push({ ...base(), actorId: actor, type: 'REQUEST_PREPAID', note: id });
       return request;
     }));
+    // Preserve the synchronous legacy mock path; current clients supply both preview values.
+    if (data.expectedTotal === undefined) return commit();
+    return this.store.read((db) => {
+      const current = get(db.requests, id, '부탁');
+      check(current.requesterId === actor, '본인의 부탁만 결제할 수 있어요.');
+      return current.currency;
+    }).then((currency) => this.fx.latest(currency)).then(commit);
   }
   cancel(actor: string, key: string | undefined, id: string, input: unknown) {
     const data = parse(z.object({ expectedRevision: z.number().int().min(0) }).strict(), input);
@@ -330,6 +354,9 @@ export class RequestsService {
 @Controller()
 export class RequestsController {
   constructor(private readonly service: RequestsService) {}
+  @Get('requests/:id/quote') quote(@Req() r: ActorRequest, @Param('id') id: string) {
+    return this.service.paymentQuote(r.actorId, id);
+  }
   @Post('requests/:id/pay') pay(@Req() r: ActorRequest, @Headers('idempotency-key') k: string, @Param('id') id: string, @Body() body: unknown) {
     return this.service.pay(r.actorId, k, id, body);
   }

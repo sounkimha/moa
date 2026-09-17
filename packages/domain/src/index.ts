@@ -226,7 +226,14 @@ export interface Price {
   taxReserve: number;
   totalPrice: number;
   fxRate: number;
-  priceSource: 'DEMO_FIXED';
+  priceSource: 'DEMO_FIXED' | 'DAILY_REFERENCE' | 'PROVIDER_LATEST' | 'KRW_PARITY';
+  fxAsOf?: string;
+}
+export interface FxRate {
+  currency: Currency;
+  krwPerUnit: number;
+  source: Price['priceSource'];
+  asOf?: string;
 }
 export interface Transaction extends Entity, Price {
   /** True only when the buyer funded this request before selecting an applicant. */
@@ -499,8 +506,9 @@ export function quote(
   request: Pick<ProductRequest, 'localPrice' | 'quantity' | 'currency'>,
   reward: number,
   transport: Transport,
+  rate?: Pick<FxRate, 'krwPerUnit' | 'source' | 'asOf'>,
 ): Price {
-  const fxRate = DEMO_FX_RATES[request.currency];
+  const fxRate = rate?.krwPerUnit ?? DEMO_FX_RATES[request.currency];
   const productPrice = Math.round(request.localPrice * request.quantity * fxRate);
   const shippingFee = normalizeTransport(transport) === 'MEETUP' ? 0 : DOMESTIC_PARCEL_FEE;
   return {
@@ -511,7 +519,8 @@ export function quote(
     taxReserve: 0,
     totalPrice: productPrice + reward + shippingFee,
     fxRate,
-    priceSource: 'DEMO_FIXED',
+    priceSource: rate?.source ?? 'DEMO_FIXED',
+    ...(rate?.asOf ? { fxAsOf: rate.asOf } : {}),
   };
 }
 /** Round the commission per transaction, then subtract; never round both sides independently. */
@@ -520,7 +529,7 @@ export function travelerEarnings(reward: number) {
   return { platformCommission, netReward: reward - platformCommission };
 }
 export function groupForTrip(
-  db: Pick<Database, 'places' | 'requests' | 'offers'>,
+  db: Pick<Database, 'places' | 'requests' | 'offers'> & Partial<Pick<Database, 'requestFundings'>>,
   trip: Trip,
 ): BundleSuggestion[] {
   if (trip.endDate < new Date().toISOString().slice(0, 10)) return [];
@@ -547,7 +556,8 @@ export function groupForTrip(
       return {
         place,
         requests,
-        advance: requests.reduce((s, r) => s + quote(r, 0, r.transport).productPrice, 0),
+        advance: requests.reduce((s, r) => s + (db.requestFundings?.find((f) => f.requestId === r.id)?.productPrice
+          ?? quote(r, 0, r.transport).productPrice), 0),
         items: requests.reduce((s, r) => s + r.quantity, 0),
         extraMinutes: place.extraMinutes,
         timeSource: 'DEMO_ESTIMATE' as const,

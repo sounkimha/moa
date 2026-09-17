@@ -76,7 +76,8 @@ export function RequestScreen() {
   const p = d.places.find((x) => x.id === r.placeId),
     mine = r.requesterId === d.me.id,
     offers = d.offers.filter((o) => o.requestId === r.id && o.status === 'PENDING'),
-    transaction = d.transactions.find((t) => t.requestId === r.id);
+    transaction = d.transactions.find((t) => t.requestId === r.id),
+    funding = d.requestFundings?.find((f) => f.requestId === r.id);
   if (!p) return <Page title="부탁 상세"><Empty title="구매 장소를 불러오지 못했어요" body="이전 화면에서 부탁을 다시 확인해주세요." action="둘러보기" onPress={() => a.tab('search')} /></Page>;
   const active = ['REQUESTED', 'OFFER_RECEIVED'].includes(r.status);
   const alreadyAccepted = offers.some((offer) => offer.travelerId === d.me.id);
@@ -134,7 +135,8 @@ export function RequestScreen() {
           {r.productName}
         </Txt>
         <Txt size={28} weight="800" color={c.primaryStrong}>
-          {money(quote({ ...r, quantity: 1 }, 0, r.transport).productPrice)}{' '}
+          {money(quote({ ...r, quantity: 1 }, 0, r.transport,
+            funding ? { krwPerUnit: funding.fxRate, source: funding.priceSource, asOf: funding.fxAsOf } : undefined).productPrice)}{' '}
           <Txt size={14} color={c.secondary}>
             / 1개
           </Txt>
@@ -195,7 +197,7 @@ export function RequestScreen() {
         {r.transport === 'MEETUP' && <MeetupSummary point={r.meetupPoint} />}
         <ProductOriginal text={r.originalText} />
         <Section title={r.status === 'PAYMENT_PENDING' ? '예상 결제금액' : '부탁 금액'} subtitle="구매자가 정한 상품·보상·전달비예요." />
-        <MoneyBreakdown price={transaction || quote(r, r.requestedReward ?? 0, r.transport)} rewardPending={!transaction && r.requestedReward === undefined} />
+        <MoneyBreakdown price={transaction || funding || quote(r, r.requestedReward ?? 0, r.transport)} rewardPending={!transaction && r.requestedReward === undefined} />
         {mine && !transaction && <Notice>{r.status === 'PAYMENT_PENDING' ? '결제 전에는 나에게만 보여요. 결제를 마치면 여행자들이 지원할 수 있어요.' : r.status === 'CANCELLED' ? '취소된 부탁이에요. 결제했다면 전액 모의 환불됐어요.' : '결제금은 모의 보관 중이에요. 여러 여행자의 일정과 프로필을 비교하고 한 명을 선택해주세요.'}</Notice>}
         {mine && !transaction && ['PAYMENT_PENDING', 'REQUESTED', 'OFFER_RECEIVED'].includes(r.status) && <Stack gap={8}>
           {confirmCancel && <Notice>부탁을 취소할까요? 지원한 여행자에게 안내하고, 보관된 결제금은 전액 모의 환불해요.</Notice>}
@@ -235,6 +237,7 @@ export function OffersScreen() {
   if (r.requesterId !== d.me.id) return <Page title="지원한 여행자"><Empty title="내가 보낸 부탁에서 확인할 수 있어요" action="부탁 상세 보기" onPress={() => a.nav('request', { id: r.id })} /></Page>;
   if (r.status === 'PAYMENT_PENDING') return <Page title="지원한 여행자"><Empty title="먼저 결제를 완료해주세요" body="결제한 부탁에 여행자들이 지원할 수 있어요." action="결제하고 부탁 공개하기" onPress={() => a.nav('payment', { requestIds: [r.id] })} /></Page>;
   if (!['REQUESTED', 'OFFER_RECEIVED'].includes(r.status)) return <Page title="지원한 여행자"><Empty title="선택이 끝난 부탁이에요" action="부탁 확인하기" onPress={() => a.nav('request', { id: r.id })} /></Page>;
+  const funding = d.requestFundings?.find((item) => item.requestId === r.id);
   const select = async (o: TravelerOffer) => {
     const result = await a.mutate<Transaction>(
       `/offers/${o.id}/accept`,
@@ -310,7 +313,7 @@ export function OffersScreen() {
                 <Txt size={13} color={c.secondary}>
                   보관 중인 결제금
                 </Txt>
-                <Txt size={20} weight="700">{money(quote(r, o.reward, o.transport).totalPrice)}</Txt>
+                <Txt size={20} weight="700">{money(funding?.totalPrice ?? quote(r, o.reward, o.transport).totalPrice)}</Txt>
               </Row>
               {trip && <Button small kind="secondary" icon={Calendar} label="이 사람의 일정 보기" onPress={() => a.nav('trip-route', { id: o.tripId, placeId: r.placeId })} />}
               <Button
@@ -497,7 +500,8 @@ export function BundleScreen() {
     .reduce((sum, offer) => sum + (d.requests.find((r) => r.id === offer.requestId)?.quantity || 0), 0);
   const remaining = Math.max(0, trip.maxItems - reserved);
   const items = requests.reduce((s, r) => s + r.quantity, 0),
-    advance = requests.reduce((s, r) => s + quote(r, 0, r.transport).productPrice, 0);
+    advance = requests.reduce((s, r) => s + (d.requestFundings?.find((f) => f.requestId === r.id)?.productPrice
+      ?? quote(r, 0, r.transport).productPrice), 0);
   const grossReward = requests.reduce((sum, request) => sum + (request.requestedReward ?? 0), 0);
   const commission = requests.reduce((sum, request) => sum + rewardCommission(request.requestedReward ?? 0), 0);
   return (
@@ -723,7 +727,8 @@ export function OfferForm() {
       </Page>
     );
   }
-  const total = requests.reduce((s, r) => s + quote(r, 0, r.transport).productPrice, 0);
+  const total = requests.reduce((s, r) => s + (d.requestFundings?.find((f) => f.requestId === r.id)?.productPrice
+    ?? quote(r, 0, r.transport).productPrice), 0);
   const earliestPurchase = trip && trip.startDate > new Date().toISOString().slice(0, 10) ? trip.startDate : new Date().toISOString().slice(0, 10);
   const latestDelivery = requests.reduce((earliest, request) => request.desiredDate < earliest ? request.desiredDate : earliest, first.desiredDate);
   const datesValid = Boolean(trip && purchase >= earliestPurchase && purchase <= trip.endDate && delivery >= purchase && delivery >= trip.endDate && delivery <= latestDelivery);
@@ -835,7 +840,8 @@ export function OfferForm() {
           <Stack>
             <Txt weight="700">{r.productName}</Txt>
             <Badge>{TRANSPORT_LABEL[r.transport]}</Badge>
-            <MoneyBreakdown compact price={quote(r, rewardFor(r.id) ?? 0, r.transport)} rewardPending={rewardFor(r.id) === undefined} />
+            <MoneyBreakdown compact price={d.requestFundings?.find((f) => f.requestId === r.id)
+              ?? quote(r, rewardFor(r.id) ?? 0, r.transport)} rewardPending={rewardFor(r.id) === undefined} />
           </Stack>
         </Card>
       ))}
