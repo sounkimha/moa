@@ -6,6 +6,16 @@ import { Button, Chip, IconButton, Row, Stack, Txt } from './ui';
 import { colors as c } from '../theme/tokens';
 
 export type DestinationCountry = Country | 'ALL';
+const regionGroups: { label: string; codes: Country[] }[] = [
+  { label: '대한민국', codes: ['KR'] },
+  { label: '동북아시아', codes: ['JP', 'TW', 'HK', 'CN'] },
+  { label: '동남아시아·서남아시아', codes: ['TH', 'VN', 'SG', 'MY', 'ID', 'IN', 'PH', 'KH'] },
+  { label: '미주', codes: ['US', 'CA', 'MX', 'BR', 'AR', 'CL', 'PE', 'CO'] },
+  { label: '유럽', codes: ['GB', 'FR', 'IT', 'ES', 'DE', 'CH'] },
+  { label: '대양주·괌', codes: ['AU', 'NZ'] },
+  { label: '러시아·몽골·중앙아시아', codes: [] },
+  { label: '중동·아프리카', codes: ['AE', 'TR', 'ZA', 'EG', 'MA', 'KE', 'TZ'] },
+];
 export function DestinationPicker({ country, cities, onChange, multiple = false, allowAll = false, searchable = false, allowCountryOnly = false }: {
   country: DestinationCountry;
   cities: string[];
@@ -17,16 +27,17 @@ export function DestinationPicker({ country, cities, onChange, multiple = false,
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [menu, setMenu] = useState<'popular' | 'all'>('popular');
+  const [regionMode, setRegionMode] = useState(false);
+  const [expandedRegion, setExpandedRegion] = useState('');
   const popular = ['JP', 'KR', 'US', 'FR', 'GB', 'ID', 'TH', 'VN'] as Country[];
   const results = useMemo(() => {
     const keyword = query.trim().toLocaleLowerCase('ko-KR');
-    const source = keyword ? COUNTRY_CODES : menu === 'popular' ? popular : COUNTRY_CODES;
+    const source = keyword ? COUNTRY_CODES : popular;
     return source.filter((code) => {
       const item = DESTINATIONS[code];
       return !keyword || item.name.toLocaleLowerCase('ko-KR').includes(keyword) || item.cities.some((city) => city.toLocaleLowerCase('ko-KR').includes(keyword));
     });
-  }, [menu, query]);
+  }, [query]);
   if (searchable) {
     const selectedName = country === 'ALL' ? '전체 국가' : DESTINATIONS[country].name;
     const complete = country === 'ALL' || cities.length > 0 || allowCountryOnly;
@@ -34,7 +45,7 @@ export function DestinationPicker({ country, cities, onChange, multiple = false,
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="여행 국가 검색 열기"
-        onPress={() => setOpen(true)}
+        onPress={() => { setRegionMode(false); setExpandedRegion(''); setQuery(''); setOpen(true); }}
         style={{ minHeight: 74, padding: 16, borderRadius: 16, backgroundColor: c.paper }}
       >
         <Row>
@@ -51,18 +62,18 @@ export function DestinationPicker({ country, cities, onChange, multiple = false,
           <Pressable accessibilityRole="button" accessibilityLabel="여행지 검색 닫기" onPress={() => setOpen(false)} style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }} />
           <View style={{ maxHeight: '88%', minHeight: '72%', borderTopLeftRadius: 26, borderTopRightRadius: 26, backgroundColor: c.canvas, paddingTop: 10, overflow: 'hidden' }}>
             <View style={{ width: 38, height: 4, borderRadius: 2, backgroundColor: c.border, alignSelf: 'center', marginBottom: 8 }} />
-            <Row style={{ paddingHorizontal: 20, paddingBottom: 14 }}>
-              <View style={{ flex: 1 }}><Txt size={21} weight="800">어디로 떠나세요?</Txt><Txt size={13} color={c.secondary}>국가나 도시를 검색해보세요.</Txt></View>
+            <Row style={{ paddingHorizontal: 20, paddingBottom: 18 }}>
+              <View style={{ flex: 1 }}><Txt size={21} weight="800">{regionMode ? '지역과 도시 선택' : '도착지'}</Txt>{!regionMode && <Txt size={13} color={c.secondary}>도시나 공항을 검색해보세요.</Txt>}</View>
               <IconButton icon={X} label="닫기" onPress={() => setOpen(false)} />
             </Row>
-            <View style={{ marginHorizontal: 20, marginBottom: 14, minHeight: 52, borderRadius: 15, backgroundColor: c.paper, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, gap: 10 }}>
+            {!regionMode && <View style={{ marginHorizontal: 20, marginBottom: 14, minHeight: 58, borderRadius: 14, borderWidth: 1.5, borderColor: c.ink, backgroundColor: c.paper, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, gap: 10 }}>
               <Search size={20} color={c.muted} />
               <TextInput
                 autoFocus
                 accessibilityLabel="국가 또는 도시 검색"
                 value={query}
                 onChangeText={setQuery}
-                placeholder="예: 일본, 도쿄, 다낭"
+                placeholder="도시, 공항"
                 placeholderTextColor={c.muted}
                 autoCapitalize="none"
                 style={[
@@ -71,12 +82,14 @@ export function DestinationPicker({ country, cities, onChange, multiple = false,
                 ]}
               />
               {query.length > 0 && <IconButton icon={X} label="검색어 지우기" onPress={() => setQuery('')} />}
-            </View>
-            {!query && <Row style={{ paddingHorizontal: 20, paddingBottom: 10, gap: 8 }}>
-              {(['popular', 'all'] as const).map((value) => <Pressable key={value} accessibilityRole="tab" accessibilityState={{ selected: menu === value }} aria-selected={menu === value} onPress={() => setMenu(value)} style={{ paddingHorizontal: 14, paddingVertical: 9, borderRadius: 11, backgroundColor: menu === value ? c.ink : c.paper }}><Txt size={13} weight="700" color={menu === value ? 'white' : c.secondary}>{value === 'popular' ? '인기 국가' : '전체 국가'}</Txt></Pressable>)}
-            </Row>}
+            </View>}
+            {!regionMode && !query && <Pressable accessibilityRole="button" accessibilityLabel="모든 지역 보기" onPress={() => setRegionMode(true)} style={{ marginHorizontal: 20, marginBottom: 14, flexDirection: 'row', alignItems: 'center', gap: 8 }}><Globe2 size={19} color={c.ink} /><Txt size={15} weight="600" color={c.ink} style={{ textDecorationLine: 'underline' }}>모든 지역 보기</Txt><ChevronRight size={17} color={c.ink} /></Pressable>}
             <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 120 }}>
-              {results.map((code) => {
+              {regionMode && !query ? regionGroups.map((group) => <View key={group.label} style={{ marginBottom: 10, borderRadius: 15, borderWidth: 1, borderColor: c.border, backgroundColor: c.paper, overflow: 'hidden' }}>
+                <Pressable accessibilityRole="button" accessibilityLabel={`${group.label} 지역 펼치기`} onPress={() => setExpandedRegion(expandedRegion === group.label ? '' : group.label)} style={{ minHeight: 68, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center' }}><Txt size={16} weight="600" style={{ flex: 1 }}>{group.label}</Txt><ChevronRight size={19} color={c.ink} style={{ transform: [{ rotate: expandedRegion === group.label ? '90deg' : '0deg' }] }} /></Pressable>
+                {expandedRegion === group.label && <View style={{ paddingHorizontal: 16, paddingBottom: 14, gap: 8 }}>{group.codes.length ? group.codes.map((code) => { const item = DESTINATIONS[code]; return <Pressable key={code} accessibilityRole="button" accessibilityLabel={`${item.name} 선택`} onPress={() => { onChange(code, []); setOpen(false); }} style={{ paddingVertical: 11, borderTopWidth: 1, borderColor: c.border, flexDirection: 'row', alignItems: 'center' }}><View style={{ flex: 1 }}><Txt size={15} weight="600">{item.name}</Txt><Txt size={12} color={c.secondary}>{item.cities.join(' · ')}</Txt></View><ChevronRight size={17} color={c.muted} /></Pressable>; }) : <Txt size={13} color={c.secondary} style={{ paddingVertical: 8 }}>곧 더 많은 지역을 준비할게요.</Txt>}</View>}
+              </View>) : null}
+              {!regionMode && results.map((code) => {
                 const selected = country === code;
                 const item = DESTINATIONS[code];
                 return <View key={code} style={{ marginBottom: 10, borderRadius: 17, backgroundColor: c.paper, overflow: 'hidden' }}>
@@ -97,9 +110,7 @@ export function DestinationPicker({ country, cities, onChange, multiple = false,
               })}
               {!results.length && <View style={{ paddingVertical: 48, alignItems: 'center' }}><Txt weight="700">검색 결과가 없어요</Txt><Txt size={13} color={c.secondary}>다른 국가나 도시 이름으로 찾아보세요.</Txt></View>}
             </ScrollView>
-            <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: 16, paddingHorizontal: 20, borderTopWidth: 1, borderColor: c.border, backgroundColor: c.paper }}>
-              <Button label={complete ? `${selectedName}${cities.length ? ` · ${cities.length}개 도시` : '만'} 선택 완료` : '도시를 선택해주세요'} disabled={!complete} onPress={() => { setOpen(false); setQuery(''); }} />
-            </View>
+            {!regionMode && <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: 16, paddingHorizontal: 20, borderTopWidth: 1, borderColor: c.border, backgroundColor: c.paper }}><Button label={complete ? `${selectedName}${cities.length ? ` · ${cities.length}개 도시` : '만'} 선택 완료` : '도시를 선택해주세요'} disabled={!complete} onPress={() => { setOpen(false); setQuery(''); }} /></View>}
           </View>
         </View>
       </Modal>

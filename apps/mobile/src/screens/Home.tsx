@@ -304,7 +304,7 @@ export function SearchScreen() {
         onChange={setQuery}
         placeholder="도시, 매장, 갖고 싶은 물건"
       />
-      <DestinationPicker country={country} cities={cities} allowAll onChange={(next, selectedCities) => { setCountry(next); setCities(selectedCities); setSelected(null); }} />
+      <DestinationPicker country={country} cities={cities} allowAll searchable allowCountryOnly onChange={(next, selectedCities) => { setCountry(next); setCities(selectedCities); setSelected(null); }} />
       {!q && d.searches.length > 0 && (
         <Row style={{ flexWrap: 'wrap' }}>
           <Txt size={12} color={c.secondary}>
