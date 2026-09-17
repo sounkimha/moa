@@ -1,5 +1,6 @@
 import { Database, Place, ProductRequest, Product, User, currencyForCountry, quote } from './index';
 import { asiaPlaces } from './asia-places';
+import { globalPlaces } from './global-places';
 
 export function seedDatabase(now = new Date()): Database {
   const createdAt = now.toISOString();
@@ -212,6 +213,7 @@ export function seedDatabase(now = new Date()): Database {
     },
   ];
   places.push(...asiaPlaces(createdAt));
+  places.push(...globalPlaces(createdAt));
   const productInputs: [string, string, Product['art'], number, Product['category']][] = [
     ['p-station', '치이카와 도쿄역 한정 키링', 'keyring', 2420, 'CHARACTER'],
     ['p-shibuya', '피카츄 미니 봉제인형', 'plush', 2200, 'CHARACTER'],

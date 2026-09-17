@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Headers, Injectable, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
-import { Database, FxRate, ProductRequest, TravelerOffer, quote, MAX_DEMO_REWARD, currencyForCountry, canAcceptTrip } from '@moa/domain';
+import { COUNTRY_CODES, Database, FxRate, ProductRequest, TravelerOffer, quote, MAX_DEMO_REWARD, currencyForCountry, canAcceptTrip } from '@moa/domain';
 import { Store } from '../infrastructure/store';
 import { MockPaymentProvider } from '../infrastructure/adapters';
 import { FxService } from '../fx/fx';
@@ -40,7 +40,7 @@ const createSchema = z.object({
   quantity: z.number().int().min(1).max(10),
   requestedReward: amount.max(MAX_DEMO_REWARD).optional(),
   desiredDate: date,
-  deliveryCountry: z.enum(['KR', 'JP']).default('KR'),
+  deliveryCountry: z.enum(COUNTRY_CODES).default('KR'),
   deliveryCity: z.string().trim().min(1).max(40).default('서울'),
   category: z.enum(['CHARACTER', 'GAME', 'POPUP', 'LOCAL', 'FASHION', 'CONCERT']),
   option: z.string().trim().max(150).default('기본 옵션'),

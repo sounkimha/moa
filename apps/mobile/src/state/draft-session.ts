@@ -1,6 +1,7 @@
 import type { RequestDraft } from './AppContext';
 
 const key = 'moa-request-draft-v1';
+const countryCodes = ['JP', 'KR', 'TW', 'HK', 'CN', 'TH', 'VN', 'SG', 'MY', 'ID', 'US', 'CA', 'MX', 'BR', 'AR', 'CL', 'PE', 'CO', 'GB', 'FR', 'IT', 'ES', 'DE', 'CH', 'AU', 'NZ', 'IN', 'PH', 'KH', 'AE', 'TR', 'ZA', 'EG', 'MA', 'KE', 'TZ'] as const;
 type SessionStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 const strings = [
   'url', 'name', 'image', 'price', 'desired', 'placeId', 'storeName', 'option',
@@ -25,7 +26,7 @@ export function readDraft(storage: SessionStorage, ownerId: string): RequestDraf
       (draft.requestedReward !== undefined && typeof draft.requestedReward !== 'string') ||
       !['CHARACTER', 'GAME', 'POPUP', 'LOCAL', 'FASHION', 'CONCERT'].includes(draft.category) ||
       !['keyring', 'plush', 'pouch', 'tshirt', 'pin', 'bag'].includes(draft.art) ||
-      !['KR', 'JP', 'TW', 'HK', 'CN', 'TH', 'VN', 'SG', 'MY', 'ID'].includes(draft.deliveryCountry) ||
+      !countryCodes.includes(draft.deliveryCountry) ||
       !['IN_STOCK', 'OUT_OF_STOCK', 'PREORDER', 'CHECK_REQUIRED'].includes(draft.inventoryStatus) ||
       (draft.sourceRequestId !== undefined && typeof draft.sourceRequestId !== 'string') ||
       (draft.entryPlaceId !== undefined && typeof draft.entryPlaceId !== 'string') ||

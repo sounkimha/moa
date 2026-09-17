@@ -18,7 +18,7 @@ export function DestinationPicker({ country, cities, onChange, multiple = false,
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [menu, setMenu] = useState<'popular' | 'all'>('popular');
-  const popular = ['JP', 'KR', 'TW', 'TH', 'VN'] as Country[];
+  const popular = ['JP', 'KR', 'US', 'FR', 'GB', 'ID', 'TH', 'VN'] as Country[];
   const results = useMemo(() => {
     const keyword = query.trim().toLocaleLowerCase('ko-KR');
     const source = keyword ? COUNTRY_CODES : menu === 'popular' ? popular : COUNTRY_CODES;
@@ -28,7 +28,7 @@ export function DestinationPicker({ country, cities, onChange, multiple = false,
     });
   }, [menu, query]);
   if (searchable) {
-    const selectedName = country === 'ALL' ? '아시아 전체' : DESTINATIONS[country].name;
+    const selectedName = country === 'ALL' ? '전체 국가' : DESTINATIONS[country].name;
     const complete = country === 'ALL' || cities.length > 0 || allowCountryOnly;
     return <>
       <Pressable
@@ -107,7 +107,7 @@ export function DestinationPicker({ country, cities, onChange, multiple = false,
   }
   return <Stack gap={12}>
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-      {allowAll && <Chip label="아시아 전체" selected={country === 'ALL'} onPress={() => onChange('ALL', [])} />}
+      {allowAll && <Chip label="전체 국가" selected={country === 'ALL'} onPress={() => onChange('ALL', [])} />}
       {COUNTRY_CODES.map((code) => <Chip key={code} label={DESTINATIONS[code].name} selected={country === code} onPress={() => { if (country !== code) onChange(code, []); }} />)}
     </ScrollView>
     {country !== 'ALL' ? <Stack gap={10}>

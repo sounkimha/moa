@@ -13,7 +13,7 @@ import {
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { z } from 'zod';
-import { Snapshot, Currency, Country, CURRENCY_CODES, PROFILE_AVATAR_COLORS, currencyForCountry } from '@moa/domain';
+import { Snapshot, Currency, Country, COUNTRY_CODES, CURRENCY_CODES, PROFILE_AVATAR_COLORS, currencyForCountry } from '@moa/domain';
 import { ActorRequest, AuthGuard } from '../auth/auth';
 import { Store } from '../infrastructure/store';
 import { base, get, parse } from '../common/validation';
@@ -351,7 +351,7 @@ export class CatalogService {
       offer?.priceCurrency || meta(page.html, 'product:price:currency') || '',
     ).toUpperCase();
     const suffix = u.hostname.split('.').at(-1)?.toUpperCase();
-    const suffixCountry = ['JP', 'KR', 'TW', 'HK', 'CN', 'TH', 'VN', 'SG', 'MY', 'ID'].includes(suffix || '') ? suffix as Country : null;
+    const suffixCountry = COUNTRY_CODES.includes(suffix as Country) ? suffix as Country : null;
     const currency: Currency | null = CURRENCY_CODES.includes(currencyValue as Currency)
       ? currencyValue as Currency : suffixCountry ? currencyForCountry(suffixCountry) : null;
     const siteName = meta(page.html, 'og:site_name') || '온라인 판매처';

@@ -30,6 +30,7 @@ import {
   normalizeTransport,
   Country,
   Currency,
+  DESTINATIONS,
   TRIP_AREAS,
   currencyForCountry,
   countryName,
@@ -871,11 +872,11 @@ function RequestFormContent() {
             <Field label="상세 주소" value={deliveryAddress2} onChange={(value) => { setDeliveryAddressId(''); setDeliveryAddress2(value); }} />
           </Sheet>
           <Sheet visible={editingRegion} title="어느 지역에서 받으세요?" onClose={cancelDeliveryEditor} footer={<Button label="이 지역에서 받을게요" disabled={!deliveryCity.trim() || deliveryCity.trim().length > 40} onPress={finishDeliveryEditor} />}>
-            <Row>{(['KR', 'JP'] as const).map((code) => <Chip key={code} label={countryName(code)} selected={deliveryCountry === code} onPress={() => {
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>{COUNTRY_CODES.map((code) => <Chip key={code} label={countryName(code)} selected={deliveryCountry === code} onPress={() => {
               if (deliveryCountry === code) return;
               if (deliveryCountry !== code) { setMeetupPoint(undefined); setMeetupLocation(''); setDeliveryAddressId(''); setDeliveryAddress1(''); setDeliveryAddress2(''); setDeliveryPostalCode(''); }
-              setDeliveryCountry(code); setDeliveryCity(code === 'KR' ? '서울' : '도쿄');
-            }} />)}</Row><Field label="수령 도시" value={deliveryCity} onChange={(value) => { setDeliveryCity(value); if (value.trim() !== deliveryCity.trim()) { setMeetupPoint(undefined); setMeetupLocation(''); } }} />
+              setDeliveryCountry(code); setDeliveryCity(DESTINATIONS[code].cities[0]);
+            }} />)}</ScrollView><Field label="수령 도시" value={deliveryCity} onChange={(value) => { setDeliveryCity(value); if (value.trim() !== deliveryCity.trim()) { setMeetupPoint(undefined); setMeetupLocation(''); } }} />
           </Sheet>
         </>
       )}

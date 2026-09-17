@@ -1,11 +1,11 @@
 import type { Country } from '@moa/domain';
 
 const key = 'moa-trip-draft-v1';
-const countryCodes = ['JP', 'KR', 'TW', 'HK', 'CN', 'TH', 'VN', 'SG', 'MY', 'ID'] as const;
+const countryCodes = ['JP', 'KR', 'TW', 'HK', 'CN', 'TH', 'VN', 'SG', 'MY', 'ID', 'US', 'CA', 'MX', 'BR', 'AR', 'CL', 'PE', 'CO', 'GB', 'FR', 'IT', 'ES', 'DE', 'CH', 'AU', 'NZ', 'IN', 'PH', 'KH', 'AE', 'TR', 'ZA', 'EG', 'MA', 'KE', 'TZ'] as const;
 type SessionStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
 export type TripDraft = {
-  departureCountry: 'KR' | 'JP';
+  departureCountry: Country;
   departureCity: string;
   destinationCountry: Country;
   cities: string[];
@@ -30,7 +30,7 @@ export function readTripDraft(storage: SessionStorage, ownerId: string): TripDra
     if (!raw || raw.length > 50_000) return null;
     const saved = JSON.parse(raw), draft = saved.draft;
     if (saved.ownerId !== ownerId || !draft ||
-      !['KR', 'JP'].includes(draft.departureCountry) ||
+      !countryCodes.includes(draft.departureCountry) ||
       typeof draft.departureCity !== 'string' || draft.departureCity.length > 40 ||
       !countryCodes.includes(draft.destinationCountry) ||
       !validStrings(draft.cities, 12, 40) ||
