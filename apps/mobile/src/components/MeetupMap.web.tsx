@@ -41,7 +41,9 @@ export default function MeetupMap({ latitude, longitude, zoom, onMove }: MeetupM
   }, [channel, onMove]);
   if (!apiKey) return <MeetupMapUnavailable onOpen={() => { void Linking.openURL('https://www.google.com/maps/search/?api=1&query=' + latitude + ',' + longitude).catch(() => {}); }} />;
   return <View style={{ position: 'relative', height: 300 }}>
-    <iframe key={channel} ref={frame} title="직거래 위치 지도" srcDoc={html} onError={() => finish('error')} sandbox="allow-scripts allow-popups"
+    {/* This srcdoc contains only app-generated coordinates. An opaque sandbox origin
+        breaks Google Maps even after its script and tiles load. CSP nonces still gate scripts. */}
+    <iframe key={channel} ref={frame} title="직거래 위치 지도" srcDoc={html} onError={() => finish('error')}
       referrerPolicy="strict-origin-when-cross-origin" style={{ width: '100%', height: 300, border: 0, display: 'block' }} />
     <RouteMapStatus status={status} onRetry={() => setRetry((count) => count + 1)} onOpen={() => { void Linking.openURL('https://www.google.com/maps/search/?api=1&query=' + latitude + ',' + longitude).catch(() => {}); }} />
   </View>;

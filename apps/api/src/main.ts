@@ -4,8 +4,8 @@ import express from 'express';
 import { NestFactory } from '@nestjs/core';
 import { json, Request, Response, NextFunction } from 'express';
 import type { CustomOrigin } from '@nestjs/common/interfaces/external/cors-options.interface';
-import { randomUUID } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { randomBytes, randomUUID } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
@@ -25,7 +25,25 @@ export async function bootstrap() {
     bodyParser: false,
     logger: process.env.QUIET === '1' ? false : ['error', 'warn', 'log'],
   });
-  app.use(helmet());
+  // The web map lives in srcdoc iframes, which inherit this page's CSP.
+  // Give each HTML response a fresh nonce so only our map bootstrap scripts run.
+  app.use((_req: Request, res: Response, next: NextFunction) => {
+    res.locals.cspNonce = randomBytes(16).toString('base64');
+    next();
+  });
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        scriptSrc: ["'self'", (_req, res) => `'nonce-${(res as Response).locals.cspNonce}'`, "'unsafe-eval'", 'https://*.googleapis.com', 'https://*.gstatic.com'],
+        imgSrc: ["'self'", 'data:', 'https:', 'blob:'],
+        connectSrc: ["'self'", 'data:', 'blob:', 'https://*.googleapis.com', 'https://*.google.com', 'https://*.gstatic.com'],
+        fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
+        frameSrc: ["'self'", 'https://*.google.com', 'https://map.kakao.com'],
+        workerSrc: ["'self'", 'blob:'],
+      },
+    },
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  }));
   app.use(json({ limit: '6mb' }));
   app.enableCors({
     origin: permittedOrigin,
@@ -60,8 +78,14 @@ export async function bootstrap() {
     const index = join(webDirectory, 'index.html');
     if (!existsSync(index)) throw new Error('Web preview build is missing. Run the mobile web export first.');
     const server = app.getHttpAdapter().getInstance();
-    server.use(express.static(webDirectory, { index: 'index.html', fallthrough: true }));
-    server.get(/^(?!\/api(?:\/|$)|\/health$).*/, (_req: Request, res: Response) => res.sendFile(index));
+    const indexHtml = readFileSync(index, 'utf8');
+    const serveIndex = (_req: Request, res: Response) => {
+      const nonceMeta = `<meta name="moa-csp-nonce" content="${res.locals.cspNonce}">`;
+      res.type('html').send(indexHtml.replace('</head>', `${nonceMeta}</head>`));
+    };
+    server.get('/index.html', serveIndex);
+    server.use(express.static(webDirectory, { index: false, fallthrough: true }));
+    server.get(/^(?!\/api(?:\/|$)|\/health$).*/, serveIndex);
   }
   app.enableShutdownHooks();
   await app.listen(Number(process.env.PORT || 4000), process.env.HOST || '0.0.0.0');

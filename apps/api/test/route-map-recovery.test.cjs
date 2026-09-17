@@ -7,7 +7,8 @@ const ts = require('typescript');
 const source = readFileSync(join(__dirname, '../../mobile/src/components/google-route-map-html.ts'), 'utf8');
 const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } });
 const mod = { exports: {} };
-new Function('exports', 'module', outputText)(mod.exports, mod);
+let cspNonce = '';
+new Function('exports', 'module', 'require', outputText)(mod.exports, mod, () => ({ mapCspNonce: () => cspNonce }));
 const { googleRouteMapHtml, googlePlaceUrl } = mod.exports;
 const place = { id: 'p-shibuya', name: '시부야 PARCO', region: '시부야', latitude: 35.6618, longitude: 139.6987, visitors: 18, requestCount: 12 };
 
@@ -50,24 +51,24 @@ test('authentication failure is sent to the parent and the external fallback use
   assert.equal(url.searchParams.get('query'), '35.6618,139.6987');
 });
 
-test('asynchronous Google SDK rejection fails visibly and late tiles cannot restore readiness', () => {
+test('asynchronous Google SDK rejection fails visibly and late idle cannot restore readiness', () => {
   const fixture = mapDocument(); fixture.sandbox.initMap();
-  assert.equal(fixture.messages.length, 0, 'Map construction is not proof that map tiles loaded');
+  assert.equal(fixture.messages.length, 0, 'Map construction is not proof that the map is ready');
   let cancelled = false;
   fixture.windowEvents.unhandledrejection({ reason: new Error('Could not load "util".'), preventDefault() { cancelled = true; } });
   assert.ok(cancelled, 'The isolated iframe converts its SDK rejection into an explicit parent error');
   assert.equal(fixture.elements.error.style.display, 'grid');
-  fixture.mapEvents.tilesloaded();
+  fixture.mapEvents.idle();
   fixture.markerEvents[0]();
   fixture.expire();
   assert.deepEqual(fixture.messages, [{ channel: 'test-channel', error: true }]);
 });
 
 test('runtime failure after ready stops further selections from the embedded map', () => {
-  const fixture = mapDocument(); fixture.sandbox.initMap(); fixture.mapEvents.tilesloaded();
+  const fixture = mapDocument(); fixture.sandbox.initMap(); fixture.mapEvents.idle();
   assert.equal(fixture.messages.at(-1).ready, true);
   fixture.windowEvents.error({ message: 'Google utility failed', preventDefault() {} });
-  fixture.markerEvents[0](); fixture.mapEvents.tilesloaded();
+  fixture.markerEvents[0](); fixture.mapEvents.idle();
   assert.deepEqual(fixture.messages, [{ channel: 'test-channel', ready: true }, { channel: 'test-channel', error: true }]);
 });
 
@@ -75,4 +76,17 @@ test('SDK bootstrap opts into CORS so its asynchronous failures are observable i
   const html = googleRouteMapHtml([place], place.id, 'example-key', 'test-channel');
   const bootstrap = html.match(/<script\b[^>]*\bsrc="https:\/\/maps\.googleapis\.com[^>]+>/)[0];
   assert.match(bootstrap, /crossorigin="anonymous"/, 'Cross-origin promise rejections are otherwise hidden from unhandledrejection listeners');
+});
+
+test('embedded map scripts and styles carry the parent response CSP nonce', () => {
+  cspNonce = 'testNonce123=';
+  try {
+    const html = googleRouteMapHtml([place], place.id, 'example-key', 'test-channel');
+    assert.match(html, /<style nonce="testNonce123=">/);
+    assert.match(html, /<script nonce="testNonce123=">/);
+    assert.match(html, /<script nonce="testNonce123=" async defer crossorigin="anonymous"/);
+    assert.doesNotMatch(html, /onerror=/);
+  } finally {
+    cspNonce = '';
+  }
 });
