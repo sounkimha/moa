@@ -41,7 +41,8 @@ test('first social login asks for a public profile and offers an optional photo'
   new Function('exports', 'module', 'require', compiled)(module.exports, module, imports);
   const markup = renderToStaticMarkup(h(module.exports.ProfileSetupScreen));
   assert.match(markup, /프로필 만들기/);
-  assert.match(markup, /사진 추가하기/);
+  assert.match(markup, /사진 바꾸기/);
+  assert.doesNotMatch(markup, /사진 추가하기/);
   assert.match(markup, /닉네임/);
   assert.match(markup, /한 줄 소개/);
   assert.match(markup, /저장하고 시작하기/);

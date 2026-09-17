@@ -452,11 +452,11 @@ function ProfileFormScreen({ firstLogin = false }: { firstLogin?: boolean }) {
       <Stack gap={24}>
         {firstLogin && <Stack gap={6}><Txt size={23} weight="800">반가워요!</Txt><Txt size={14} color={c.secondary}>앞으로 사용할 이름과 사진을 정해주세요.</Txt></Stack>}
         <Row style={{ gap: 16 }}>
-          <Pressable accessibilityRole="button" accessibilityLabel={avatarImage ? '프로필 사진 변경' : '프로필 사진 추가'} onPress={() => void choosePhoto()}><Avatar user={preview} size={72} /></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="프로필 사진 바꾸기" onPress={() => void choosePhoto()}><Avatar user={preview} size={72} /></Pressable>
           <Stack gap={5} style={{ flex: 1, minWidth: 0 }}><Txt size={18} weight="700">{cleanNickname || u.nickname}</Txt><Txt size={13} color={c.secondary}>다른 사람에게 보이는 프로필이에요.</Txt></Stack>
         </Row>
         <Stack gap={8}>
-          <Button small kind="secondary" icon={Camera} label={avatarImage ? '사진 바꾸기' : '사진 추가하기'} onPress={() => void choosePhoto()} />
+          <Button small kind="secondary" icon={Camera} label="사진 바꾸기" onPress={() => void choosePhoto()} />
           {avatarImage && <Button small kind="ghost" label="사진 삭제" onPress={() => setAvatarImage(null)} />}
           <Txt size={12} color={c.secondary}>선택 사항 · JPG·PNG·WebP, 2MB 이하</Txt>
           {!!imageError && <Notice tone="error">{imageError}</Notice>}
