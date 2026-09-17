@@ -20,6 +20,10 @@ export class FxService {
 
   async latest(currency: Currency): Promise<FxRate> {
     if (currency === 'KRW') return { currency, krwPerUnit: 1, source: 'KRW_PARITY' };
+    // Keep the demo UI deterministic unless the server explicitly opts into a live feed.
+    // This preserves the 1 JPY = 9.4 KRW prototype amounts shown in the product flow.
+    if (process.env.FX_RATE_MODE !== 'LIVE')
+      return { currency, krwPerUnit: DEMO_FX_RATES[currency], source: 'DEMO_FIXED' };
     const cached = this.cache.get(currency);
     if (cached && cached.expiresAt > Date.now()) return { ...cached.rate };
     const inflight = this.pending.get(currency);
