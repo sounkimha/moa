@@ -39,6 +39,9 @@ export interface User extends Entity {
   lastActive: string;
   verificationLabels: string[];
 }
+export const PROFILE_AVATAR_COLORS = [
+  '#E8EDDF', '#DFEED6', '#E6DFF6', '#F7E4BD', '#D9EAF5', '#EAF2FF', '#FCE8E4',
+] as const;
 export interface UserVerification extends Entity {
   userId: string;
   kind: 'PHONE' | 'ACCOUNT' | 'IDENTITY' | 'TRIP';

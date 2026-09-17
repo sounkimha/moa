@@ -31,6 +31,7 @@ import {
   OfferForm,
   OffersScreen,
   ProfileScreen,
+  ProfileEditScreen,
   RequestScreen,
 } from './src/screens/Matching';
 import {
@@ -66,6 +67,7 @@ const screens: Record<Screen, React.ComponentType> = {
   'trip-route': TripRouteScreen,
   offers: OffersScreen,
   profile: ProfileScreen,
+  'profile-edit': ProfileEditScreen,
   'offer-form': OfferForm,
   bundle: BundleScreen,
   payment: PaymentScreen,

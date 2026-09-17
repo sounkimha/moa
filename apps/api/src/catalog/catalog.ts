@@ -13,7 +13,7 @@ import {
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { z } from 'zod';
-import { Snapshot, Currency, Country, CURRENCY_CODES, currencyForCountry } from '@moa/domain';
+import { Snapshot, Currency, Country, CURRENCY_CODES, PROFILE_AVATAR_COLORS, currencyForCountry } from '@moa/domain';
 import { ActorRequest, AuthGuard } from '../auth/auth';
 import { Store } from '../infrastructure/store';
 import { base, get, parse } from '../common/validation';
@@ -583,6 +583,21 @@ export class CatalogController {
   ) {}
   @Get('snapshot') snapshot(@Req() r: ActorRequest) {
     return this.catalog.snapshot(r.actorId);
+  }
+  @Post('profile') profile(@Body() body: unknown, @Req() r: ActorRequest) {
+    const data = parse(z.object({
+      nickname: z.string().trim().min(2, '닉네임은 2자 이상 입력해주세요.').max(24, '닉네임은 24자 이내로 입력해주세요.'),
+      bio: z.string().trim().max(120, '소개는 120자 이내로 입력해주세요.'),
+      avatarColor: z.enum(PROFILE_AVATAR_COLORS),
+    }).strict(), body);
+    return this.store.transaction((db) => {
+      const user = get(db.users, r.actorId, '프로필');
+      user.nickname = data.nickname;
+      user.initials = Array.from(data.nickname)[0];
+      user.bio = data.bio;
+      user.avatarColor = data.avatarColor;
+      return user;
+    });
   }
   @Get('places') places() {
     return this.store.read((db) => db.places);

@@ -214,8 +214,7 @@ export class OAuthService {
       const now = new Date().toISOString();
       const user = db.users.find((item) => item.id === userId);
       if (user) {
-        user.nickname = nickname;
-        user.initials = nickname.slice(0, 1);
+        // A returning provider must not replace the nickname the user chose in MOA.
         user.lastActive = now;
         if (!user.verificationLabels.includes(label)) user.verificationLabels.push(label);
       } else db.users.push({

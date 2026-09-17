@@ -92,6 +92,17 @@ test('OAuth uses allowlisted returns, one-time state/code and a server-side prov
     assert.equal(JSON.stringify(user).includes('hidden@example.com'), false);
     assert.throws(() => oauth.exchange({ code: completed.loginCode }), /만료/);
 
+    await store.transaction((db) => {
+      const own = db.users.find((item) => item.id === userId);
+      own.nickname = '내가 정한 이름';
+      own.initials = '내';
+    });
+    const returnStart = oauth.start('google', { returnUrl: 'http://localhost:8081' }, request);
+    await oauth.complete('google', new URL(returnStart.authorizationUrl).searchParams.get('state'), 'return-code');
+    const returningUser = await store.read((db) => db.users.find((item) => item.id === userId));
+    assert.equal(returningUser.nickname, '내가 정한 이름');
+    assert.equal(returningUser.initials, '내');
+
     const naverStart = oauth.start('naver', { returnUrl: 'http://localhost:8081' }, request);
     const naverAuthorization = new URL(naverStart.authorizationUrl);
     const naverState = naverAuthorization.searchParams.get('state');

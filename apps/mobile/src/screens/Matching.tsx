@@ -3,12 +3,14 @@ import { Pressable, View } from 'react-native';
 import {
   ArrowRight,
   Calendar,
+  Check,
   CheckCircle2,
   ChevronRight,
   Clock,
   Layers,
   MapPin,
   Plane,
+  Pencil,
   ShieldCheck,
   Star,
 } from 'lucide-react-native';
@@ -28,6 +30,8 @@ import {
   canAcceptTrip,
   TRIP_VERIFICATION_LABEL,
   rewardCommission,
+  PROFILE_AVATAR_COLORS,
+  User,
 } from '@moa/domain';
 import { useApp } from '../state/AppContext';
 import { MeetupSummary } from '../components/MeetupSummary';
@@ -343,14 +347,16 @@ export function ProfileScreen() {
   const reviews = d.reviews.filter((r) => r.targetId === u.id);
   const trips = d.trips.filter((t) => t.travelerId === u.id);
   const rating = reviews.length ? (reviews.reduce((total, review) => total + review.rating, 0) / reviews.length).toFixed(1) : null;
+  const mine = u.id === d.me.id;
   return (
-    <Page title="어떤 여행자인가요?">
+    <Page title={mine ? '내 프로필' : '어떤 여행자인가요?'}>
       <Stack gap={20}>
         <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
           <Stack gap={6} style={{ flex: 1, minWidth: 0 }}><Txt size={12} weight="700" color={c.primaryStrong}>YOUR TRAVEL MATE</Txt><Txt size={28} weight="800">{u.nickname}</Txt>{rating ? <Row style={{ gap: 5 }}><Star size={14} color={c.primaryStrong} fill={c.primaryStrong} /><Txt size={14} weight="700">{rating}</Txt><Txt size={12} color={c.secondary}>후기 {reviews.length}개</Txt></Row> : <Txt size={13} color={c.secondary}>첫 후기를 기다리고 있어요</Txt>}</Stack>
           <Avatar user={u} size={80} />
         </Row>
-        <Txt size={15} color={c.secondary}>{u.bio}</Txt>
+        <Txt size={15} color={c.secondary}>{u.bio || '아직 소개가 없어요.'}</Txt>
+        {mine && <Button small kind="secondary" icon={Pencil} label="프로필 수정" onPress={() => a.nav('profile-edit')} />}
         <Row style={{ alignItems: 'flex-start', gap: 7 }}><ShieldCheck size={17} color={c.primaryStrong} /><Txt size={12} color={c.secondary} style={{ flex: 1 }}>{u.verificationLabels.length ? `${u.verificationLabels.join(' · ')} 예시 인증` : '아직 등록된 인증이 없어요'}</Txt></Row>
       </Stack>
       <Card style={{ backgroundColor: c.primarySoft, borderWidth: 0 }}>
@@ -411,6 +417,35 @@ export function ProfileScreen() {
       <Notice>
         인증 결과만 보여줘요. 연락처, 계좌번호, 신분증 원본은 프로필에 공개하지 않아요.
       </Notice>
+    </Page>
+  );
+}
+export function ProfileEditScreen() {
+  const a = useApp(), u = a.data!.me;
+  const [nickname, setNickname] = useState(u.nickname);
+  const [bio, setBio] = useState(u.bio);
+  const [avatarColor, setAvatarColor] = useState(u.avatarColor);
+  const [submitted, setSubmitted] = useState(false);
+  const cleanNickname = nickname.trim(), cleanBio = bio.trim();
+  const nicknameError = cleanNickname.length < 2 ? '닉네임을 2자 이상 입력해주세요.' : cleanNickname.length > 24 ? '닉네임은 24자 이내로 입력해주세요.' : '';
+  const bioError = cleanBio.length > 120 ? '소개는 120자 이내로 입력해주세요.' : '';
+  const changed = cleanNickname !== u.nickname || cleanBio !== u.bio || avatarColor !== u.avatarColor;
+  const preview: User = { ...u, initials: Array.from(cleanNickname)[0] || u.initials, avatarColor };
+  const save = async () => {
+    setSubmitted(true);
+    if (nicknameError || bioError || !changed || a.busy) return;
+    const updated = await a.mutate<User>('/profile', { nickname: cleanNickname, bio: cleanBio, avatarColor }, '프로필을 수정했어요.');
+    if (updated) a.back();
+  };
+  return (
+    <Page title="프로필 수정" footer={<Button label="저장하기" onPress={() => void save()} disabled={!changed || a.busy} loading={a.busy} />}>
+      <Stack gap={24}>
+        <Row style={{ gap: 16 }}><Avatar user={preview} size={72} /><Stack gap={4} style={{ flex: 1 }}><Txt size={18} weight="700">{cleanNickname || u.nickname}</Txt><Txt size={13} color={c.secondary}>다른 사람에게 보이는 프로필이에요.</Txt></Stack></Row>
+        <Field label="닉네임" value={nickname} onChange={setNickname} placeholder="어떻게 불러드릴까요?" required error={submitted ? nicknameError : undefined} hint="2~24자" />
+        <Field label="한 줄 소개" value={bio} onChange={setBio} placeholder="어떤 여행을 좋아하시나요?" multiline error={submitted ? bioError : undefined} hint={`${cleanBio.length}/120자 · 비워둘 수 있어요.`} />
+        <Stack gap={12}><Txt size={14} weight="600">프로필 색상</Txt><Row style={{ flexWrap: 'wrap', gap: 12 }}>{PROFILE_AVATAR_COLORS.map((color, index) => <Pressable key={color} accessibilityRole="button" accessibilityLabel={`프로필 색상 ${index + 1}`} accessibilityState={{ selected: avatarColor === color }} onPress={() => setAvatarColor(color)} style={{ width: 48, height: 48, borderRadius: 24, borderWidth: avatarColor === color ? 2 : 1, borderColor: avatarColor === color ? c.primaryStrong : c.border, backgroundColor: color, alignItems: 'center', justifyContent: 'center' }}>{avatarColor === color && <Check size={22} color={c.primaryStrong} />}</Pressable>)}</Row></Stack>
+        <Notice>닉네임과 소개는 다른 사용자에게 공개돼요. 연락처나 계좌 정보는 적지 마세요.</Notice>
+      </Stack>
     </Page>
   );
 }
