@@ -3,6 +3,7 @@ import { Pressable, View } from 'react-native';
 import {
   ArrowRight,
   Calendar,
+  Camera,
   Check,
   CheckCircle2,
   ChevronRight,
@@ -54,6 +55,7 @@ import {
   Txt,
 } from '../components/ui';
 import { Avatar, MoneyBreakdown, PlaceCover, ProductArt, ProductRow } from '../components/visuals';
+import { pickImage } from '../lib/images';
 
 export function RequestScreen() {
   const [confirmCancel, setConfirmCancel] = useState(false);
@@ -420,35 +422,56 @@ export function ProfileScreen() {
     </Page>
   );
 }
-export function ProfileEditScreen() {
+function ProfileFormScreen({ firstLogin = false }: { firstLogin?: boolean }) {
   const a = useApp(), u = a.data!.me;
   const [nickname, setNickname] = useState(u.nickname);
   const [bio, setBio] = useState(u.bio);
   const [avatarColor, setAvatarColor] = useState(u.avatarColor);
+  const [avatarImage, setAvatarImage] = useState<string | null>(u.avatarImage || null);
+  const [imageError, setImageError] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const cleanNickname = nickname.trim(), cleanBio = bio.trim();
   const nicknameError = cleanNickname.length < 2 ? '닉네임을 2자 이상 입력해주세요.' : cleanNickname.length > 24 ? '닉네임은 24자 이내로 입력해주세요.' : '';
   const bioError = cleanBio.length > 120 ? '소개는 120자 이내로 입력해주세요.' : '';
-  const changed = cleanNickname !== u.nickname || cleanBio !== u.bio || avatarColor !== u.avatarColor;
-  const preview: User = { ...u, initials: Array.from(cleanNickname)[0] || u.initials, avatarColor };
+  const changed = cleanNickname !== u.nickname || cleanBio !== u.bio || avatarColor !== u.avatarColor || avatarImage !== (u.avatarImage || null);
+  const preview: User = { ...u, initials: Array.from(cleanNickname)[0] || u.initials, avatarColor, avatarImage: avatarImage || undefined };
+  const choosePhoto = async () => {
+    try {
+      const selected = await pickImage({ quality: 0.35, allowsEditing: true });
+      if (selected) { setAvatarImage(selected); setImageError(''); }
+    } catch (error) { setImageError((error as Error).message); }
+  };
   const save = async () => {
     setSubmitted(true);
-    if (nicknameError || bioError || !changed || a.busy) return;
-    const updated = await a.mutate<User>('/profile', { nickname: cleanNickname, bio: cleanBio, avatarColor }, '프로필을 수정했어요.');
-    if (updated) a.back();
+    if (nicknameError || bioError || (!firstLogin && !changed) || a.busy) return;
+    const updated = await a.mutate<User>('/profile', { nickname: cleanNickname, bio: cleanBio, avatarColor, avatarImage }, firstLogin ? '프로필을 만들었어요.' : '프로필을 수정했어요.');
+    if (updated && !firstLogin) a.back();
   };
   return (
-    <Page title="프로필 수정" footer={<Button label="저장하기" onPress={() => void save()} disabled={!changed || a.busy} loading={a.busy} />}>
+    <Page title={firstLogin ? '프로필 만들기' : '프로필 수정'} back={!firstLogin} footer={<Button label={firstLogin ? '저장하고 시작하기' : '저장하기'} onPress={() => void save()} disabled={(!firstLogin && !changed) || a.busy} loading={a.busy} />}>
       <Stack gap={24}>
-        <Row style={{ gap: 16 }}><Avatar user={preview} size={72} /><Stack gap={4} style={{ flex: 1 }}><Txt size={18} weight="700">{cleanNickname || u.nickname}</Txt><Txt size={13} color={c.secondary}>다른 사람에게 보이는 프로필이에요.</Txt></Stack></Row>
+        {firstLogin && <Stack gap={6}><Txt size={23} weight="800">반가워요!</Txt><Txt size={14} color={c.secondary}>앞으로 사용할 이름과 사진을 정해주세요.</Txt></Stack>}
+        <Row style={{ gap: 16 }}>
+          <Pressable accessibilityRole="button" accessibilityLabel={avatarImage ? '프로필 사진 변경' : '프로필 사진 추가'} onPress={() => void choosePhoto()}><Avatar user={preview} size={72} /></Pressable>
+          <Stack gap={5} style={{ flex: 1, minWidth: 0 }}><Txt size={18} weight="700">{cleanNickname || u.nickname}</Txt><Txt size={13} color={c.secondary}>다른 사람에게 보이는 프로필이에요.</Txt></Stack>
+        </Row>
+        <Stack gap={8}>
+          <Button small kind="secondary" icon={Camera} label={avatarImage ? '사진 바꾸기' : '사진 추가하기'} onPress={() => void choosePhoto()} />
+          {avatarImage && <Button small kind="ghost" label="사진 삭제" onPress={() => setAvatarImage(null)} />}
+          <Txt size={12} color={c.secondary}>선택 사항 · JPG·PNG·WebP, 2MB 이하</Txt>
+          {!!imageError && <Notice tone="error">{imageError}</Notice>}
+        </Stack>
         <Field label="닉네임" value={nickname} onChange={setNickname} placeholder="어떻게 불러드릴까요?" required error={submitted ? nicknameError : undefined} hint="2~24자" />
         <Field label="한 줄 소개" value={bio} onChange={setBio} placeholder="어떤 여행을 좋아하시나요?" multiline error={submitted ? bioError : undefined} hint={`${cleanBio.length}/120자 · 비워둘 수 있어요.`} />
-        <Stack gap={12}><Txt size={14} weight="600">프로필 색상</Txt><Row style={{ flexWrap: 'wrap', gap: 12 }}>{PROFILE_AVATAR_COLORS.map((color, index) => <Pressable key={color} accessibilityRole="button" accessibilityLabel={`프로필 색상 ${index + 1}`} accessibilityState={{ selected: avatarColor === color }} onPress={() => setAvatarColor(color)} style={{ width: 48, height: 48, borderRadius: 24, borderWidth: avatarColor === color ? 2 : 1, borderColor: avatarColor === color ? c.primaryStrong : c.border, backgroundColor: color, alignItems: 'center', justifyContent: 'center' }}>{avatarColor === color && <Check size={22} color={c.primaryStrong} />}</Pressable>)}</Row></Stack>
-        <Notice>닉네임과 소개는 다른 사용자에게 공개돼요. 연락처나 계좌 정보는 적지 마세요.</Notice>
+        {!avatarImage && <Stack gap={12}><Txt size={14} weight="600">프로필 색상</Txt><Row style={{ flexWrap: 'wrap', gap: 12 }}>{PROFILE_AVATAR_COLORS.map((color, index) => <Pressable key={color} accessibilityRole="button" accessibilityLabel={`프로필 색상 ${index + 1}`} accessibilityState={{ selected: avatarColor === color }} onPress={() => setAvatarColor(color)} style={{ width: 48, height: 48, borderRadius: 24, borderWidth: avatarColor === color ? 2 : 1, borderColor: avatarColor === color ? c.primaryStrong : c.border, backgroundColor: color, alignItems: 'center', justifyContent: 'center' }}>{avatarColor === color && <Check size={22} color={c.primaryStrong} />}</Pressable>)}</Row></Stack>}
+        <Notice>사진·닉네임·소개는 다른 사용자에게 공개돼요. 연락처나 계좌 정보는 적지 마세요.</Notice>
+        {firstLogin && <Stack gap={8}><Txt size={12} color={c.secondary}>본인인증은 실제 인증 서비스가 연결된 뒤 이용할 수 있어요.</Txt><Button kind="ghost" label="다른 계정으로 로그인" onPress={() => void a.logout()} /></Stack>}
       </Stack>
     </Page>
   );
 }
+export function ProfileEditScreen() { return <ProfileFormScreen />; }
+export function ProfileSetupScreen() { return <ProfileFormScreen firstLogin />; }
 export function BundleScreen() {
   const a = useApp(),
     d = a.data!,

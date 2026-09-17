@@ -50,6 +50,15 @@ const meta = (html: string, key: string) => {
 const privateIp = (address: string) =>
   /^(127\.|10\.|0\.|169\.254\.|192\.168\.|::1$|fc|fd|fe80)/i.test(address) ||
   /^172\.(1[6-9]|2\d|3[01])\./.test(address);
+const validProfilePhoto = (value: string) => {
+  const match = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(value);
+  if (!match) return false;
+  const bytes = Buffer.from(match[2], 'base64');
+  if (bytes.length < 12 || bytes.length > 2_000_000) return false;
+  if (match[1] === 'jpeg') return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  if (match[1] === 'png') return bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+  return bytes.toString('ascii', 0, 4) === 'RIFF' && bytes.toString('ascii', 8, 12) === 'WEBP';
+};
 async function publicUrl(value: string) {
   const url = new URL(value);
   if (!['http:', 'https:'].includes(url.protocol)) return null;
@@ -589,6 +598,7 @@ export class CatalogController {
       nickname: z.string().trim().min(2, '닉네임은 2자 이상 입력해주세요.').max(24, '닉네임은 24자 이내로 입력해주세요.'),
       bio: z.string().trim().max(120, '소개는 120자 이내로 입력해주세요.'),
       avatarColor: z.enum(PROFILE_AVATAR_COLORS),
+      avatarImage: z.string().max(2_800_000).refine(validProfilePhoto, 'JPG·PNG·WebP 사진을 다시 선택해주세요.').nullable().optional(),
     }).strict(), body);
     return this.store.transaction((db) => {
       const user = get(db.users, r.actorId, '프로필');
@@ -596,6 +606,8 @@ export class CatalogController {
       user.initials = Array.from(data.nickname)[0];
       user.bio = data.bio;
       user.avatarColor = data.avatarColor;
+      if (data.avatarImage !== undefined) user.avatarImage = data.avatarImage || undefined;
+      user.profileCompleted = true;
       return user;
     });
   }

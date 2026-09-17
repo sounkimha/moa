@@ -185,11 +185,14 @@ export function Avatar({ user, size = 44 }: { user: User; size?: number }) {
         backgroundColor: user.avatarColor,
         alignItems: 'center',
         justifyContent: 'center',
+        overflow: 'hidden',
       }}
     >
-      <Txt size={size * 0.36} weight="700" color={c.darkGreen}>
-        {user.initials}
-      </Txt>
+      {user.avatarImage ? (
+        <Image source={{ uri: user.avatarImage }} accessibilityLabel={`${user.nickname} 프로필 사진`} resizeMode="cover" style={{ width: size, height: size }} />
+      ) : (
+        <Txt size={size * 0.36} weight="700" color={c.darkGreen}>{user.initials}</Txt>
+      )}
     </View>
   );
 }

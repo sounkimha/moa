@@ -87,6 +87,7 @@ test('OAuth uses allowlisted returns, one-time state/code and a server-side prov
     const userId = sessions.resolve(login.token);
     const user = await store.read((db) => db.users.find((item) => item.id === userId));
     assert.equal(user.nickname, '구글 여행자');
+    assert.equal(user.profileCompleted, false);
     assert.deepEqual(user.verificationLabels, ['Google 계정']);
     assert.equal(JSON.stringify(user).includes('provider-user-123'), false);
     assert.equal(JSON.stringify(user).includes('hidden@example.com'), false);
@@ -96,12 +97,14 @@ test('OAuth uses allowlisted returns, one-time state/code and a server-side prov
       const own = db.users.find((item) => item.id === userId);
       own.nickname = '내가 정한 이름';
       own.initials = '내';
+      own.profileCompleted = true;
     });
     const returnStart = oauth.start('google', { returnUrl: 'http://localhost:8081' }, request);
     await oauth.complete('google', new URL(returnStart.authorizationUrl).searchParams.get('state'), 'return-code');
     const returningUser = await store.read((db) => db.users.find((item) => item.id === userId));
     assert.equal(returningUser.nickname, '내가 정한 이름');
     assert.equal(returningUser.initials, '내');
+    assert.equal(returningUser.profileCompleted, true);
 
     const naverStart = oauth.start('naver', { returnUrl: 'http://localhost:8081' }, request);
     const naverAuthorization = new URL(naverStart.authorizationUrl);

@@ -31,8 +31,12 @@ export interface Entity {
 export interface User extends Entity {
   nickname: string;
   avatarColor: string;
+  /** Public profile image in the prototype; optional for older saved users. */
+  avatarImage?: string;
   initials: string;
   bio: string;
+  /** Only new social accounts must finish the first-login profile form. */
+  profileCompleted?: boolean;
   completed: number;
   successRate: number | null;
   responseMinutes: number;

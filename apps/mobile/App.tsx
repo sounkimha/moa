@@ -32,6 +32,7 @@ import {
   OffersScreen,
   ProfileScreen,
   ProfileEditScreen,
+  ProfileSetupScreen,
   RequestScreen,
 } from './src/screens/Matching';
 import {
@@ -220,7 +221,7 @@ function Shell() {
             borderColor: c.border,
           }}
         >
-          {desktop && a.data && (
+          {desktop && a.data && a.data.me.profileCompleted !== false && (
             <View
               style={{
                 width: 260,
@@ -284,6 +285,8 @@ function Shell() {
               </Stack>
             ) : !a.data ? (
               entryGuideComplete ? <Onboarding /> : <GuideScreen onComplete={() => setEntryGuideComplete(true)} />
+            ) : a.data.me.profileCompleted === false ? (
+              <ProfileSetupScreen />
             ) : (
               <>
                 {a.error && (

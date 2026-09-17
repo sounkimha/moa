@@ -28,21 +28,30 @@ test('a user can edit only their own public profile and the update persists', as
     const login = await call('/auth/demo', { userId: 'u-me', provider: 'DEMO' });
     assert.equal(login.status, 201);
     const token = login.data.token;
-    const profile = { nickname: '새로운 소운', bio: '가는 길의 작은 발견을 좋아해요.', avatarColor: '#D9EAF5' };
+    const tinyPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=';
+    const profile = { nickname: '새로운 소운', bio: '가는 길의 작은 발견을 좋아해요.', avatarColor: '#D9EAF5', avatarImage: tinyPng };
     assert.equal((await call('/profile', profile)).status, 401);
     assert.equal((await call('/profile', { ...profile, id: 'u-min' }, token)).status, 400);
     assert.equal((await call('/profile', { ...profile, avatarColor: '#000000' }, token)).status, 400);
+    assert.equal((await call('/profile', { ...profile, avatarImage: 'data:image/jpeg;base64,' + tinyPng.split(',')[1] }, token)).status, 400);
+    assert.equal((await call('/profile', { ...profile, avatarImage: 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=' }, token)).status, 400);
     assert.equal((await call('/profile', { ...profile, nickname: 'a' }, token)).status, 400);
     const saved = await call('/profile', profile, token);
     assert.equal(saved.status, 201);
     assert.equal(saved.data.nickname, profile.nickname);
     assert.equal(saved.data.initials, '새');
+    assert.equal(saved.data.avatarImage, tinyPng);
+    assert.equal(saved.data.profileCompleted, true);
     const snapshot = await call('/snapshot', undefined, token);
     assert.equal(snapshot.data.me.bio, profile.bio);
     assert.equal(snapshot.data.me.avatarColor, profile.avatarColor);
     assert.equal(snapshot.data.users.find((user) => user.id === 'u-min').nickname, '민트로드');
     const persisted = JSON.parse(await readFile(dataFile, 'utf8'));
     assert.equal(persisted.users.find((user) => user.id === 'u-me').nickname, profile.nickname);
+    assert.equal(persisted.users.find((user) => user.id === 'u-me').avatarImage, tinyPng);
+    const removed = await call('/profile', { ...profile, avatarImage: null }, token);
+    assert.equal(removed.status, 201);
+    assert.equal(removed.data.avatarImage, undefined);
   } finally {
     await app?.close();
     for (const [key, value] of Object.entries(previous)) {
