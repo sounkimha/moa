@@ -11,6 +11,8 @@ RUN npm ci
 
 COPY . .
 
+ARG EXPO_PUBLIC_GOOGLE_MAPS_WEB_API_KEY
+
 RUN npm run build -w @moa/domain \
   && npm run build -w @moa/api \
   && npm run export -w @moa/mobile
