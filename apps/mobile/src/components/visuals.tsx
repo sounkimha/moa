@@ -265,14 +265,18 @@ export function PlaceCard({
   favorite = false,
   onFavorite,
   variant = 'card',
+  countType = 'requests',
 }: {
   place: Place;
   onPress: () => void;
   favorite?: boolean;
   onFavorite?: () => void;
   variant?: 'card' | 'list';
+  countType?: 'requests' | 'trades';
 }) {
   const list = variant === 'list';
+  const countLabel = countType === 'trades' ? '거래' : '부탁';
+  const count = countType === 'trades' ? place.recentTrades : place.requestCount;
   return (
     <View
       testID={list ? 'place-list-item' : 'place-card'}
@@ -313,7 +317,7 @@ export function PlaceCard({
           <Txt size={list ? 16 : 18} weight="700" lines={2}>
             {place.name}
           </Txt>
-          {list ? <><Txt size={12} color={c.secondary}>{place.visitors}명 방문 예정 · 부탁 {place.requestCount}건</Txt><Txt size={13} color={c.primaryStrong} weight="700">{place.requestCount ? `평균 보상 ${money(place.averageReward)}` : '첫 부탁 남기기'}</Txt></> : <Row style={{ marginTop: 8, paddingTop: 12, borderTopWidth: 1, borderColor: c.border, justifyContent: 'space-between' }}><Row style={{ gap: 6 }}><Users size={16} color={c.primaryStrong} /><Txt size={13} color={c.secondary}><Txt size={15} weight="700">{place.visitors}명</Txt> 방문 예정</Txt></Row><Txt size={13} color={c.secondary}>부탁 <Txt size={15} weight="700" color={c.primaryStrong}>{place.requestCount}건</Txt></Txt></Row>}
+          {list ? <><Txt size={12} color={c.secondary}>{place.visitors}명 방문 예정 · {countLabel} {count}건</Txt><Txt size={13} color={c.primaryStrong} weight="700">{place.requestCount ? `평균 보상 ${money(place.averageReward)}` : '첫 부탁 남기기'}</Txt></> : <Row style={{ marginTop: 8, paddingTop: 12, borderTopWidth: 1, borderColor: c.border, justifyContent: 'space-between' }}><Row style={{ gap: 6 }}><Users size={16} color={c.primaryStrong} /><Txt size={13} color={c.secondary}><Txt size={15} weight="700">{place.visitors}명</Txt> 방문 예정</Txt></Row><Txt size={13} color={c.secondary}>{countLabel} <Txt size={15} weight="700" color={c.primaryStrong}>{count}건</Txt></Txt></Row>}
         </View>
       </Pressable>
       <PhotoCredit place={place} list={list} />
