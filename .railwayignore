@@ -1,0 +1,14 @@
+.git/
+node_modules/
+**/node_modules/
+.env
+.env.*
+**/.env
+**/.env.*
+.data/
+**/.data/
+.expo/
+**/dist/
+coverage/
+*.log
+scripts/share-proxy.mjs
