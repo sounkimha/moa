@@ -13,7 +13,7 @@ import {
   Plane,
   Pencil,
   ShieldCheck,
-  Star,
+  Stamp,
 } from 'lucide-react-native';
 import {
   groupForTrip,
@@ -354,7 +354,7 @@ export function ProfileScreen() {
     <Page title={mine ? '내 프로필' : '어떤 여행자인가요?'}>
       <Stack gap={20}>
         <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-          <Stack gap={6} style={{ flex: 1, minWidth: 0 }}><Txt size={12} weight="700" color={c.primaryStrong}>YOUR TRAVEL MATE</Txt><Txt size={28} weight="800">{u.nickname}</Txt>{rating ? <Row style={{ gap: 5 }}><Star size={14} color={c.primaryStrong} fill={c.primaryStrong} /><Txt size={14} weight="700">{rating}</Txt><Txt size={12} color={c.secondary}>후기 {reviews.length}개</Txt></Row> : <Txt size={13} color={c.secondary}>첫 후기를 기다리고 있어요</Txt>}</Stack>
+          <Stack gap={6} style={{ flex: 1, minWidth: 0 }}><Txt size={12} weight="700" color={c.primaryStrong}>YOUR TRAVEL MATE</Txt><Txt size={28} weight="800">{u.nickname}</Txt>{rating ? <Row style={{ gap: 5 }}><Stamp size={15} color={c.primaryStrong} /><Txt size={14} weight="700">스탬프 {rating}/5</Txt><Txt size={12} color={c.secondary}>후기 {reviews.length}개</Txt></Row> : <Txt size={13} color={c.secondary}>첫 후기를 기다리고 있어요</Txt>}</Stack>
           <Avatar user={u} size={80} />
         </Row>
         <Txt size={15} color={c.secondary}>{u.bio || '아직 소개가 없어요.'}</Txt>
@@ -404,7 +404,7 @@ export function ProfileScreen() {
           reviews.map((r) => (
             <View key={r.id} style={{ paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: c.border }}>
               <Stack gap={8}>
-                <Row style={{ gap: 5 }}><Star size={14} fill={c.primaryStrong} color={c.primaryStrong} /><Txt size={13} weight="700">{r.rating}.0</Txt><Txt size={12} color={c.secondary}>함께한 여행 후기</Txt></Row>
+                <Row style={{ gap: 5 }}><Stamp size={15} color={c.primaryStrong} /><Txt size={13} weight="700">스탬프 {r.rating}/5</Txt><Txt size={12} color={c.secondary}>함께한 여행 후기</Txt></Row>
                 <Txt>{r.text}</Txt>
               </Stack>
             </View>

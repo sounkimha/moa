@@ -15,7 +15,7 @@ import {
   Settings,
   ShieldCheck,
   ShoppingBag,
-  Star,
+  Stamp,
   Wallet,
   LucideIcon,
 } from 'lucide-react-native';
@@ -173,7 +173,7 @@ export function MyScreen() {
         <AccountRow title={a.role === 'buyer' ? '내 부탁' : '가져오는 거래'} icon={ShoppingBag} detail={`${a.role === 'buyer' ? ownRequests : ownTravelerTrades}건`} onPress={() => a.tab('trades')} />
         <AccountRow title="여행 일정" icon={Plane} detail={`${ownTrips}개`} onPress={() => a.nav('trips')} />
         <AccountRow title="관심 장소" icon={Heart} detail={`${d.favorites.length}곳`} onPress={() => a.nav('favorites')} />
-        <AccountRow title="남긴 후기" icon={Star} onPress={() => a.nav('reviews')} />
+        <AccountRow title="남긴 후기" icon={Stamp} onPress={() => a.nav('reviews')} />
       </AccountGroup>
       <AccountGroup title="거래 준비">
         <AccountRow title="본인 인증" icon={ShieldCheck} detail={identityVerified ? '체험 인증' : '확인 필요'} onPress={() => a.nav('identity')} />
@@ -474,72 +474,118 @@ export function SettingsScreen() {
   );
 }
 
+const reviewMood = ['','많이 아쉬웠어요', '조금 아쉬웠어요', '보통이었어요', '좋았어요', '정말 좋았어요'];
+
+function reviewExamples(rating: number, buyer: boolean): string[] {
+  if (rating <= 2 && rating > 0) return buyer
+    ? ['연락이 조금 늦었어요.', '진행 상황을 더 자주 알려주면 좋겠어요.', '전달 일정이 바뀌어 아쉬웠어요.']
+    : ['부탁 내용을 더 자세히 알려주면 좋겠어요.', '연락이 조금 늦었어요.', '전달 일정 조율이 어려웠어요.'];
+  if (rating === 3) return ['약속한 내용대로 거래했어요.', '필요한 이야기를 나눴어요.', '무사히 전달을 마쳤어요.'];
+  return buyer
+    ? ['진행 상황을 꼼꼼히 알려줬어요.', '약속한 시간에 잘 받았어요.', '다음에도 부탁하고 싶어요.']
+    : ['부탁 내용을 자세히 알려줬어요.', '연락이 빨라서 편했어요.', '전달 약속을 잘 지켜줬어요.'];
+}
+
 export function ReviewsScreen() {
   const a = useApp(),
     d = a.data!,
     t = d.transactions.find((x) => x.id === a.route.id),
-    [rating, setRating] = useState(5),
+    [rating, setRating] = useState(0),
     [text, setText] = useState('');
   const already = t && d.reviews.some((r) => r.transactionId === t.id && r.authorId === d.me.id);
+  const reviewReady = t && ['CONFIRMED', 'SETTLED'].includes(t.status);
+  const request = t && d.requests.find((item) => item.id === t.requestId);
+  const buyer = t?.buyerId === d.me.id;
+  const other = t && d.users.find((user) => user.id === (buyer ? t.travelerId : t.buyerId));
+  const examples = reviewExamples(rating, buyer);
+  const addExample = (example: string) => setText((current) => {
+    if (current.split('\n').some((line) => line.trim() === example)) return current;
+    const next = current.trim();
+    return `${next}${next ? '\n' : ''}${example}`.slice(0, 500);
+  });
   const save = async () => {
-    if (!t) return;
-    const v = await a.mutate(`/transactions/${t.id}/reviews`, { rating, text }, '후기를 남겼어요.');
+    if (!t || !reviewReady || already || !rating || text.trim().length < 2) return;
+    const v = await a.mutate(`/transactions/${t.id}/reviews`, { rating, text: text.trim() }, '후기를 남겼어요.');
     if (v) a.back();
   };
   return (
     <Page
-      title="함께한 마음을 남겨요"
+      title={reviewReady && !already ? '후기 남기기' : '남긴 후기'}
       footer={
-        t && !already ? (
+        reviewReady && !already ? (
           <Button
-            label="후기 남기기"
-            disabled={text.trim().length < 2}
+            label="후기 등록하기"
+            disabled={!rating || text.trim().length < 2}
             loading={a.busy}
             onPress={save}
           />
         ) : undefined
       }
     >
-      {t && !already ? (
-        <>
-          <View style={{ alignItems: 'center', gap: space.md, padding: space.xl, backgroundColor: c.primarySoft, borderRadius: radius.lg }}><CheckCircle2 size={36} color={c.primary} /><Txt size={14} color={c.primaryStrong} weight="600">서로의 여행을 조금 더 특별하게</Txt></View>
-          <Txt size={28} weight="800">
-            이번 부탁은 어땠나요?
-          </Txt>
-          <Row style={{ justifyContent: 'center', gap: 10 }}>
-            {[1, 2, 3, 4, 5].map((n) => (
-              <Pressable
-                key={n}
-                accessibilityRole="button"
-                accessibilityLabel={`${n}점`}
-                onPress={() => setRating(n)}
-                style={{ padding: 6, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
-              >
-                <Star
-                  size={36}
-                  fill={n <= rating ? c.green : 'none'}
-                  color={n <= rating ? c.green : c.border}
-                />
-              </Pressable>
-            ))}
-          </Row>
-          <Field
-            label="후기"
-            value={text}
-            onChange={setText}
-            multiline
-            placeholder="좋았던 점을 짧게 알려주세요."
-          />
-        </>
+      {reviewReady && !already ? (
+        <Stack gap={space.xl}>
+          <Stack gap={space.xs}>
+            <Badge>거래 완료</Badge>
+            <Txt size={typography.title} weight="800">이번 거래는 어땠나요?</Txt>
+            <Txt size={14} color={c.secondary}>{other?.nickname || '상대방'}님에게 남기는 후기예요.</Txt>
+          </Stack>
+          {!!request && <Card style={{ borderWidth: 1, borderColor: c.border }}>
+            <Stack gap={space.xs}>
+              <Txt size={12} weight="600" color={c.primaryStrong}>함께한 부탁</Txt>
+              <Txt size={16} weight="700" lines={2}>{request.productName}</Txt>
+            </Stack>
+          </Card>}
+          <Stack gap={space.md}>
+            <Stack gap={space.xs}>
+              <Txt size={18} weight="700">스탬프로 평가해요</Txt>
+              <Txt size={13} color={c.secondary}>마음에 가까운 개수를 눌러주세요.</Txt>
+            </Stack>
+            <Row style={{ gap: space.sm }}>
+              {[1, 2, 3, 4, 5].map((n) => {
+                const filled = n <= rating;
+                return <Pressable
+                  key={n}
+                  testID={`review-stamp-${n}`}
+                  accessibilityRole="button"
+                  accessibilityLabel={`스탬프 ${n}개`}
+                  accessibilityState={{ selected: rating === n }}
+                  aria-pressed={rating === n}
+                  onPress={() => setRating(n)}
+                  style={({ pressed }) => ({ flex: 1, minWidth: 0, minHeight: 62, borderRadius: radius.md, borderWidth: 1, borderColor: filled ? c.primary : c.border, backgroundColor: filled ? c.primarySoft : c.paper, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}
+                >
+                  <Stamp size={27} strokeWidth={1.8} color={filled ? c.primaryStrong : c.muted} />
+                </Pressable>;
+              })}
+            </Row>
+            <Txt size={14} weight="700" color={rating ? c.primaryStrong : c.secondary} style={{ textAlign: 'center' }}>
+              {rating ? `${rating}/5 · ${reviewMood[rating]}` : '아직 선택하지 않았어요'}
+            </Txt>
+          </Stack>
+          <Stack gap={space.md}>
+            <Stack gap={space.xs}>
+              <Txt size={18} weight="700">어떤 점이 기억에 남나요?</Txt>
+              <Txt size={13} color={c.secondary}>문장을 누르면 아래 후기에 들어가요.</Txt>
+            </Stack>
+            {examples.map((example) => {
+              const added = text.split('\n').some((line) => line.trim() === example);
+              return <Pressable key={example} accessibilityRole="button" accessibilityLabel={`${example} 문장 ${added ? '추가됨' : '추가'}`} accessibilityState={{ selected: added }} onPress={() => addExample(example)}
+                style={({ pressed }) => ({ minHeight: 48, paddingHorizontal: space.lg, paddingVertical: space.md, borderWidth: 1, borderColor: added ? c.primaryTint : c.border, borderRadius: radius.button, backgroundColor: added ? c.primarySoft : c.paper, opacity: pressed ? 0.7 : 1 })}>
+                <Row style={{ justifyContent: 'space-between' }}><Txt size={14} color={added ? c.primaryStrong : c.ink} weight={added ? '600' : '400'} style={{ flex: 1 }}>{example}</Txt>{added && <CheckCircle2 size={17} color={c.primaryStrong} />}</Row>
+              </Pressable>;
+            })}
+          </Stack>
+          <Field label="후기 글" value={text} onChange={(value) => setText(value.slice(0, 500))} multiline placeholder="함께한 거래 경험을 자유롭게 적어주세요." hint={`${text.length}/500자 · 상대방 프로필에 공개돼요.`} required />
+        </Stack>
       ) : (
         <>
           {already && <Notice>이미 이 거래의 후기를 남겼어요.</Notice>}
+          {t && !reviewReady && <Notice>거래가 끝나면 후기를 남길 수 있어요.</Notice>}
           {d.reviews
             .filter((r) => r.authorId === d.me.id)
             .map((r) => (
               <Card key={r.id}>
                 <Stack gap={space.md}>
-                  <Row style={{ justifyContent: 'space-between' }}><Txt color={c.primaryStrong}>{'★'.repeat(r.rating)}</Txt><Txt size={12} color={c.secondary}>{shortDate(r.createdAt)}</Txt></Row>
+                  <Row style={{ justifyContent: 'space-between' }}><Row style={{ gap: 5 }}><Stamp size={17} color={c.primaryStrong} /><Txt size={13} weight="700" color={c.primaryStrong}>{r.rating}/5 스탬프</Txt></Row><Txt size={12} color={c.secondary}>{shortDate(r.createdAt)}</Txt></Row>
                   <Txt size={15}>{r.text}</Txt>
                 </Stack>
               </Card>

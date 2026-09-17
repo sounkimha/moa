@@ -17,7 +17,7 @@ import {
   RefreshCw,
   Send,
   ShieldCheck,
-  Star,
+  Stamp,
   Truck,
   Wallet,
 } from 'lucide-react-native';
@@ -495,8 +495,8 @@ export function TransactionScreen() {
       {['CONFIRMED', 'SETTLED'].includes(t.status) && (
         <Button
           kind="secondary"
-          icon={Star}
-          label="거래 후기 남기기"
+          icon={Stamp}
+          label={d.reviews.some((review) => review.transactionId === t.id && review.authorId === d.me.id) ? '남긴 후기 보기' : '거래 후기 남기기'}
           onPress={() => a.nav('reviews', { id: t.id })}
         />
       )}

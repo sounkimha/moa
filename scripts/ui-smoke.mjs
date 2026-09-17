@@ -377,6 +377,18 @@ try {
   await switchTransactionAccount('민트로드');
   await click('보상 정산 체험하기');
   await expectText('모의 정산 완료');
+  dom.window.history.replaceState({}, '', transactionHash);
+  dom.window.dispatchEvent(new dom.window.PopStateEvent('popstate', { state: null }));
+  await expectText('거래 상세');
+  await click('거래 후기 남기기');
+  await expectText('이번 거래는 어땠나요?');
+  assert.equal(document.querySelectorAll('[aria-label^="스탬프 "]').length, 5, 'Review offers five stamps');
+  await click('스탬프 5개');
+  await click('부탁 내용을 자세히 알려줬어요. 문장 추가');
+  assert.equal(document.querySelector('textarea[aria-label="후기 글"]').value, '부탁 내용을 자세히 알려줬어요.');
+  await click('후기 등록하기');
+  await expectText('남긴 후기 보기');
+  console.log('PASS: completed trade → five stamps → suggested sentence → saved review');
   dom.window.history.replaceState({}, '', '#request-form');
   dom.window.dispatchEvent(new dom.window.PopStateEvent('popstate', { state: null }));
   await expectText('어떤 물건을 부탁할까요?');
