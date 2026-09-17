@@ -54,7 +54,7 @@ export class FinanceService {
         const existing = db.verifications.find((item) => item.userId === actor && item.kind === 'IDENTITY');
         const verification = {
           ...(existing || base()), userId: actor, kind: 'IDENTITY' as const,
-          status: result.status, providerRef: result.providerRef,
+          status: result.status, providerRef: result.providerRef, method: data.method,
         };
         if (existing) Object.assign(existing, verification);
         else db.verifications.push(verification);

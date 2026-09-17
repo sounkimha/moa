@@ -564,6 +564,7 @@ test('identity, top-up, payout account and withdrawal use isolated idempotent de
     bankName: '테스트은행', accountLast4: '1234', holderName: '민트로드',
   }, 'u-sora')).status, 409);
   assert.equal((await call('/identity/verify', { method: 'PASS' }, 'u-sora')).status, 201);
+  assert.equal((await call('/identity/verify', { method: 'SMS' }, 'u-sora')).status, 201);
   const account = await call('/wallet/payout-account', {
     bankName: '테스트은행', accountLast4: '1234', holderName: '민트로드',
   }, 'u-sora');

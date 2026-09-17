@@ -51,6 +51,7 @@ export interface UserVerification extends Entity {
   kind: 'PHONE' | 'ACCOUNT' | 'IDENTITY' | 'TRIP';
   status: 'DEMO_VERIFIED' | 'PENDING' | 'EXPIRED';
   providerRef: string;
+  method?: 'PASS' | 'SMS';
 }
 export type AuthProvider = 'DEMO' | 'PHONE' | 'KAKAO' | 'NAVER' | 'GOOGLE' | 'APPLE';
 export interface AuthIdentity extends Entity {

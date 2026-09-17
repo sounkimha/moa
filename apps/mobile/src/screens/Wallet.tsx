@@ -75,15 +75,20 @@ export function TopUpScreen() {
 
 export function IdentityScreen() {
   const a = useApp(), verified = a.data!.verificationSummary.identity;
-  const verify = (method: 'PASS' | 'SMS') => a.mutate('/identity/verify', { method }, '체험 본인확인을 완료했어요.');
+  const [lastMethod, setLastMethod] = useState<'PASS' | 'SMS' | undefined>();
+  const verify = async (method: 'PASS' | 'SMS') => {
+    const result = await a.mutate<{ method: 'PASS' | 'SMS' }>('/identity/verify', { method }, `${method === 'PASS' ? 'PASS' : 'SMS'} 방식으로 본인확인을 완료했어요.`);
+    if (result) setLastMethod(method);
+  };
   return (
     <Page title="본인확인">
       <View style={{ width: 72, height: 72, backgroundColor: c.primarySoft, borderRadius: radius.lg, justifyContent: 'center', alignItems: 'center' }}><ShieldCheck size={36} color={c.primary} /></View>
       <Stack gap={space.sm}><Badge>{verified ? '체험 확인 완료' : '확인 필요'}</Badge><Txt size={typography.hero} weight="800">서로 믿고 부탁할 수 있게{`\n`}본인을 확인해요.</Txt><Txt color={c.secondary}>부탁에 지원하거나 정산금을 받기 전 한 번 확인해요.</Txt></Stack>
       <View style={{ paddingVertical: space.lg, gap: space.lg }}><Row><CheckCircle2 size={20} color={c.primary} /><Txt size={14}>상대에게는 인증 여부만 보여요</Txt></Row><Row><LockKeyhole size={20} color={c.primary} /><Txt size={14}>신분증과 주민등록번호를 받지 않아요</Txt></Row></View>
-      <Button label={verified ? 'PASS 체험 다시 확인' : 'PASS로 체험 확인'} onPress={() => verify('PASS')} loading={a.busy} />
-      <Button kind="secondary" label="SMS로 체험 확인" onPress={() => verify('SMS')} loading={a.busy} />
-      <Notice>현재는 본인확인 체험이에요. 실제 PASS·SMS 인증은 진행되지 않아요.</Notice>
+      {verified && <Notice>{lastMethod === 'SMS' ? 'SMS 방식으로 확인했어요.' : lastMethod === 'PASS' ? 'PASS 방식으로 확인했어요.' : '본인확인을 완료했어요.'}</Notice>}
+      <Button label={verified ? 'PASS로 다시 확인' : 'PASS로 본인확인'} onPress={() => void verify('PASS')} loading={a.busy} />
+      <Button kind="secondary" label={verified ? 'SMS로 다시 확인' : 'SMS로 본인확인'} onPress={() => void verify('SMS')} loading={a.busy} />
+      <Notice>두 가지 방식 중 편한 방법을 선택할 수 있어요. 현재 체험에서는 실제 PASS·SMS 문자가 발송되지 않아요.</Notice>
     </Page>
   );
 }
