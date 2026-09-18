@@ -4,6 +4,7 @@ WORKDIR /app
 
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package.json
+COPY apps/admin/package.json apps/admin/package.json
 COPY apps/mobile/package.json apps/mobile/package.json
 COPY packages/domain/package.json packages/domain/package.json
 
@@ -16,6 +17,7 @@ ARG EXPO_PUBLIC_KAKAO_MAPS_JS_KEY
 
 RUN npm run build -w @moa/domain \
   && npm run build -w @moa/api \
+  && MOA_ADMIN_BASE=/admin/ npm run build -w @moa/admin \
   && npm run export -w @moa/mobile
 
 FROM node:22-bookworm-slim
@@ -28,6 +30,7 @@ ENV MOA_SERVE_WEB=1
 
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/apps/api/dist ./apps/api/dist
+COPY --from=build /app/apps/admin/dist ./apps/admin/dist
 COPY --from=build /app/apps/mobile/dist ./apps/mobile/dist
 COPY --from=build /app/packages/domain ./packages/domain
 

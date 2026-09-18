@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
+  base: process.env.MOA_ADMIN_BASE || '/',
   server: {
     allowedHosts: process.env.CODESPACE_NAME
       ? [`${process.env.CODESPACE_NAME}-8090.app.github.dev`]

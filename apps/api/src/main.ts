@@ -86,16 +86,27 @@ export async function bootstrap() {
   app.setGlobalPrefix('api');
   if (process.env.MOA_SERVE_WEB === '1') {
     const webDirectory = join(process.cwd(), 'apps', 'mobile', 'dist');
+    const adminDirectory = join(process.cwd(), 'apps', 'admin', 'dist');
     const index = join(webDirectory, 'index.html');
+    const adminIndex = join(adminDirectory, 'index.html');
     if (!existsSync(index)) throw new Error('Web preview build is missing. Run the mobile web export first.');
+    if (!existsSync(adminIndex)) throw new Error('Admin web build is missing. Run the admin build first.');
     const server = app.getHttpAdapter().getInstance();
     const indexHtml = readFileSync(index, 'utf8');
+    const adminIndexHtml = readFileSync(adminIndex, 'utf8');
     const serveIndex = (_req: Request, res: Response) => {
       const nonceMeta = `<meta name="moa-csp-nonce" content="${res.locals.cspNonce}">`;
       res.type('html').send(indexHtml.replace('</head>', `${nonceMeta}</head>`));
     };
+    const serveAdminIndex = (_req: Request, res: Response) => {
+      const nonceMeta = `<meta name="moa-csp-nonce" content="${res.locals.cspNonce}">`;
+      res.type('html').send(adminIndexHtml.replace('</head>', `${nonceMeta}</head>`));
+    };
     server.get('/index.html', serveIndex);
     server.use(express.static(webDirectory, { index: false, fallthrough: true }));
+    server.get('/admin', serveAdminIndex);
+    server.use('/admin', express.static(adminDirectory, { index: false, fallthrough: true }));
+    server.get(/^\/admin(?:\/.*)?$/, serveAdminIndex);
     server.get(/^(?!\/api(?:\/|$)|\/health$).*/, serveIndex);
   }
   app.enableShutdownHooks();
