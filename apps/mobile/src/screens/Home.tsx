@@ -72,7 +72,7 @@ const kmBetween = (a: { latitude: number; longitude: number }, b: { latitude: nu
 export function Onboarding() {
   const a = useApp();
   const [otherLogins, setOtherLogins] = useState(false);
-  const [testOpen, setTestOpen] = useState(false);
+  const [loginFormOpen, setLoginFormOpen] = useState(false);
   const [testUsername, setTestUsername] = useState('wasabi');
   const [testPassword, setTestPassword] = useState('h112828!');
   const [testError, setTestError] = useState('');
@@ -102,17 +102,16 @@ export function Onboarding() {
       {a.error && <Notice tone="error">{a.error}</Notice>}
       <Stack gap={10}>
         {kakaoReady && <Button label="카카오로 계속하기" loading={a.busy} onPress={() => a.socialLogin('KAKAO')} style={{ backgroundColor: '#FEE500' }} kind="secondary" />}
-        <Button testID="start-demo" label="체험 계정으로 로그인" kind={kakaoReady ? 'secondary' : 'primary'} loading={a.busy} onPress={() => a.login('DEMO', 'u-me', true)} />
-        <Button label={otherLogins ? '로그인 방법 접기' : '다른 방법으로 계속하기'} kind="ghost" onPress={() => setOtherLogins(!otherLogins)} />
-        {otherLogins && <Stack gap={8}>{(['GOOGLE', 'NAVER'] as const).filter((provider) => a.oauthProviders[provider]).map((provider) => <Button key={provider} label={provider === 'GOOGLE' ? 'Google로 계속하기' : '네이버로 계속하기'} kind="secondary" loading={a.busy} onPress={() => a.socialLogin(provider)} />)}{!a.oauthProviders.GOOGLE && !a.oauthProviders.NAVER && <Notice>소셜 로그인은 연결 준비 중이에요. 지금은 체험 계정으로 둘러보세요.</Notice>}</Stack>}
-        <Button label={testOpen ? '테스트 로그인 닫기' : '테스트 아이디로 로그인'} kind="ghost" onPress={() => { setTestOpen(!testOpen); setTestError(''); }} />
-        {testOpen && <Stack gap={8}>
-          <TextInput value={testUsername} onChangeText={setTestUsername} autoCapitalize="none" autoCorrect={false} placeholder="아이디" placeholderTextColor={c.muted} style={{ minHeight: 48, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: c.border, backgroundColor: c.paper, color: c.ink, fontSize: 15 }} />
-          <TextInput value={testPassword} onChangeText={setTestPassword} autoCapitalize="none" autoCorrect={false} secureTextEntry placeholder="비밀번호" placeholderTextColor={c.muted} style={{ minHeight: 48, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: c.border, backgroundColor: c.paper, color: c.ink, fontSize: 15 }} />
+        {!loginFormOpen ? <Button testID="start-demo" label="체험 계정으로 로그인" kind={kakaoReady ? 'secondary' : 'primary'} onPress={() => { setLoginFormOpen(true); setTestError(''); }} /> : <Stack gap={10}>
+          <Row style={{ justifyContent: 'space-between' }}><Txt size={20} weight="700">체험 계정 로그인</Txt><Pressable accessibilityRole="button" accessibilityLabel="로그인 입력 닫기" onPress={() => { setLoginFormOpen(false); setTestError(''); }}><Txt size={13} weight="600" color={c.primaryStrong}>뒤로</Txt></Pressable></Row>
+          <TextInput value={testUsername} onChangeText={setTestUsername} autoCapitalize="none" autoCorrect={false} placeholder="아이디" placeholderTextColor={c.muted} style={{ minHeight: 52, paddingHorizontal: 16, borderRadius: 14, borderWidth: 1, borderColor: c.border, backgroundColor: c.paper, color: c.ink, fontSize: 15 }} />
+          <TextInput value={testPassword} onChangeText={setTestPassword} autoCapitalize="none" autoCorrect={false} secureTextEntry placeholder="비밀번호" placeholderTextColor={c.muted} style={{ minHeight: 52, paddingHorizontal: 16, borderRadius: 14, borderWidth: 1, borderColor: c.border, backgroundColor: c.paper, color: c.ink, fontSize: 15 }} />
           {testError && <Notice tone="error">{testError}</Notice>}
-          <Button label="테스트 계정으로 로그인" loading={a.busy} onPress={submitTestLogin} />
+          <Button label="로그인하기" loading={a.busy} onPress={submitTestLogin} />
           <Txt size={12} color={c.secondary}>비밀번호는 8자 이상 · 영문·숫자·특수문자를 포함해요.</Txt>
         </Stack>}
+        <Button label={otherLogins ? '로그인 방법 접기' : '다른 방법으로 계속하기'} kind="ghost" onPress={() => setOtherLogins(!otherLogins)} />
+        {otherLogins && <Stack gap={8}>{(['GOOGLE', 'NAVER'] as const).filter((provider) => a.oauthProviders[provider]).map((provider) => <Button key={provider} label={provider === 'GOOGLE' ? 'Google로 계속하기' : '네이버로 계속하기'} kind="secondary" loading={a.busy} onPress={() => a.socialLogin(provider)} />)}{!a.oauthProviders.GOOGLE && !a.oauthProviders.NAVER && <Notice>소셜 로그인은 연결 준비 중이에요. 지금은 체험 계정으로 둘러보세요.</Notice>}</Stack>}
         <Txt size={12} color={c.secondary} style={{ textAlign: 'center' }}>체험에서는 실제 결제나 정산이 발생하지 않아요.</Txt>
       </Stack>
     </ScrollView>
