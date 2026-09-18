@@ -189,12 +189,12 @@ export function Home() {
     </Row>
     {a.role === 'buyer' ? <>
       <Stack gap={14}>
-        <Stack gap={3}><Txt size={30} weight="900" color={c.primaryStrong}>{d.me.nickname}님, <Txt size={30} weight="900">반가워요!</Txt></Txt><Txt size={15} color={c.secondary}>지금, 필요한 물건이 그곳에 있어요.</Txt></Stack>
+        <Stack gap={2}><Txt size={30} weight="900">좋은 하루예요,</Txt><Txt size={30} weight="900">{d.me.nickname}님 👋</Txt><Txt size={15} color={c.secondary}>지금 누군가는 그곳으로 가고 있어요.</Txt></Stack>
         <Pressable accessibilityRole="button" accessibilityLabel="도시와 장소 검색" onPress={() => a.tab('search')} style={({ pressed }) => ({ minHeight: 56, borderRadius: 18, paddingHorizontal: 16, backgroundColor: pressed ? c.primarySoft : c.paper, borderWidth: 1, borderColor: c.border, flexDirection: 'row', gap: 10, alignItems: 'center' })}><Search size={21} color={c.primaryStrong} /><Txt size={15} color={c.secondary}>도시, 매장, 갖고 싶은 물건</Txt></Pressable>
       </Stack>
       {hero && <View style={{ borderRadius: 24, overflow: 'hidden', backgroundColor: c.primaryDeep }}>
         <Pressable accessibilityRole="button" accessibilityLabel={`${hero.city}에서 부탁하기`} onPress={() => a.nav('search', { placeId: hero.place.id })} style={({ pressed }) => ({ opacity: pressed ? 0.86 : 1 })}>
-          <View style={{ height: 228, overflow: 'hidden' }}><View style={{ position: 'absolute', inset: 0 }}><PlaceCover place={hero.place} thumbnail /></View><View style={{ position: 'absolute', inset: 0, backgroundColor: '#10244375' }} />
+          <View style={{ height: 228, overflow: 'hidden' }}><View style={{ position: 'absolute', inset: 0 }}><PlaceCover place={hero.place} thumbnail /></View><View style={{ position: 'absolute', inset: 0, backgroundColor: '#10244375' }} /><View style={{ position: 'absolute', top: 16, left: 16, width: 34, height: 34, borderRadius: 17, backgroundColor: c.paper, alignItems: 'center', justifyContent: 'center' }}><MapPin size={17} color={c.ink} /></View>
             <Stack gap={10} style={{ flex: 1, padding: 22, justifyContent: 'flex-end' }}><Txt size={12} weight="600" color={c.navyTextBright}>{countryName(hero.place.country)} · {hero.city}</Txt><Txt size={26} weight="800" color="white">{hero.travelers ? `${hero.travelers}명의 여행자가\n${hero.city}로 떠나요.` : `${hero.city}의 발견,\n누군가의 여행으로.`}</Txt><Row style={{ justifyContent: 'space-between', marginTop: 6 }}><Row style={{ gap: 8 }}><AvatarStack users={heroTravelers} /><Txt size={12} color="white">{hero.travelers ? '여행 일정 둘러보기' : '장소 둘러보기'}</Txt></Row><View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: c.paper, justifyContent: 'center', alignItems: 'center' }}><ArrowRight size={19} color={c.primaryStrong} /></View></Row></Stack>
           </View>
         </Pressable>
