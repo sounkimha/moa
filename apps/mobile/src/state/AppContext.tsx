@@ -197,7 +197,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await storage.clear();
     return generation;
   };
-  const refresh = async () => {
+  const refresh = async (suppressTransientError = false) => {
     const generation = session.current;
     const sequence = ++refreshSequence.current;
     try {
@@ -223,15 +223,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (e instanceof ApiError && e.status === 401) {
         const cleared = await clearSession();
         if (cleared === session.current) setError(e.message);
-      } else setError((e as Error).message);
+      } else if (!(suppressTransientError && e instanceof ApiError && (e.status === 0 || e.status === 408))) {
+        setError((e as Error).message);
+      }
       throw e;
     }
   };
   const refreshAfterAuth = async () => {
-    try { return await refresh(); }
+    try { return await refresh(true); }
     catch (e) {
       if (e instanceof ApiError && (e.status === 0 || e.status === 408)) {
-        await new Promise((resolve) => setTimeout(resolve, 450));
+        await new Promise((resolve) => setTimeout(resolve, 650));
         return refresh();
       }
       throw e;

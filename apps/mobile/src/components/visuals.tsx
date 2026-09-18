@@ -37,19 +37,35 @@ import { PhotoCredit } from './PhotoCredit';
 // image cache as soon as the visual component module is loaded so the guide does
 // not briefly show an empty/loading tile on a cold app start.
 const CHIIKAWA_SOURCE = require('../../assets/chiikawa-featured.jpg');
-if (Platform.OS === 'web' && typeof Image.resolveAssetSource === 'function' && typeof Image.prefetch === 'function') {
-  const uri = Image.resolveAssetSource(CHIIKAWA_SOURCE)?.uri;
-  if (uri) void Image.prefetch(uri).catch(() => undefined);
+const CHIIKAWA_URI = Platform.OS === 'web'
+  ? Image.resolveAssetSource?.(CHIIKAWA_SOURCE)?.uri || (CHIIKAWA_SOURCE as { uri?: string })?.uri
+  : undefined;
+if (Platform.OS === 'web' && CHIIKAWA_URI && typeof Image.prefetch === 'function') {
+  void Image.prefetch(CHIIKAWA_URI).catch(() => undefined);
 }
-if (Platform.OS === 'web' && typeof document !== 'undefined' && typeof Image.resolveAssetSource === 'function') {
-  const uri = Image.resolveAssetSource(CHIIKAWA_SOURCE)?.uri;
-  if (uri && !document.head.querySelector('link[data-moa-chiikawa-preload]')) {
+if (Platform.OS === 'web' && typeof document !== 'undefined' && CHIIKAWA_URI) {
+  if (!document.head.querySelector('link[data-moa-chiikawa-preload]')) {
     const preload = document.createElement('link');
     preload.rel = 'preload';
     preload.as = 'image';
-    preload.href = uri;
+    preload.href = CHIIKAWA_URI;
     preload.setAttribute('data-moa-chiikawa-preload', 'true');
     document.head.appendChild(preload);
+  }
+  // React Native Web may not expose Image.resolveAssetSource/prefetch on
+  // older browsers. A native DOM image still starts the request immediately.
+  if (!document.querySelector('img[data-moa-chiikawa-preload]')) {
+    const warm = document.createElement('img');
+    warm.src = CHIIKAWA_URI;
+    warm.alt = '';
+    warm.setAttribute('aria-hidden', 'true');
+    warm.setAttribute('data-moa-chiikawa-preload', 'true');
+    warm.style.position = 'absolute';
+    warm.style.width = '1px';
+    warm.style.height = '1px';
+    warm.style.opacity = '0';
+    warm.style.pointerEvents = 'none';
+    document.body?.appendChild(warm);
   }
 }
 export function Logo({ size = 38 }: { size?: number }) {
