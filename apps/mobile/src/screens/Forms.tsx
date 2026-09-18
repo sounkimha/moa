@@ -364,7 +364,8 @@ function RequestFormContent() {
       setPrice('');
       setError('판매 페이지의 가격 통화가 구매 장소와 달라요. 현지 판매 가격을 확인해주세요.');
     }
-    if (!detectedPlace) setError('구매 장소를 확인하지 못했어요. 실제 판매처를 선택해주세요.');
+    const suggestedPlaceId = result.product?.placeId || result.suggestion?.placeId;
+    if (suggestedPlaceId && !detectedPlace) setError('구매 장소를 확인하지 못했어요. 실제 판매처를 선택해주세요.');
     setEditingDetails(!filled || !hasPrice || currencyMismatch || !detectedPlace);
   };
   const resolve = async (sample = false, force = false) => {

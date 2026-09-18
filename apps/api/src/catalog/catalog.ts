@@ -105,7 +105,7 @@ async function fetchPage(value: string) {
       chunks.push(value);
     }
     const html = Buffer.concat(chunks).toString('utf8');
-    return { response, html, finalUrl: current.toString() };
+    return { response, html, finalUrl: current.toString(), contentType: response.headers.get('content-type') || '' };
   }
   return null;
 }
@@ -313,6 +313,27 @@ export class CatalogService {
         source: null,
         notice: '링크를 열지 못했어요. 공개된 상품 링크인지 확인해주세요.',
       };
+    if (/^image\/(?:jpeg|jpg|png|webp|gif)(?:;|$)/i.test(page.contentType)) {
+      const result = {
+        status: 'IMAGE_LINK',
+        product: null,
+        suggestion: {
+          productName: '',
+          ...classifyLinkProduct(''),
+          placeId: null,
+          storeName: '',
+          purchaseLocation: '',
+          localPrice: null,
+          currency: null,
+          imageUrl: page.finalUrl,
+          stockStatus: 'CHECK_REQUIRED',
+        },
+        source: page.finalUrl,
+        notice: '상품 페이지가 아니라 이미지 링크예요. 사진은 불러왔어요. 상품명과 현지 가격을 입력해주세요.',
+      };
+      await this.cache.set(cacheKey, result);
+      return result;
+    }
     const title = meta(page.html, 'og:title') || decodeHtml(page.html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '');
     const canonical = page.html.match(/<link\b[^>]*rel=["']canonical["'][^>]*href=["']([^"']+)/i)?.[1] || '';
     if (page.response.status === 403 || page.response.status === 429 || /just a moment|access denied|captcha/i.test(title))

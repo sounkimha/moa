@@ -45,6 +45,22 @@ test('metadata survives malformed image URLs and distinguishes blocked sellers f
   }
 });
 
+test('image-only links keep the real image instead of falling back to a sample illustration', async () => {
+  const originalFetch = global.fetch, originalLookup = dns.lookup;
+  dns.lookup = async () => [{ address: '93.184.216.34', family: 4 }];
+  try {
+    global.fetch = async () => new Response('image-bytes', { headers: { 'content-type': 'image/jpeg' } });
+    const result = await catalog().metadata('https://mblogthumb-phinf.pstatic.net/example');
+    assert.equal(result.status, 'IMAGE_LINK');
+    assert.equal(result.suggestion.productName, '');
+    assert.equal(result.suggestion.imageUrl, 'https://mblogthumb-phinf.pstatic.net/example');
+    assert.match(result.notice, /상품 페이지가 아니라 이미지 링크/);
+  } finally {
+    global.fetch = originalFetch;
+    dns.lookup = originalLookup;
+  }
+});
+
 test('vision response handling preserves uncertain products rather than inventing an exact catalog match', async () => {
   const originalFetch = global.fetch, oldKey = process.env.OPENAI_API_KEY;
   process.env.OPENAI_API_KEY = 'test-key-not-a-real-secret';
