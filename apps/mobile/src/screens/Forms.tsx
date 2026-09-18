@@ -781,7 +781,8 @@ function RequestFormContent() {
                     {stores.length > 1 && <Button small kind="ghost" label={`구매 가능한 매장 ${stores.length}곳`} onPress={() => setStoreSheetOpen(true)} />}
                     {!!recognizedLocationLabel && <Button small kind="secondary" label="판매지역 수정" onPress={() => { setEditingDetails(true); locationMismatch ? setLocationMismatchOpen(true) : setPlaceSearchOpen(true); }} />}
                     <Txt size={24} weight="800">{price ? money(q.productPrice) : '가격 확인 필요'}</Txt>
-                    <Txt size={12} color={localPriceEstimated ? c.primaryDeep : c.secondary}>{CATEGORIES[category]} · {localPriceEstimated ? 'AI 예상 현지가' : '현지가'} {localMoney(Number(price), recognizedCurrency || currencyForCountry(availability?.countryCode || place.country))}</Txt>
+                    <Txt size={12} color={c.secondary}>원화 환산액 · {CATEGORIES[category]}</Txt>
+                    <Txt size={13} color={localPriceEstimated ? c.primaryDeep : c.secondary}>{localPriceEstimated ? 'AI 예상 현지가' : '현지가'} · {localMoney(Number(price), recognizedCurrency || currencyForCountry(availability?.countryCode || place.country))}</Txt>
                     {option !== '기본 옵션' && <Txt size={13} color={c.secondary}>{option}</Txt>}
                   </Stack>
                 </Row>
@@ -988,7 +989,7 @@ function RequestFormContent() {
           <Divider />
           <DateField label="희망 수령일" value={desired} onChange={setDesired} min={future(0)} />
           <Stack gap={10}><Txt size={19} weight="700">고마운 마음, 얼마를 전할까요?</Txt><Field label="여행자 보상 (원)" value={requestedReward} onChange={(value) => { setRequestedReward(value.replace(/[^0-9]/g, '').slice(0, 7)); setError(''); }} keyboard="numeric" placeholder="직접 금액을 정해주세요" hint="보상은 부탁하는 사람이 자유롭게 정해요." /></Stack>
-          <Card><Stack gap={20}><Row><ShieldCheck size={20} color={c.primary} /><Txt size={18} weight="700">예상 결제금액</Txt></Row><MoneyBreakdown price={q} rewardPending={requestedReward === ''} />{fx.loading && <Txt size={12} color={c.secondary}>최신 환율을 확인하고 있어요.</Txt>}{fx.failed && <Button small kind="ghost" label="환율 다시 확인" onPress={() => void fx.refresh()} />}<Txt size={12} color={c.secondary}>먼저 결제하고 지원한 여행자를 선택해요. 상품을 받은 뒤 정산돼요. 실제 적용 금액은 결제 전에 다시 확인해요.</Txt></Stack></Card>
+          <Card><Stack gap={20}><Row><ShieldCheck size={20} color={c.primary} /><Txt size={18} weight="700">예상 결제금액</Txt></Row><MoneyBreakdown price={q} localAmount={Number(price) * quantity} localCurrency={pricingInput.currency} localPriceEstimated={localPriceEstimated} rewardPending={requestedReward === ''} />{fx.loading && <Txt size={12} color={c.secondary}>최신 환율을 확인하고 있어요.</Txt>}{fx.failed && <Button small kind="ghost" label="환율 다시 확인" onPress={() => void fx.refresh()} />}<Txt size={12} color={c.secondary}>먼저 결제하고 지원한 여행자를 선택해요. 상품을 받은 뒤 정산돼요. 실제 적용 금액은 결제 전에 다시 확인해요.</Txt></Stack></Card>
           <Sheet visible={editingMeetup} title="어디에서 만날까요?" onClose={cancelDeliveryEditor}>
             {editingMeetup && <MeetupPicker key={deliveryCountry} country={deliveryCountry} value={meetupPoint} legacyName={meetupLocation} history={completedMeetups} onChange={(point) => {
               setMeetupPoint(point);

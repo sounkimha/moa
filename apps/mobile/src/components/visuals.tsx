@@ -11,6 +11,7 @@ import {
 } from 'lucide-react-native';
 import {
   Art,
+  Currency,
   Place,
   ProductRequest,
   User,
@@ -407,8 +408,8 @@ export function ProductRow({
     </Pressable>
   );
 }
-export function MoneyBreakdown({ price, compact = false, rewardPending = false }: {
-  price: Price; compact?: boolean; rewardPending?: boolean;
+export function MoneyBreakdown({ price, compact = false, rewardPending = false, localAmount, localCurrency, localPriceEstimated = false }: {
+  price: Price; compact?: boolean; rewardPending?: boolean; localAmount?: number; localCurrency?: Currency; localPriceEstimated?: boolean;
 }) {
   const legacyFee = price.shippingFee !== 0 && price.shippingFee !== DOMESTIC_PARCEL_FEE;
   const rate = price.fxRate.toLocaleString('ko-KR', { maximumFractionDigits: 6 });
@@ -435,6 +436,12 @@ export function MoneyBreakdown({ price, compact = false, rewardPending = false }
           </Txt>
         </Row>
       ))}
+      {localAmount !== undefined && localCurrency && (
+        <Row style={{ justifyContent: 'space-between' }}>
+          <Txt size={14} color={localPriceEstimated ? c.primaryDeep : c.secondary}>{localPriceEstimated ? 'AI 예상 현지가' : '현지가'}</Txt>
+          <Txt size={14} weight="600" color={localPriceEstimated ? c.primaryDeep : undefined}>{localMoney(localAmount, localCurrency)}</Txt>
+        </Row>
+      )}
       <Divider />
       <Row style={{ justifyContent: 'space-between' }}>
         <Txt weight="700">{rewardPending ? '상품·전달비' : '총 결제금액'}</Txt>
