@@ -6,6 +6,7 @@ const places: [string, Country, string, string, string, number, number][] = [
   ['p-la-koreatown', 'US', '로스앤젤레스', '산타모니카 피어', 'SANTA MONICA PIER', 34.0092, -118.4976],
   ['p-sf-union', 'US', '샌프란시스코', '금문교', 'GOLDEN GATE BRIDGE', 37.8199, -122.4783],
   ['p-hawaii-waikiki', 'US', '하와이', '와이키키', 'WAIKIKI', 21.276, -157.827],
+  ['p-las-vegas-strip', 'US', '라스베이거스', '라스베이거스 스트립', 'LAS VEGAS STRIP', 36.1147, -115.1728],
   ['p-vancouver-granville', 'CA', '밴쿠버', '스탠리 파크', 'STANLEY PARK', 49.3043, -123.1443],
   ['p-toronto-queen', 'CA', '토론토', 'CN 타워', 'CN TOWER', 43.6426, -79.3871],
   ['p-montreal-mile', 'CA', '몬트리올', '올드 몬트리올', 'OLD MONTREAL', 45.504, -73.554],
