@@ -22,6 +22,7 @@ test('map-compatible CSP uses a fresh nonce without globally allowing inline scr
     const secondCsp = second.headers.get('content-security-policy') || '';
     assert.match(firstCsp, /script-src 'self' 'nonce-[A-Za-z0-9+/=]+'/);
     assert.match(firstCsp, /https:\/\/\*\.googleapis\.com/);
+    assert.match(firstCsp, /https:\/\/\*\.daumcdn\.net/);
     assert.doesNotMatch(firstCsp, /script-src[^;]*'unsafe-inline'/);
     assert.notEqual(firstCsp, secondCsp);
     assert.equal(first.headers.get('referrer-policy'), 'strict-origin-when-cross-origin');

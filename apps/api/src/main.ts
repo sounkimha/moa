@@ -34,7 +34,7 @@ export async function bootstrap() {
   app.use(helmet({
     contentSecurityPolicy: {
       directives: {
-        scriptSrc: ["'self'", (_req, res) => `'nonce-${(res as Response).locals.cspNonce}'`, "'unsafe-eval'", 'https://*.googleapis.com', 'https://*.gstatic.com', 'https://dapi.kakao.com'],
+        scriptSrc: ["'self'", (_req, res) => `'nonce-${(res as Response).locals.cspNonce}'`, "'unsafe-eval'", 'https://*.googleapis.com', 'https://*.gstatic.com', 'https://dapi.kakao.com', 'https://*.daumcdn.net'],
         imgSrc: ["'self'", 'data:', 'https:', 'blob:'],
         connectSrc: ["'self'", 'data:', 'blob:', 'https://*.googleapis.com', 'https://*.google.com', 'https://*.gstatic.com', 'https://dapi.kakao.com', 'https://*.daumcdn.net'],
         fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
