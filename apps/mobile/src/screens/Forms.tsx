@@ -281,7 +281,12 @@ function RequestFormContent() {
   const recognizedLocationLabel = availability
     ? [availability.countryName, availability.city, availability.district].filter(Boolean).join(' · ')
     : recognizedLocation ? [recognizedLocation.countryName, recognizedLocation.city, recognizedLocation.district].filter(Boolean).join(' · ') : '';
-  const pricingInput = { localPrice: validLocalPrice(price) ? Number(price) : 0, quantity, currency: currencyForCountry(place.country) };
+  // Recognition may identify a product sold in a different market than the
+  // place initially selected (for example an Indonesian snack while Shibuya
+  // is selected). Keep the recognized currency for both the local input and
+  // the KRW quote until the user explicitly changes the place.
+  const productCurrency = recognizedCurrency || currencyForCountry(availability?.countryCode || place.country);
+  const pricingInput = { localPrice: validLocalPrice(price) ? Number(price) : 0, quantity, currency: productCurrency };
   const fx = useFxRate(pricingInput.currency);
   const reward = Number(requestedReward) || 0;
   const previewReward = Number.isSafeInteger(reward) && reward >= 0 && reward <= MAX_DEMO_REWARD ? reward : 0;
@@ -838,13 +843,20 @@ function RequestFormContent() {
             </Stack>
           </Row>
           <Field
-            label={`현지가 (${recognizedCurrency || currencyForCountry(availability?.countryCode || place.country)})`}
+            label={`현지가 (${productCurrency})`}
             required
             value={price}
             onChange={(v) => { setLocalPriceEstimated(false); setPrice(v.replace(/[^0-9.]/g, '')); }}
             keyboard="numeric"
             placeholder="예: 2420"
           />
+          {validLocalPrice(price) && (
+            <View style={{ marginTop: -8, padding: 12, borderRadius: 12, backgroundColor: c.primarySoft, gap: 3 }}>
+              <Txt size={12} color={c.secondary}>원화 환산액 · {quantity > 1 ? `${quantity}개 기준` : '1개 기준'}</Txt>
+              <Txt size={18} weight="800" color={c.primaryDeep}>{money(q.productPrice)}</Txt>
+              <Txt size={11} color={c.muted}>환율에 따라 결제 전 금액이 달라질 수 있어요.</Txt>
+            </View>
+          )}
           {localPriceEstimated && <Txt size={12} color={c.primaryDeep}>AI 예상 현지가예요. 실제 판매가를 확인하고 필요하면 수정해주세요.</Txt>}
           {!price && aiFilled && <Txt size={12} color={c.secondary}>사진에서 가격을 확인하지 못했어요. 현지 가격을 직접 입력해주세요.</Txt>}
           <Field
@@ -895,7 +907,7 @@ function RequestFormContent() {
             <Txt size={12} color={c.secondary}>{placeQuery.trim() ? `${placeResults.length}곳을 찾았어요` : '여행지와 매장을 한 번에 찾아보세요.'}</Txt>
             {placeResults.map((candidate) => <Pressable key={candidate.id} accessibilityRole="button" accessibilityLabel={`${candidate.city} ${candidate.name} 선택`} onPress={() => {
               if (candidate.country !== place.country) setPrice('');
-              setPlaceId(candidate.id); setStoreName(candidate.name); setLocationSource('USER_SELECTED'); setLocationMismatch(false); setInventoryStatus('CHECK_REQUIRED'); setError('');
+              setPlaceId(candidate.id); setStoreName(candidate.name); setRecognizedCurrency(null); setAvailability(undefined); setRecognizedLocation(undefined); setStores([]); setLocationSource('USER_SELECTED'); setLocationMismatch(false); setInventoryStatus('CHECK_REQUIRED'); setError('');
               setPlaceSearchOpen(false); setPlaceQuery('');
             }} style={({ pressed }) => ({ minHeight: 76, padding: 16, borderRadius: 16, backgroundColor: placeId === candidate.id ? c.lilac : c.canvas, borderWidth: 1, borderColor: placeId === candidate.id ? c.green : c.border, flexDirection: 'row', alignItems: 'center', gap: 12, opacity: pressed ? 0.72 : 1 })}>
               {getPlacePhoto(candidate) ? <Image source={getPlacePhoto(candidate)!.source} style={{ width: 54, height: 54, borderRadius: 12 }} resizeMode="cover" /> : <View style={{ width: 54, height: 54, borderRadius: 12, backgroundColor: c.paper, alignItems: 'center', justifyContent: 'center' }}><MapPin size={18} color={c.green} /></View>}
