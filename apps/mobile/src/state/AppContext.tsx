@@ -28,6 +28,7 @@ export type RequestDraft = {
   image: string;
   art: Art;
   price: string;
+  localPriceEstimated?: boolean;
   requestedReward?: string;
   quantity: number;
   desired: string;

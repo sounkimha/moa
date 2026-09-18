@@ -9,6 +9,9 @@ export type RecognitionSignals = {
   storeName: string;
   purchaseLocation: string;
   priceAmount: number | null;
+  /** Fallback local retail estimate when no visible price is available. */
+  priceEstimateAmount: number | null;
+  priceEstimateConfidence: number;
   currency: Currency | null;
   colors: string[];
   brandName: string;

@@ -151,6 +151,8 @@ export interface ProductRequest extends Entity {
   country: Country;
   city: string;
   localPrice: number;
+  /** True when the amount was suggested from product/location context rather than a visible price. */
+  localPriceEstimated?: boolean;
   currency: Currency;
   quantity: number;
   /** Buyer-selected traveler reward. Undefined only for old saved requests. */

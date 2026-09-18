@@ -93,6 +93,7 @@ type RecognitionSuggestion = {
   storeName: string;
   purchaseLocation: string;
   localPrice: number | null;
+  priceEstimated?: boolean;
   currency: Currency | null;
   imageUrl?: string;
   stockStatus?: 'IN_STOCK' | 'OUT_OF_STOCK' | 'PREORDER' | 'CHECK_REQUIRED';
@@ -136,6 +137,7 @@ function RequestFormContent() {
     [image, setImage] = useState(preset?.productImage || draft?.image || ''),
     [art, setArt] = useState<Art>(preset?.art || draft?.art || 'keyring'),
     [price, setPrice] = useState(preset ? String(preset.localPrice) : draft?.price || ''),
+    [localPriceEstimated, setLocalPriceEstimated] = useState(Boolean(preset?.localPriceEstimated || draft?.localPriceEstimated)),
     [requestedReward, setRequestedReward] = useState(preset?.requestedReward !== undefined ? String(preset.requestedReward) : draft?.requestedReward || ''),
     [quantity, setQuantity] = useState(Math.max(1, Math.min(10, preset?.quantity || draft?.quantity || 1))),
     [desired, setDesired] = useState(
@@ -206,6 +208,7 @@ function RequestFormContent() {
     setName(''); setPrice(''); setImage(''); setStoreName('');
     setBrandName(''); setAvailability(undefined); setStores([]); setRecognizedLocation(undefined);
     setRecognizedCurrency(undefined);
+    setLocalPriceEstimated(false);
     setLocationSource('USER_SELECTED'); setLocationMismatch(false);
     setOption('기본 옵션'); setInventoryStatus('CHECK_REQUIRED');
     setAiFilled(false); setSampleFilled(false); setEditingDetails(false);
@@ -299,6 +302,7 @@ function RequestFormContent() {
       image,
       art,
       price,
+      localPriceEstimated,
       requestedReward,
       quantity,
       desired,
@@ -339,6 +343,7 @@ function RequestFormContent() {
     image,
     art,
     price,
+    localPriceEstimated,
     requestedReward,
     quantity,
     desired,
@@ -376,6 +381,7 @@ function RequestFormContent() {
   const setProduct = (p: Product, applyStore = true) => {
     setName(typeof p.name === 'string' ? p.name : '');
     setPrice(Number.isFinite(p.localPrice) ? String(p.localPrice) : '');
+    setLocalPriceEstimated(false);
     setArt(['keyring', 'plush', 'pouch', 'tshirt', 'pin', 'bag'].includes(p.art) ? p.art : 'keyring');
     setCategory(Object.hasOwn(CATEGORIES, p.category) ? p.category : 'CHARACTER');
     if (applyStore) setStoreName(d.places.find((place) => place.id === p.placeId)?.name || '');
@@ -420,7 +426,12 @@ function RequestFormContent() {
       if (typeof suggestion.productName === 'string') setName(suggestion.productName);
       setCategory(Object.hasOwn(CATEGORIES, suggestion.category) ? suggestion.category : 'CHARACTER');
       setArt(['keyring', 'plush', 'pouch', 'tshirt', 'pin', 'bag'].includes(suggestion.art) ? suggestion.art : 'keyring');
-      if (Number.isFinite(suggestion.localPrice) && suggestion.localPrice! > 0) setPrice(String(suggestion.localPrice));
+      if (Number.isFinite(suggestion.localPrice) && suggestion.localPrice! > 0) {
+        setPrice(String(suggestion.localPrice));
+        setLocalPriceEstimated(Boolean(suggestion.priceEstimated));
+      } else {
+        setLocalPriceEstimated(false);
+      }
       if (typeof suggestion.storeName === 'string' && !mismatch) setStoreName(suggestion.storeName);
       if (suggestion.stockStatus) setInventoryStatus(suggestion.stockStatus);
       setOption(typeof suggestion.option === 'string' ? suggestion.option : '기본 옵션');
@@ -428,7 +439,7 @@ function RequestFormContent() {
     const filled = Boolean(typeof result.product?.name === 'string' ? result.product.name : typeof result.suggestion?.productName === 'string' ? result.suggestion.productName : '');
     setAiFilled(filled);
     const hasPrice = (result.product?.localPrice || result.suggestion?.localPrice || 0) > 0;
-    if (currencyMismatch) {
+    if (currencyMismatch && !result.suggestion?.priceEstimated) {
       setPrice('');
       setError('판매 페이지의 가격 통화가 구매 장소와 달라요. 현지 판매 가격을 확인해주세요.');
     }
@@ -588,6 +599,7 @@ function RequestFormContent() {
         art,
         placeId,
         localPrice: Number(price),
+        localPriceEstimated,
         requestedReward: reward,
         quantity,
         desiredDate: desired,
@@ -713,7 +725,7 @@ function RequestFormContent() {
               <Txt size={13} color={c.secondary}>
                 {d.recognition?.image === false
                   ? '사진은 저장해둘게요. AI 연결 후 상품명·종류·판매처를 자동으로 채울 수 있어요.'
-                  : '상품명·종류·판매처를 자동으로 채워드려요. 가격은 사진에 보일 때만 읽어요.'}
+                  : '상품명·종류·판매처를 채워드리고, 가격표가 없으면 현지 예상가를 제안해요.'}
               </Txt>
               <Txt size={12} color={c.muted}>
                 자동 인식을 위해 선택한 사진이 전송돼요.
@@ -769,7 +781,7 @@ function RequestFormContent() {
                     {stores.length > 1 && <Button small kind="ghost" label={`구매 가능한 매장 ${stores.length}곳`} onPress={() => setStoreSheetOpen(true)} />}
                     {!!recognizedLocationLabel && <Button small kind="secondary" label="판매지역 수정" onPress={() => { setEditingDetails(true); locationMismatch ? setLocationMismatchOpen(true) : setPlaceSearchOpen(true); }} />}
                     <Txt size={24} weight="800">{price ? money(q.productPrice) : '가격 확인 필요'}</Txt>
-                    <Txt size={12} color={c.secondary}>{CATEGORIES[category]} · {localMoney(Number(price), recognizedCurrency || currencyForCountry(availability?.countryCode || place.country))}</Txt>
+                    <Txt size={12} color={localPriceEstimated ? c.primaryDeep : c.secondary}>{CATEGORIES[category]} · {localPriceEstimated ? 'AI 예상 현지가' : '현지가'} {localMoney(Number(price), recognizedCurrency || currencyForCountry(availability?.countryCode || place.country))}</Txt>
                     {option !== '기본 옵션' && <Txt size={13} color={c.secondary}>{option}</Txt>}
                   </Stack>
                 </Row>
@@ -815,10 +827,12 @@ function RequestFormContent() {
             label={`현지가 (${recognizedCurrency || currencyForCountry(availability?.countryCode || place.country)})`}
             required
             value={price}
-            onChange={(v) => setPrice(v.replace(/[^0-9.]/g, ''))}
+            onChange={(v) => { setLocalPriceEstimated(false); setPrice(v.replace(/[^0-9.]/g, '')); }}
             keyboard="numeric"
             placeholder="예: 2420"
           />
+          {localPriceEstimated && <Txt size={12} color={c.primaryDeep}>AI 예상 현지가예요. 실제 판매가를 확인하고 필요하면 수정해주세요.</Txt>}
+          {!price && aiFilled && <Txt size={12} color={c.secondary}>사진에서 가격을 확인하지 못했어요. 현지 가격을 직접 입력해주세요.</Txt>}
           <Field
             label="매장·판매처"
             value={storeName}

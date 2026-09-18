@@ -46,6 +46,7 @@ export function readDraft(storage: SessionStorage, ownerId: string): RequestDraf
     if (draft.originalText && !['productName', 'storeName', 'purchaseLocation', 'option']
       .every((field) => typeof draft.originalText[field] === 'string')) delete draft.originalText;
     if (draft.brandName !== undefined && typeof draft.brandName !== 'string') delete draft.brandName;
+    if (draft.localPriceEstimated !== undefined && typeof draft.localPriceEstimated !== 'boolean') delete draft.localPriceEstimated;
     if (draft.recognizedCurrency !== undefined && draft.recognizedCurrency !== null && !['KRW', 'JPY', 'TWD', 'HKD', 'CNY', 'THB', 'VND', 'SGD', 'MYR', 'IDR', 'USD', 'CAD', 'MXN', 'BRL', 'ARS', 'CLP', 'PEN', 'COP', 'GBP', 'EUR', 'CHF', 'AUD', 'NZD', 'INR', 'PHP', 'KHR', 'AED', 'TRY', 'ZAR', 'EGP', 'MAD', 'KES', 'TZS'].includes(draft.recognizedCurrency)) delete draft.recognizedCurrency;
     if (draft.locationSource !== undefined && !['AI_RECOGNIZED', 'USER_SELECTED'].includes(draft.locationSource)) delete draft.locationSource;
     if (draft.locationMismatch !== undefined && typeof draft.locationMismatch !== 'boolean') delete draft.locationMismatch;
