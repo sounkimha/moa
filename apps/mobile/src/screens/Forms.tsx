@@ -369,12 +369,12 @@ function RequestFormContent() {
     editingRegion,
     editingMeetup,
   ]);
-  const setProduct = (p: Product) => {
+  const setProduct = (p: Product, applyStore = true) => {
     setName(typeof p.name === 'string' ? p.name : '');
     setPrice(Number.isFinite(p.localPrice) ? String(p.localPrice) : '');
     setArt(['keyring', 'plush', 'pouch', 'tshirt', 'pin', 'bag'].includes(p.art) ? p.art : 'keyring');
     setCategory(Object.hasOwn(CATEGORIES, p.category) ? p.category : 'CHARACTER');
-    setStoreName(d.places.find((place) => place.id === p.placeId)?.name || '');
+    if (applyStore) setStoreName(d.places.find((place) => place.id === p.placeId)?.name || '');
     setOption('기본 옵션');
   };
   const applyRecognition = (result: RecognitionResult, uploadedImage?: string) => {
@@ -409,7 +409,7 @@ function RequestFormContent() {
     setLocationSource(mismatch ? 'USER_SELECTED' : hasRecognizedRegion ? 'AI_RECOGNIZED' : 'USER_SELECTED');
     const detectedCurrency = result.product?.currency || result.suggestion?.currency;
     const currencyMismatch = Boolean(detectedCurrency && detectedCurrency !== currencyForCountry(detectedPlace?.country || place.country));
-    if (result.product) setProduct(result.product);
+    if (result.product) setProduct(result.product, !mismatch);
     else if (result.suggestion) {
       const suggestion = result.suggestion;
       if (typeof suggestion.productName === 'string') setName(suggestion.productName);
