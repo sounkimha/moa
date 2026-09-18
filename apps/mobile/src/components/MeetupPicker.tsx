@@ -71,7 +71,7 @@ export function MeetupPicker({ value, onChange, history, legacyName, country = '
     </View>}
     <View style={{ borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: c.border }}>
       <MeetupMap {...center} onMove={(latitude, longitude, name, address) => {
-        setCandidate((p) => ({ name: name || '지도 중앙 위치', address: address || '', detail: p?.detail || '', latitude, longitude }));
+        setCandidate((p) => ({ name: name || '주소 확인 중', address: address || '', detail: p?.detail || '', latitude, longitude }));
         onChange(undefined);
       }} />
     </View>
@@ -79,7 +79,8 @@ export function MeetupPicker({ value, onChange, history, legacyName, country = '
     {candidate && <Stack gap={8}>
       <Txt weight="700">{candidate.name}</Txt>
       {!!candidate.address && <Txt size={12} color={c.secondary}>검색한 장소 주소 · {candidate.address}</Txt>}
-      <Txt size={12} color={c.secondary}>만날 지점 · {candidate.latitude.toFixed(6)}, {candidate.longitude.toFixed(6)}</Txt>
+      <Txt size={12} color={c.secondary}>만날 지점 · {candidate.name}</Txt>
+      {!!candidate.address && <Txt size={12} color={c.secondary}>{candidate.address}</Txt>}
       <Field label="만나는 위치 상세 설명" value={candidate.detail} onChange={(detail) => { setCandidate({ ...candidate, detail: detail.slice(0, 100) }); onChange(undefined); }} placeholder="예: 1번 출구 지상, 편의점 앞" />
       <Button label={value ? '직거래 위치가 저장됐어요' : '이 위치에서 만날게요'} kind={value ? 'secondary' : 'primary'} disabled={!!value} onPress={() => onChange(candidate)} />
     </Stack>}

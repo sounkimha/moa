@@ -26,12 +26,19 @@ function choose(value){
   var picked=point(value||map.getCenter()),token=++chooseToken;
   send(picked);
   if(!geocoder)return;
+  function sendRegion(regions){
+    if(didFail||token!==chooseToken||!regions||!regions.length)return;
+    var region=regions[0]||{},parts=[region.region_1depth_name,region.region_2depth_name,region.region_3depth_name||region.region_3depth_h_name].filter(Boolean);
+    var name=region.region_3depth_name||region.region_3depth_h_name||region.region_2depth_name||region.region_1depth_name||'';
+    if(name)send({latitude:picked.latitude,longitude:picked.longitude,name:name,address:parts.join(' ')});
+  }
   geocoder.coord2Address(picked.longitude,picked.latitude,function(result,status){
-    if(didFail||token!==chooseToken||status!==kakao.maps.services.Status.OK||!result||!result.length)return;
-    var item=result[0],road=item.road_address,address=item.address;
-    var name=(road&&road.building_name)||(road&&road.address_name)||(address&&address.address_name)||'';
+    if(didFail||token!==chooseToken)return;
+    var item=(result&&result[0])||{},road=item.road_address,address=item.address;
+    var name=(road&&road.building_name)||(address&&address.building_name)||(road&&road.address_name)||(address&&address.address_name)||'';
     var formatted=(road&&road.address_name)||(address&&address.address_name)||'';
-    send({latitude:picked.latitude,longitude:picked.longitude,name:name,address:formatted});
+    if(result&&result.length&&(name||formatted)){send({latitude:picked.latitude,longitude:picked.longitude,name:name||formatted,address:formatted});return;}
+    if(typeof geocoder.coord2RegionCode==='function')geocoder.coord2RegionCode(picked.longitude,picked.latitude,function(regions){sendRegion(regions)});
   });
 }
 timer=setTimeout(failed,12000);

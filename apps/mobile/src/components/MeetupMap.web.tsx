@@ -87,15 +87,30 @@ export default function MeetupMap({ latitude, longitude, zoom, onMove }: MeetupM
       onMoveRef.current(picked.latitude, picked.longitude);
       const geocoder = geocoderRef.current;
       if (!geocoder) return;
+      const sendRegion = (regions: any[]) => {
+        if (cancelled || token !== tokenRef.current || !regions?.length) return;
+        const region = regions[0] || {};
+        const parts = [region.region_1depth_name, region.region_2depth_name, region.region_3depth_name || region.region_3depth_h_name].filter(Boolean);
+        const name = region.region_3depth_name || region.region_3depth_h_name || region.region_2depth_name || region.region_1depth_name || '';
+        if (name) onMoveRef.current(picked.latitude, picked.longitude, name, parts.join(' '));
+      };
       geocoder.coord2Address(picked.longitude, picked.latitude, (result: any[], resultStatus: any) => {
-        const host = window as Window & { kakao?: Kakao };
-        if (cancelled || token !== tokenRef.current || resultStatus !== host.kakao?.maps?.services?.Status?.OK || !result?.length) return;
+        if (cancelled || token !== tokenRef.current) return;
         const item = result[0] || {};
         const road = item.road_address;
         const address = item.address;
-        const name = road?.building_name || road?.address_name || address?.address_name || '';
+        const name = road?.building_name || address?.building_name || road?.address_name || address?.address_name || '';
         const formatted = road?.address_name || address?.address_name || '';
-        onMoveRef.current(picked.latitude, picked.longitude, name, formatted);
+        if (result?.length && (name || formatted)) {
+          onMoveRef.current(picked.latitude, picked.longitude, name || formatted, formatted);
+          return;
+        }
+        if (typeof geocoder.coord2RegionCode === 'function') {
+          geocoder.coord2RegionCode(picked.longitude, picked.latitude, (regions: any[], regionStatus: any) => {
+            if (cancelled || token !== tokenRef.current || !regions?.length) return;
+            sendRegion(regions);
+          });
+        }
       });
     };
     void loadKakaoMaps(apiKey).then((host) => {
