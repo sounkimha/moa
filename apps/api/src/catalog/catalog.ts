@@ -560,10 +560,30 @@ export class CatalogService {
           '이미지 인식 서버에 연결하지 못했어요. 잠시 후 다시 시도해주세요.',
         );
       });
-      if (!response.ok)
+      if (!response.ok) {
+        let providerCode = '';
+        try {
+          const payload = (await response.clone().json()) as { error?: { code?: string } };
+          providerCode = payload.error?.code || '';
+        } catch {
+          // Keep the client message stable when the provider returns non-JSON.
+        }
+        if (response.status === 429 || providerCode === 'insufficient_quota' || providerCode === 'credit_balance_exhausted')
+          throw new ServiceUnavailableException(
+            'AI 이미지 인식 크레딧이 부족해요. OpenAI 결제·크레딧을 확인한 뒤 다시 시도해주세요.',
+          );
+        if (response.status === 401 || response.status === 403)
+          throw new ServiceUnavailableException(
+            'AI 이미지 인식 키의 권한을 확인해주세요. Railway의 OPENAI_API_KEY 설정을 다시 확인해주세요.',
+          );
+        if (response.status === 400)
+          throw new BadRequestException(
+            '사진 형식을 읽지 못했어요. JPG·PNG·WebP 사진으로 다시 시도해주세요.',
+          );
         throw new ServiceUnavailableException(
           '이미지 인식 서비스가 응답하지 않았어요. 잠시 후 다시 시도해주세요.',
         );
+      }
       const result = (await response.json()) as VisionResponse;
       const text = result.output
         ?.flatMap((item) => item.content || [])
