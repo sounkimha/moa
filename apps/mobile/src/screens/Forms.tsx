@@ -854,6 +854,11 @@ function RequestFormContent() {
             <View style={{ marginTop: -8, padding: 12, borderRadius: 12, backgroundColor: c.primarySoft, gap: 3 }}>
               <Txt size={12} color={c.secondary}>원화 환산액 · {quantity > 1 ? `${quantity}개 기준` : '1개 기준'}</Txt>
               <Txt size={18} weight="800" color={c.primaryDeep}>{money(q.productPrice)}</Txt>
+              <Txt size={11} color={c.muted}>
+                {fx.loading
+                  ? '적용 환율을 확인하고 있어요.'
+                  : `적용 환율 · 1 ${productCurrency} = ₩${q.fxRate.toLocaleString('ko-KR', { maximumFractionDigits: 6 })}${q.fxAsOf ? ` · ${q.fxAsOf.slice(0, 10)} 기준` : ''}`}
+              </Txt>
               <Txt size={11} color={c.muted}>환율에 따라 결제 전 금액이 달라질 수 있어요.</Txt>
             </View>
           )}
