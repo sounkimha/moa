@@ -253,6 +253,19 @@ const recognitionJsonSchema = {
     'confidence',
   ],
 } as const;
+const priceEstimateJsonSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    amount: { type: ['number', 'null'] },
+    confidence: { type: 'number', minimum: 0, maximum: 1 },
+  },
+  required: ['amount', 'confidence'],
+} as const;
+const priceEstimateSchema = z.object({
+  amount: z.number().nonnegative().nullable(),
+  confidence: z.number().min(0).max(1),
+}).strict();
 @Injectable()
 export class CatalogService {
   constructor(
@@ -690,6 +703,47 @@ export class CatalogService {
         );
       }
       source = 'OPENAI_VISION';
+    }
+    // Package photos often have no shelf label. Ask for a clearly-labelled
+    // local retail estimate when the product and country are known instead of
+    // leaving the buyer with an empty amount field.
+    if (source === 'OPENAI_VISION' && signals.priceAmount == null && signals.priceEstimateAmount == null && signals.productName) {
+      const estimateCurrency = signals.currency || (signals.availability.countryCode ? currencyForCountry(signals.availability.countryCode) : null);
+      const estimateCountry = signals.availability.countryName || signals.availability.countryCode || signals.purchaseLocation;
+      if (estimateCurrency && estimateCountry && process.env.OPENAI_API_KEY) {
+        try {
+          const estimateResponse = await fetch('https://api.openai.com/v1/responses', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: process.env.OPENAI_VISION_MODEL || 'gpt-4.1-mini',
+              store: false,
+              text: { format: { type: 'json_schema', name: 'local_price_estimate', strict: true, schema: priceEstimateJsonSchema } },
+              input: [{
+                role: 'user',
+                content: [{
+                  type: 'input_text',
+                  text: `상품의 가격표가 보이지 않습니다. 다음 정보로 ${estimateCountry}의 일반적인 오프라인 소매 예상가를 ${estimateCurrency} 기준으로 제안하세요. 상품명: ${signals.productName}; 브랜드: ${signals.brandName || '미상'}; 판매처: ${signals.storeName || '미상'}; 지역: ${signals.purchaseLocation || estimateCountry}. 온라인 최저가나 한국 환산가가 아니라 현지 편의점·슈퍼·일반 매장의 보통 판매가를 추정하세요. 확실하지 않으면 confidence를 낮추되, 상품과 통화가 충분히 특정되면 amount를 null로 두지 말고 가장 합리적인 단일 예상가를 제안하세요. 이는 확정가가 아닌 AI 예상가입니다.`,
+                }],
+              }],
+            }),
+            signal: AbortSignal.timeout(15000),
+          });
+          if (estimateResponse.ok) {
+            const estimateResult = (await estimateResponse.json()) as VisionResponse;
+            const estimateText = estimateResult.output?.flatMap((item) => item.content || []).find((item) => item.type === 'output_text')?.text;
+            if (estimateText) {
+              const estimate = priceEstimateSchema.parse(JSON.parse(estimateText.replace(/^```json\s*|\s*```$/g, '')));
+              if (estimate.amount != null && estimate.amount > 0) {
+                signals.priceEstimateAmount = Math.round(estimate.amount);
+                signals.priceEstimateConfidence = estimate.confidence;
+              }
+            }
+          }
+        } catch {
+          // The main recognition result remains usable if the optional estimate fails.
+        }
+      }
     }
     const ranked = rankCatalogProducts(signals);
     const matched = await this.store.read((db) => {
