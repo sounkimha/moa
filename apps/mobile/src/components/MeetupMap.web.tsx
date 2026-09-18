@@ -112,6 +112,12 @@ export default function MeetupMap({ latitude, longitude, zoom, onMove }: MeetupM
       });
       host.maps.event.addListener(map, 'dragend', () => choose(map.getCenter()));
       host.maps.event.addListener(map, 'click', (event: any) => { map.panTo(event.latLng); choose(event.latLng); });
+      // Some mobile WebViews do not emit the first `idle` event even though
+      // the map instance and tiles are already mounted. The map is usable at
+      // this point, so don't let the loading timeout cover a working map.
+      clearTimeout(timer);
+      finish('ready');
+      choose(center);
     }).catch(() => { if (!cancelled) finish('error'); });
     return () => { cancelled = true; clearTimeout(timer); mapRef.current = null; geocoderRef.current = null; };
   }, [apiKey, latitude, longitude, zoom, retry]);
