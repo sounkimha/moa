@@ -1,4 +1,4 @@
-import type { Currency } from '@moa/domain';
+import type { Currency, ProductAvailability, ProductStore } from '@moa/domain';
 export type RecognitionSignals = {
   extractedText: string[];
   character: string;
@@ -11,6 +11,10 @@ export type RecognitionSignals = {
   priceAmount: number | null;
   currency: Currency | null;
   colors: string[];
+  brandName: string;
+  availability: ProductAvailability;
+  stores: ProductStore[];
+  confidence: { product: number; location: number; store: number };
 };
 
 /**

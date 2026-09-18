@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useRef, useState, ReactNod
 import { AppState, BackHandler, Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
-import { Art, Category, Country, Role, Snapshot, Transport } from '@moa/domain';
+import { Art, Category, Country, Role, Snapshot, Transport, ProductAvailability, ProductStore, RecognizedLocation } from '@moa/domain';
 import { api, ApiError, setToken } from '../lib/api';
 import { parseRoute, routeHash, Route, Screen } from './navigation';
 import { clearDraft, readDraft, writeDraft } from './draft-session';
@@ -34,6 +34,12 @@ export type RequestDraft = {
   placeId: string;
   category: Category;
   storeName: string;
+  brandName?: string;
+  availability?: ProductAvailability;
+  stores?: ProductStore[];
+  recognizedLocation?: RecognizedLocation;
+  locationSource?: 'AI_RECOGNIZED' | 'USER_SELECTED';
+  locationMismatch?: boolean;
   option: string;
   metadataMessage: string;
   aiFilled: boolean;

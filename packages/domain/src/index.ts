@@ -174,6 +174,39 @@ export interface ProductRequest extends Entity {
   meetupPoint?: MeetupPoint;
   retryOfRequestId?: string;
   inventoryStatus?: 'IN_STOCK' | 'OUT_OF_STOCK' | 'PREORDER' | 'CHECK_REQUIRED';
+  /** AI-derived product context retained for review and later validation. */
+  brandName?: string;
+  availability?: ProductAvailability;
+  stores?: ProductStore[];
+  recognizedLocation?: RecognizedLocation;
+  locationSource?: 'AI_RECOGNIZED' | 'USER_SELECTED';
+  locationMismatch?: boolean;
+}
+export interface ProductStore {
+  name: string;
+  country?: Country | null;
+  countryCode?: Country | null;
+  city?: string;
+  district?: string;
+}
+export interface ProductAvailability {
+  countryCode?: Country | null;
+  countryName?: string;
+  city?: string;
+  district?: string;
+  placeId?: string | null;
+  isLocationLimited: boolean;
+  limitedType?: 'COUNTRY' | 'CITY' | 'DISTRICT' | 'STORE' | null;
+  limitedLabel?: string;
+}
+export interface RecognizedLocation {
+  countryCode?: Country | null;
+  countryName?: string;
+  city?: string;
+  district?: string;
+  placeId?: string | null;
+  storeName?: string;
+  purchaseLocation?: string;
 }
 export interface MeetupPoint {
   name: string;

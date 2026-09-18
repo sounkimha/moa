@@ -21,6 +21,9 @@ import {
   CATEGORIES,
   Product,
   ProductRequest,
+  ProductAvailability,
+  ProductStore,
+  RecognizedLocation,
   ProductOriginalText,
   MeetupPoint,
   Trip,
@@ -93,6 +96,10 @@ type RecognitionSuggestion = {
   currency: Currency | null;
   imageUrl?: string;
   stockStatus?: 'IN_STOCK' | 'OUT_OF_STOCK' | 'PREORDER' | 'CHECK_REQUIRED';
+  brandName?: string;
+  availability?: ProductAvailability;
+  stores?: ProductStore[];
+  confidence?: { product: number; location: number; store: number };
 };
 type RecognitionResult = {
   status: string;
@@ -142,6 +149,12 @@ function RequestFormContent() {
     }),
     [category, setCategory] = useState<Category>(preset?.category || draft?.category || 'CHARACTER'),
     [storeName, setStoreName] = useState(preset?.storeName || draft?.storeName || ''),
+    [brandName, setBrandName] = useState(preset?.brandName || draft?.brandName || ''),
+    [availability, setAvailability] = useState<ProductAvailability | undefined>(preset?.availability || draft?.availability),
+    [stores, setStores] = useState<ProductStore[]>(preset?.stores || draft?.stores || []),
+    [recognizedLocation, setRecognizedLocation] = useState<RecognizedLocation | undefined>(preset?.recognizedLocation || draft?.recognizedLocation),
+    [locationSource, setLocationSource] = useState<'AI_RECOGNIZED' | 'USER_SELECTED'>(preset?.locationSource || draft?.locationSource || 'USER_SELECTED'),
+    [locationMismatch, setLocationMismatch] = useState(Boolean(preset?.locationMismatch || draft?.locationMismatch)),
     [option, setOption] = useState(preset?.option || draft?.option || '기본 옵션'),
     [resolving, setResolving] = useState(false),
     [metadataMessage, setMetadataMessage] = useState(draft?.metadataMessage || ''),
@@ -170,6 +183,8 @@ function RequestFormContent() {
         : preset?.inventoryStatus || draft?.inventoryStatus || 'CHECK_REQUIRED',
     );
   const [placeSearchOpen, setPlaceSearchOpen] = useState(false);
+  const [locationMismatchOpen, setLocationMismatchOpen] = useState(false);
+  const [storeSheetOpen, setStoreSheetOpen] = useState(false);
   const [placeQuery, setPlaceQuery] = useState('');
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
   const [categoryPath, setCategoryPath] = useState<typeof CATEGORY_PATHS[number] | null>(null);
@@ -188,6 +203,8 @@ function RequestFormContent() {
   const clearProduct = () => {
     setOriginalText(undefined);
     setName(''); setPrice(''); setImage(''); setStoreName('');
+    setBrandName(''); setAvailability(undefined); setStores([]); setRecognizedLocation(undefined);
+    setLocationSource('USER_SELECTED'); setLocationMismatch(false);
     setOption('기본 옵션'); setInventoryStatus('CHECK_REQUIRED');
     setAiFilled(false); setSampleFilled(false); setEditingDetails(false);
   };
@@ -239,7 +256,20 @@ function RequestFormContent() {
     const term = placeQuery.trim().toLocaleLowerCase('ko-KR');
     return !term || `${countryName(candidate.country)} ${candidate.city} ${candidate.name} ${candidate.englishName} ${candidate.region} ${candidate.tags.join(' ')}`.toLocaleLowerCase('ko-KR').includes(term);
   });
+  const findRecognizedPlace = (value?: ProductAvailability) => {
+    if (!value) return undefined;
+    const score = (candidate: typeof d.places[number]) =>
+      (value.placeId && candidate.id === value.placeId ? 10 : 0) +
+      (value.countryCode && candidate.country === value.countryCode ? 4 : 0) +
+      (value.city && candidate.city.toLocaleLowerCase().includes(value.city.toLocaleLowerCase()) ? 4 : 0) +
+      (value.district && `${candidate.name} ${candidate.region}`.toLocaleLowerCase().includes(value.district.toLocaleLowerCase()) ? 3 : 0);
+    const best = d.places.map((candidate) => ({ candidate, score: score(candidate) })).sort((a, b) => b.score - a.score)[0];
+    return best && best.score > 0 ? best.candidate : undefined;
+  };
   const mode = normalizeTransport(transport);
+  const recognizedLocationLabel = availability
+    ? [availability.countryName, availability.city, availability.district].filter(Boolean).join(' · ')
+    : recognizedLocation ? [recognizedLocation.countryName, recognizedLocation.city, recognizedLocation.district].filter(Boolean).join(' · ') : '';
   const pricingInput = { localPrice: validLocalPrice(price) ? Number(price) : 0, quantity, currency: currencyForCountry(place.country) };
   const fx = useFxRate(pricingInput.currency);
   const reward = Number(requestedReward) || 0;
@@ -273,6 +303,12 @@ function RequestFormContent() {
       placeId,
       category,
       storeName,
+      brandName,
+      availability,
+      stores,
+      recognizedLocation,
+      locationSource,
+      locationMismatch,
       option,
       metadataMessage,
       aiFilled,
@@ -306,6 +342,12 @@ function RequestFormContent() {
     placeId,
     category,
     storeName,
+    brandName,
+    availability,
+    stores,
+    recognizedLocation,
+    locationSource,
+    locationMismatch,
     option,
     metadataMessage,
     aiFilled,
@@ -333,7 +375,6 @@ function RequestFormContent() {
     setArt(['keyring', 'plush', 'pouch', 'tshirt', 'pin', 'bag'].includes(p.art) ? p.art : 'keyring');
     setCategory(Object.hasOwn(CATEGORIES, p.category) ? p.category : 'CHARACTER');
     setStoreName(d.places.find((place) => place.id === p.placeId)?.name || '');
-    setPlaceId(d.places.some((place) => place.id === p.placeId) ? p.placeId : '');
     setOption('기본 옵션');
   };
   const applyRecognition = (result: RecognitionResult, uploadedImage?: string) => {
@@ -341,8 +382,31 @@ function RequestFormContent() {
     setSampleFilled(result.source === 'DEMO_SAMPLE' || result.status === 'DEMO_FOUND');
     const detectedImage = uploadedImage ?? result.suggestion?.imageUrl ?? result.product?.image;
     setImage(typeof detectedImage === 'string' ? detectedImage : '');
-    const detectedPlaceId = result.product?.placeId || result.suggestion?.placeId || placeId;
-    const detectedPlace = d.places.find((p) => p.id === detectedPlaceId);
+    const recognizedAvailability = result.suggestion?.availability;
+    const detectedPlaceId = result.product?.placeId || result.suggestion?.placeId || recognizedAvailability?.placeId || null;
+    const detectedPlace = d.places.find((p) => p.id === detectedPlaceId) || findRecognizedPlace(recognizedAvailability);
+    const detectedStore = result.suggestion?.storeName || result.suggestion?.stores?.[0]?.name || '';
+    const recognized: RecognizedLocation = {
+      countryCode: recognizedAvailability?.countryCode || detectedPlace?.country || null,
+      countryName: recognizedAvailability?.countryName || (detectedPlace ? countryName(detectedPlace.country) : ''),
+      city: recognizedAvailability?.city || detectedPlace?.city || '',
+      district: recognizedAvailability?.district || detectedPlace?.region || '',
+      placeId: detectedPlace?.id || detectedPlaceId,
+      storeName: detectedStore,
+      purchaseLocation: result.suggestion?.purchaseLocation || '',
+    };
+    const hasRecognizedRegion = Boolean(detectedPlace || recognizedAvailability?.countryCode || recognizedAvailability?.city || recognizedAvailability?.district);
+    const locationSpecific = Boolean(detectedPlaceId || recognizedAvailability?.city || recognizedAvailability?.district);
+    const mismatch = locationSpecific
+      ? Boolean(detectedPlace && placeId && detectedPlace.id !== placeId)
+      : Boolean(recognizedAvailability?.countryCode && recognizedAvailability.countryCode !== place.country);
+    if (!placeId && detectedPlace) setPlaceId(detectedPlace.id);
+    setAvailability(recognizedAvailability ? { ...recognizedAvailability, placeId: detectedPlace?.id || detectedPlaceId } : undefined);
+    setStores(result.suggestion?.stores || []);
+    setRecognizedLocation(hasRecognizedRegion ? recognized : undefined);
+    setBrandName(result.suggestion?.brandName || '');
+    setLocationMismatch(mismatch);
+    setLocationSource(mismatch ? 'USER_SELECTED' : hasRecognizedRegion ? 'AI_RECOGNIZED' : 'USER_SELECTED');
     const detectedCurrency = result.product?.currency || result.suggestion?.currency;
     const currencyMismatch = Boolean(detectedCurrency && detectedCurrency !== currencyForCountry(detectedPlace?.country || place.country));
     if (result.product) setProduct(result.product);
@@ -351,9 +415,8 @@ function RequestFormContent() {
       if (typeof suggestion.productName === 'string') setName(suggestion.productName);
       setCategory(Object.hasOwn(CATEGORIES, suggestion.category) ? suggestion.category : 'CHARACTER');
       setArt(['keyring', 'plush', 'pouch', 'tshirt', 'pin', 'bag'].includes(suggestion.art) ? suggestion.art : 'keyring');
-      if (suggestion.placeId) setPlaceId(detectedPlace?.id || '');
       if (Number.isFinite(suggestion.localPrice) && suggestion.localPrice! > 0) setPrice(String(suggestion.localPrice));
-      if (typeof suggestion.storeName === 'string') setStoreName(suggestion.storeName);
+      if (typeof suggestion.storeName === 'string' && !mismatch) setStoreName(suggestion.storeName);
       if (suggestion.stockStatus) setInventoryStatus(suggestion.stockStatus);
       setOption(typeof suggestion.option === 'string' ? suggestion.option : '기본 옵션');
     }
@@ -364,9 +427,37 @@ function RequestFormContent() {
       setPrice('');
       setError('판매 페이지의 가격 통화가 구매 장소와 달라요. 현지 판매 가격을 확인해주세요.');
     }
-    const suggestedPlaceId = result.product?.placeId || result.suggestion?.placeId;
-    if (suggestedPlaceId && !detectedPlace) setError('구매 장소를 확인하지 못했어요. 실제 판매처를 선택해주세요.');
-    setEditingDetails(!filled || !hasPrice || currencyMismatch || !detectedPlace);
+    if (detectedPlaceId && !detectedPlace) setError('구매 장소를 확인하지 못했어요. 실제 판매처를 선택해주세요.');
+    if (mismatch) setLocationMismatchOpen(true);
+    setEditingDetails(!filled || !hasPrice || currencyMismatch || mismatch || (!detectedPlace && Boolean(detectedPlaceId)));
+  };
+  const useRecognizedLocation = () => {
+    const next = recognizedLocation;
+    if (!next && !availability) {
+      setLocationMismatchOpen(false);
+      setEditingDetails(true);
+      setPlaceSearchOpen(true);
+      return;
+    }
+    const nextPlace = next?.placeId ? d.places.find((candidate) => candidate.id === next.placeId) : findRecognizedPlace(availability);
+    if (nextPlace) {
+      setPlaceId(nextPlace.id);
+      if (next?.storeName) setStoreName(next.storeName);
+      setLocationSource('AI_RECOGNIZED');
+      setLocationMismatch(false);
+      setLocationMismatchOpen(false);
+      setError('');
+    } else {
+      setLocationMismatchOpen(false);
+      setEditingDetails(true);
+      setPlaceSearchOpen(true);
+      setError('인식된 지역을 찾지 못했어요. 구매 장소를 직접 선택해주세요.');
+    }
+  };
+  const keepSelectedLocation = () => {
+    setLocationSource('USER_SELECTED');
+    setLocationMismatch(true);
+    setLocationMismatchOpen(false);
   };
   const resolve = async (sample = false, force = false) => {
     const value = sample ? 'https://demo.moa.local/products/1' : url.trim();
@@ -499,6 +590,12 @@ function RequestFormContent() {
         deliveryCity,
         category,
         storeName: storeName.trim(),
+        brandName: brandName.trim() || undefined,
+        availability,
+        stores,
+        recognizedLocation,
+        locationSource,
+        locationMismatch,
         option,
         transport: mode,
         inventoryStatus,
@@ -649,6 +746,7 @@ function RequestFormContent() {
                   />
                   <Stack gap={6} style={{ flex: 1 }}>
                     <Txt weight="700">{name}</Txt>
+                    {!!brandName && <Txt size={12} color={c.secondary}>{brandName}</Txt>}
                     <Row style={{ gap: 6 }}>
                       <MapPin size={14} color={c.green} />
                       <Txt size={13} color={c.secondary} style={{ flex: 1 }}>
@@ -660,6 +758,10 @@ function RequestFormContent() {
                         구매 동선 후보 · {place.city} · {place.name}
                       </Txt>
                     )}
+                    {!!recognizedLocationLabel && <Txt size={12} color={locationMismatch ? c.accent : c.secondary}>구매 가능 지역 · {recognizedLocationLabel}</Txt>}
+                    {!!availability?.limitedLabel && <Txt size={12} weight="700" color={c.primaryDeep}>{availability.limitedLabel}</Txt>}
+                    {stores.length > 1 && <Button small kind="ghost" label={`구매 가능한 매장 ${stores.length}곳`} onPress={() => setStoreSheetOpen(true)} />}
+                    {!!recognizedLocationLabel && <Button small kind="secondary" label="판매지역 수정" onPress={() => { setEditingDetails(true); locationMismatch ? setLocationMismatchOpen(true) : setPlaceSearchOpen(true); }} />}
                     <Txt size={24} weight="800">{price ? money(q.productPrice) : '가격 확인 필요'}</Txt>
                     <Txt size={12} color={c.secondary}>{CATEGORIES[category]} · {localMoney(Number(price), currencyForCountry(place.country))}</Txt>
                     {option !== '기본 옵션' && <Txt size={13} color={c.secondary}>{option}</Txt>}
@@ -717,6 +819,8 @@ function RequestFormContent() {
             onChange={setStoreName}
             placeholder="예: 시부야 PARCO"
           />
+          {!!brandName && <Txt size={12} color={c.secondary}>브랜드 · {brandName}</Txt>}
+          {!!recognizedLocationLabel && <View style={{ padding: 14, borderRadius: 14, backgroundColor: c.primarySoft, gap: 5 }}><Txt size={12} color={c.secondary}>AI가 찾은 구매 가능 지역</Txt><Txt size={14} weight="700">{recognizedLocationLabel}</Txt>{availability?.limitedLabel && <Txt size={12} color={c.primaryDeep}>{availability.limitedLabel}</Txt>}<Button small kind="ghost" label="판매지역 수정" onPress={() => setPlaceSearchOpen(true)} /></View>}
           <View>
             <Txt size={14} weight="600" style={{ marginBottom: 10 }}>어디에서 살 수 있나요?</Txt>
             <Pressable
@@ -757,7 +861,7 @@ function RequestFormContent() {
             <Txt size={12} color={c.secondary}>{placeQuery.trim() ? `${placeResults.length}곳을 찾았어요` : '여행지와 매장을 한 번에 찾아보세요.'}</Txt>
             {placeResults.map((candidate) => <Pressable key={candidate.id} accessibilityRole="button" accessibilityLabel={`${candidate.city} ${candidate.name} 선택`} onPress={() => {
               if (candidate.country !== place.country) setPrice('');
-              setPlaceId(candidate.id); setStoreName(candidate.name); setInventoryStatus('CHECK_REQUIRED'); setError('');
+              setPlaceId(candidate.id); setStoreName(candidate.name); setLocationSource('USER_SELECTED'); setLocationMismatch(false); setInventoryStatus('CHECK_REQUIRED'); setError('');
               setPlaceSearchOpen(false); setPlaceQuery('');
             }} style={({ pressed }) => ({ minHeight: 76, padding: 16, borderRadius: 16, backgroundColor: placeId === candidate.id ? c.lilac : c.canvas, borderWidth: 1, borderColor: placeId === candidate.id ? c.green : c.border, flexDirection: 'row', alignItems: 'center', gap: 12, opacity: pressed ? 0.72 : 1 })}>
               {getPlacePhoto(candidate) ? <Image source={getPlacePhoto(candidate)!.source} style={{ width: 54, height: 54, borderRadius: 12 }} resizeMode="cover" /> : <View style={{ width: 54, height: 54, borderRadius: 12, backgroundColor: c.paper, alignItems: 'center', justifyContent: 'center' }}><MapPin size={18} color={c.green} /></View>}
@@ -765,6 +869,15 @@ function RequestFormContent() {
               {placeId === candidate.id ? <Check size={20} color={c.green} /> : <ChevronRight size={18} color={c.muted} />}
             </Pressable>)}
             {!placeResults.length && <Empty title="찾는 장소가 없어요" body="도시나 매장 이름을 다시 검색해보세요." />}
+          </Sheet>
+          <Sheet visible={locationMismatchOpen} title="상품 판매지역이 달라요" subtitle="선택한 지역과 상품 정보를 확인해주세요." onClose={() => setLocationMismatchOpen(false)} footer={<Stack gap={8}><Button label="인식된 지역으로 변경" onPress={useRecognizedLocation} /><Button kind="secondary" label="기존 지역 유지" onPress={keepSelectedLocation} /></Stack>}>
+            <Stack gap={12}>
+              <Txt size={14} color={c.secondary}>선택하신 지역은 ‘{place.city} · {place.name}’이지만, 상품 정보를 확인해보니 다른 지역에서 판매되는 상품으로 보여요.</Txt>
+              {!!recognizedLocationLabel && <Card style={{ gap: 5 }}><Txt size={12} color={c.secondary}>인식된 판매지역</Txt><Txt weight="700">{recognizedLocationLabel}</Txt>{!!recognizedLocation?.storeName && <Txt size={13} color={c.secondary}>판매처 · {recognizedLocation.storeName}</Txt>}</Card>}
+            </Stack>
+          </Sheet>
+          <Sheet visible={storeSheetOpen} title="구매 가능한 매장" subtitle="실제로 구매할 매장을 선택할 수 있어요." onClose={() => setStoreSheetOpen(false)}>
+            {stores.map((store) => <Pressable key={`${store.name}-${store.city || ''}`} accessibilityRole="button" accessibilityLabel={`${store.name} 선택`} onPress={() => { setStoreName(store.name); setStoreSheetOpen(false); }} style={({ pressed }) => ({ minHeight: 64, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: storeName === store.name ? c.primary : c.border, backgroundColor: storeName === store.name ? c.primarySoft : c.paper, opacity: pressed ? 0.7 : 1 })}><Txt weight="700">{store.name}</Txt><Txt size={12} color={c.secondary}>{[store.city, store.district].filter(Boolean).join(' · ')}</Txt></Pressable>)}
           </Sheet>
           <Sheet
             visible={categoryPickerOpen}

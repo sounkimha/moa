@@ -34,6 +34,17 @@ const createSchema = z.object({
     ])
     .default(''),
   storeName: z.string().trim().max(120).optional(),
+  brandName: z.string().trim().max(120).optional(),
+  availability: z.object({
+    countryCode: z.enum(COUNTRY_CODES).nullable().optional(),
+    countryName: z.string().max(80).optional(), city: z.string().max(80).optional(), district: z.string().max(100).optional(),
+    placeId: z.string().max(100).nullable().optional(),
+    isLocationLimited: z.boolean(), limitedType: z.enum(['COUNTRY', 'CITY', 'DISTRICT', 'STORE']).nullable().optional(), limitedLabel: z.string().max(120).optional(),
+  }).strict().optional(),
+  stores: z.array(z.object({ name: z.string().trim().min(1).max(120), country: z.enum(COUNTRY_CODES).nullable().optional(), countryCode: z.enum(COUNTRY_CODES).nullable().optional(), city: z.string().max(80).optional(), district: z.string().max(100).optional() }).strict()).max(12).optional(),
+  recognizedLocation: z.object({ countryCode: z.enum(COUNTRY_CODES).nullable().optional(), countryName: z.string().max(80).optional(), city: z.string().max(80).optional(), district: z.string().max(100).optional(), placeId: z.string().max(100).nullable().optional(), storeName: z.string().max(120).optional(), purchaseLocation: z.string().max(200).optional() }).strict().optional(),
+  locationSource: z.enum(['AI_RECOGNIZED', 'USER_SELECTED']).optional(),
+  locationMismatch: z.boolean().optional(),
   art: z.enum(['keyring', 'plush', 'pouch', 'tshirt', 'pin', 'bag']).default('keyring'),
   placeId: z.string(),
   localPrice: localAmount.positive(),

@@ -5,7 +5,7 @@ const countryCodes = ['JP', 'KR', 'TW', 'HK', 'CN', 'TH', 'VN', 'SG', 'MY', 'ID'
 type SessionStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 const strings = [
   'url', 'name', 'image', 'price', 'desired', 'placeId', 'storeName', 'option',
-  'metadataMessage', 'deliveryCity', 'deliveryAddressId', 'deliveryRecipient',
+    'metadataMessage', 'deliveryCity', 'deliveryAddressId', 'deliveryRecipient',
   'deliveryPhone', 'deliveryPostalCode', 'deliveryAddress1', 'deliveryAddress2', 'meetupLocation',
 ] as const;
 
@@ -45,6 +45,12 @@ export function readDraft(storage: SessionStorage, ownerId: string): RequestDraf
       delete draft.meetupPoint;
     if (draft.originalText && !['productName', 'storeName', 'purchaseLocation', 'option']
       .every((field) => typeof draft.originalText[field] === 'string')) delete draft.originalText;
+    if (draft.brandName !== undefined && typeof draft.brandName !== 'string') delete draft.brandName;
+    if (draft.locationSource !== undefined && !['AI_RECOGNIZED', 'USER_SELECTED'].includes(draft.locationSource)) delete draft.locationSource;
+    if (draft.locationMismatch !== undefined && typeof draft.locationMismatch !== 'boolean') delete draft.locationMismatch;
+    if (draft.availability && typeof draft.availability !== 'object') delete draft.availability;
+    if (draft.stores && (!Array.isArray(draft.stores) || draft.stores.length > 12 || draft.stores.some((store: any) => !store || typeof store.name !== 'string'))) delete draft.stores;
+    if (draft.recognizedLocation && typeof draft.recognizedLocation !== 'object') delete draft.recognizedLocation;
     return draft as RequestDraft;
   } catch {
     clearDraft(storage);
