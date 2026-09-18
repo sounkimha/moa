@@ -23,7 +23,13 @@ export function MeetupPicker({ value, onChange, history, legacyName, country = '
   const [candidate, setCandidate] = useState<MeetupPoint | undefined>(value);
   const [center, setCenter] = useState({ latitude: value?.latitude ?? (country === 'JP' ? 35.6812 : 37.5665), longitude: value?.longitude ?? (country === 'JP' ? 139.7671 : 126.978), zoom: value ? 18 : 12 });
   const run = useRef(0);
-  useEffect(() => () => { run.current++; }, []);
+  const reverseTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const reverseRun = useRef(0);
+  useEffect(() => () => {
+    run.current++;
+    reverseRun.current++;
+    if (reverseTimer.current) clearTimeout(reverseTimer.current);
+  }, []);
   useEffect(() => {
     let active = true;
     api<{ searchAvailable: boolean }>('/meetup/status').then((status) => { if (active) setSearchAvailable(status.searchAvailable); }).catch(() => { /* Search still permits retry if capability lookup fails. */ });
@@ -43,6 +49,8 @@ export function MeetupPicker({ value, onChange, history, legacyName, country = '
     finally { if (current === run.current) setBusy(false); }
   };
   const select = (point: MeetupPoint) => {
+    reverseRun.current++;
+    if (reverseTimer.current) clearTimeout(reverseTimer.current);
     setCandidate(point); setCenter({ latitude: point.latitude, longitude: point.longitude, zoom: 18 });
     setResults([]); setSearched(false); onChange(undefined);
   };
@@ -73,6 +81,17 @@ export function MeetupPicker({ value, onChange, history, legacyName, country = '
       <MeetupMap {...center} onMove={(latitude, longitude, name, address) => {
         setCandidate((p) => ({ name: name || '주소 확인 중', address: address || '', detail: p?.detail || '', latitude, longitude }));
         onChange(undefined);
+        const request = ++reverseRun.current;
+        if (reverseTimer.current) clearTimeout(reverseTimer.current);
+        if (name || address) return;
+        reverseTimer.current = setTimeout(() => {
+          void api<{ name: string; address: string }>(`/meetup/reverse?lat=${latitude}&lng=${longitude}`).then((place) => {
+            if (request !== reverseRun.current) return;
+            setCandidate((previous) => previous && previous.latitude === latitude && previous.longitude === longitude
+              ? { ...previous, name: place.name || previous.name, address: place.address || previous.address }
+              : previous);
+          }).catch(() => { /* Keep the readable fallback while the user can add a detail. */ });
+        }, 450);
       }} />
     </View>
     {mapCanPick && <Txt size={12} color={c.secondary}>지도를 좌우·위아래로 움직이거나 눌러 파란 핀을 맞춰주세요. + 버튼으로 더 자세히 볼 수 있어요.</Txt>}
