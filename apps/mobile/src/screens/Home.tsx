@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { isRunningInExpoGo } from 'expo';
 import * as Location from 'expo-location';
 import { Image, Platform, Pressable, ScrollView, TextInput, useWindowDimensions, View } from 'react-native';
 import {
@@ -47,7 +48,7 @@ import { PageTransition } from '../components/motion';
 import RouteMap from '../components/RouteMap';
 import { getPlacePhoto } from '../lib/place-photos';
 import { PhotoCredit } from '../components/PhotoCredit';
-import { supportsBiometric } from '../lib/auth-storage';
+import { hasBiometricLogin, supportsBiometric } from '../lib/auth-storage';
 
 function readRecentPlaces(): string[] {
   try {
@@ -75,6 +76,10 @@ const kmBetween = (a: { latitude: number; longitude: number }, b: { latitude: nu
 export function Onboarding() {
   const a = useApp();
   const kakaoReady = a.oauthProviders.KAKAO;
+  const [biometricReady, setBiometricReady] = useState(false);
+  useEffect(() => {
+    Promise.all([supportsBiometric(), hasBiometricLogin()]).then(([supported, saved]) => setBiometricReady(supported && saved));
+  }, []);
   return (
     <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 24, paddingTop: 48, paddingBottom: 32, gap: 28, justifyContent: 'center' }}>
       <Logo size={46} />
@@ -90,6 +95,7 @@ export function Onboarding() {
       </Stack>
       {a.error && <Notice tone="error">{a.error}</Notice>}
       <Stack gap={10}>
+        {biometricReady && <Button label="생체 인증으로 로그인" kind="secondary" icon={Fingerprint} loading={a.busy} onPress={async () => { if (await a.biometricLogin()) a.tab('home'); }} />}
         <Button testID="start-demo" label="체험 계정으로 로그인" kind={kakaoReady ? 'secondary' : 'primary'} onPress={() => a.nav('login')} />
         {kakaoReady && <Button label="카카오로 계속하기" loading={a.busy} onPress={() => a.socialLogin('KAKAO')} style={{ backgroundColor: '#FEE500' }} kind="secondary" />}
         <Button label="다른 방법으로 계속하기" kind="ghost" onPress={() => a.nav('login')} />
@@ -111,12 +117,18 @@ function LoginOption({ selected, disabled, label, detail, icon: Icon, onPress }:
 export function LoginScreen() {
   const a = useApp();
   const [username, setUsername] = useState('wasabi');
-  const [password, setPassword] = useState('h112828!');
+  const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(true);
   const [biometric, setBiometric] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricReady, setBiometricReady] = useState(false);
   const [error, setError] = useState('');
-  useEffect(() => { supportsBiometric().then(setBiometricAvailable); }, []);
+  useEffect(() => {
+    Promise.all([supportsBiometric(), hasBiometricLogin()]).then(([supported, saved]) => {
+      setBiometricAvailable(supported);
+      setBiometricReady(supported && saved);
+    });
+  }, []);
   const persistence = { remember, biometric: biometric && biometricAvailable };
   const submit = async () => {
     if (password.length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
@@ -136,6 +148,7 @@ export function LoginScreen() {
     <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}><Pressable accessibilityRole="button" accessibilityLabel="로그인 닫기" onPress={() => a.back()} style={{ width: 44, height: 44, alignItems: 'flex-start', justifyContent: 'center' }}><ArrowLeft size={24} color={c.ink} /></Pressable><Logo size={32} /><View style={{ width: 44 }} /></Row>
     <Stack gap={8}><Txt size={28} weight="800">로그인하기</Txt><Txt size={15} color={c.secondary}>MOA에서 여행과 부탁을 이어가요.</Txt></Stack>
     <Stack gap={12}>
+      {biometricReady && <Button label="생체 인증으로 로그인" kind="secondary" icon={Fingerprint} loading={a.busy} onPress={async () => { if (await a.biometricLogin()) a.tab('home'); }} />}
       <Txt size={14} weight="700">아이디로 로그인</Txt>
       <TextInput value={username} onChangeText={setUsername} autoCapitalize="none" autoCorrect={false} placeholder="아이디" placeholderTextColor={c.muted} style={{ minHeight: 54, paddingHorizontal: 16, borderRadius: 14, borderWidth: 1, borderColor: c.border, backgroundColor: c.paper, color: c.ink, fontSize: 16 }} />
       <TextInput value={password} onChangeText={setPassword} autoCapitalize="none" autoCorrect={false} secureTextEntry placeholder="비밀번호" placeholderTextColor={c.muted} style={{ minHeight: 54, paddingHorizontal: 16, borderRadius: 14, borderWidth: 1, borderColor: c.border, backgroundColor: c.paper, color: c.ink, fontSize: 16 }} />
@@ -144,8 +157,8 @@ export function LoginScreen() {
       <Button label="로그인하기" loading={a.busy} onPress={submit} />
     </Stack>
     <Stack gap={2}>
-      <LoginOption selected={remember} label="자동 로그인" detail="다음부터 이 기기에서 바로 로그인해요." icon={Check} onPress={() => setRemember(!remember)} />
-      <LoginOption selected={biometric} disabled={!biometricAvailable || !remember} label="생체 인증으로 빠르게 로그인" detail={biometricAvailable ? 'Face ID, 지문 또는 기기 인증을 사용해요.' : '이 기기에서는 생체 인증을 지원하지 않아요.'} icon={Fingerprint} onPress={() => setBiometric(!biometric)} />
+      <LoginOption selected={remember} label="자동 로그인" detail={biometric ? '앱을 다시 열면 생체 인증 후 로그인해요.' : '다음부터 이 기기에서 바로 로그인해요.'} icon={Check} onPress={() => { setRemember(!remember); if (remember) setBiometric(false); }} />
+      <LoginOption selected={biometric} disabled={!biometricAvailable || !remember} label="생체 인증으로 빠르게 로그인" detail={biometricAvailable ? '다음 실행부터 Face ID 또는 지문으로 확인해요.' : Platform.OS === 'ios' && isRunningInExpoGo() ? 'Face ID는 Expo Go 대신 MOA 개발 빌드에서 사용할 수 있어요.' : Platform.OS === 'web' ? '웹에서는 아직 생체 인증을 사용할 수 없어요.' : '이 기기에서는 생체 인증을 사용할 수 없어요.'} icon={Fingerprint} onPress={() => setBiometric(!biometric)} />
     </Stack>
     {(a.oauthProviders.KAKAO || a.oauthProviders.GOOGLE || a.oauthProviders.NAVER) && <Stack gap={8}><Txt size={14} weight="700">다른 방법으로 로그인</Txt>{a.oauthProviders.KAKAO && <Button label="카카오로 계속하기" loading={a.busy} onPress={() => social('KAKAO')} style={{ backgroundColor: '#FEE500' }} kind="secondary" />}{a.oauthProviders.GOOGLE && <Button label="Google로 계속하기" loading={a.busy} onPress={() => social('GOOGLE')} kind="secondary" />}{a.oauthProviders.NAVER && <Button label="네이버로 계속하기" loading={a.busy} onPress={() => social('NAVER')} kind="secondary" />}</Stack>}
     <Txt size={12} color={c.secondary} style={{ textAlign: 'center' }}>체험 계정에서는 실제 결제나 정산이 발생하지 않아요.</Txt>

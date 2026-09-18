@@ -41,11 +41,14 @@ async function harness(options = {}) {
     if (url.endsWith('/start?returnUrl=http%3A%2F%2Flocalhost%3A8081')) return { authorizationUrl: 'https://provider.example/authorize' };
     return {};
   };
+  const reactNative = { Platform: { OS: options.platform || 'web' }, AppState: { currentState: 'active' }, BackHandler: { addEventListener: () => ({ remove() {} }) } };
+  const secureStore = { getItemAsync: async () => null, setItemAsync: async () => {}, deleteItemAsync: async () => {}, canUseBiometricAuthentication: () => false, ...options.secureStore };
   const imports = {
-    'react-native': { Platform: { OS: options.platform || 'web' }, AppState: { currentState: 'active' }, BackHandler: { addEventListener: () => ({ remove() {} }) } },
-    'expo-secure-store': { getItemAsync: async () => null, setItemAsync: async () => {}, deleteItemAsync: async () => {}, ...options.secureStore },
+    'react-native': reactNative,
+    'expo-secure-store': secureStore,
     'expo-web-browser': { maybeCompleteAuthSession() {}, openAuthSessionAsync: async () => ({ type: 'success', url: 'http://localhost:8081/?oauth_code=once' }) },
     '../lib/api': { api, ApiError, setToken: (next) => { token = next; } },
+    '../lib/auth-storage': load('lib/auth-storage.ts', { 'react-native': reactNative, 'expo-secure-store': secureStore, expo: { isRunningInExpoGo: () => false } }, dom.window),
     './navigation': load('state/navigation.ts', {}, dom.window),
     './draft-session': load('state/draft-session.ts', {}, dom.window),
     './trip-draft-session': {
@@ -183,7 +186,7 @@ test('direct unauthorized mutations clear private data instead of leaving a stal
 
 test('late native token and role restoration cannot undo logout or a newer mode choice', async () => {
   const restoredToken = deferred(), restoredRole = deferred();
-  const app = await harness({ platform: 'ios', secureStore: { getItemAsync: (key) => key === 'moa-token' ? restoredToken.promise : restoredRole.promise } });
+  const app = await harness({ platform: 'ios', secureStore: { getItemAsync: (key) => key === 'moa-auto-login' ? '1' : key === 'moa-token' ? restoredToken.promise : key === 'moa-role' ? restoredRole.promise : null } });
   try {
     await app.run((a) => a.setRole('buyer'));
     await app.run((a) => a.logout());
@@ -202,7 +205,7 @@ test('native token persistence finishing after logout is followed by deletion, n
     async deleteItemAsync(key) { persisted.delete(key); },
   } });
   try {
-    const login = await app.start((a) => a.login());
+    const login = await app.start((a) => a.login('DEMO', 'u-me', false, { remember: true, biometric: false }));
     const logout = await app.start((a) => a.logout());
     await app.run(async () => { savingToken.resolve(); assert.equal(await login.pending, false); await logout.pending; });
     assert.equal(persisted.has('moa-token'), false);
@@ -210,6 +213,37 @@ test('native token persistence finishing after logout is followed by deletion, n
     assert.equal(app.token, '');
     assert.equal(app.current.busy, false);
   } finally { await app.close(); }
+});
+
+test('cancelled biometric unlock stays on login and a retry restores the protected session', async () => {
+  const saved = new Map();
+  let cancel = false;
+  const secureStore = {
+    canUseBiometricAuthentication: () => true,
+    async getItemAsync(key, options) {
+      if (key === 'moa-biometric-token' && options?.requireAuthentication && cancel) throw new Error('cancelled');
+      return saved.get(key) ?? null;
+    },
+    async setItemAsync(key, value) { saved.set(key, value); },
+    async deleteItemAsync(key) { saved.delete(key); },
+  };
+  const first = await harness({ platform: 'ios', secureStore });
+  try {
+    assert.equal(await first.run((a) => a.login('DEMO', 'u-me', false, { remember: true, biometric: true })), true);
+    assert.equal(saved.get('moa-biometric-token'), 'token-u-me');
+    assert.equal(saved.has('moa-token'), false);
+  } finally { await first.close(); }
+  cancel = true;
+  const second = await harness({ platform: 'ios', secureStore });
+  try {
+    assert.equal(second.current.data, null);
+    assert.equal(second.current.route.name, 'login');
+    assert.equal(second.current.error, '');
+    assert.equal(await second.run((a) => a.biometricLogin()), false);
+    cancel = false;
+    assert.equal(await second.run((a) => a.biometricLogin()), true);
+    assert.equal(second.current.data.me.id, 'u-me');
+  } finally { await second.close(); }
 });
 
 test('address validation rejects blank names, invalid phone numbers and incomplete addresses', () => {

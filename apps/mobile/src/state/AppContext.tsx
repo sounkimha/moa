@@ -4,7 +4,7 @@ import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
 import { Art, Category, Country, Role, Snapshot, Transport, ProductAvailability, ProductStore, RecognizedLocation } from '@moa/domain';
 import { api, ApiError, setToken } from '../lib/api';
-import { authStorage, LoginPersistence } from '../lib/auth-storage';
+import { authStorage, hasBiometricLogin, LoginPersistence } from '../lib/auth-storage';
 import { parseRoute, routeHash, Route, Screen } from './navigation';
 import { clearDraft, readDraft, writeDraft } from './draft-session';
 import {
@@ -72,6 +72,7 @@ type AppValue = {
   refresh: () => Promise<void>;
   login: (provider?: string, userId?: string, reset?: boolean, persistence?: LoginPersistence) => Promise<boolean>;
   testLogin: (username: string, password: string, reset?: boolean, persistence?: LoginPersistence) => Promise<boolean>;
+  biometricLogin: () => Promise<boolean>;
   socialLogin: (provider: OAuthProvider, persistence?: LoginPersistence) => Promise<boolean>;
   oauthProviders: Record<OAuthProvider, boolean>;
   logout: () => Promise<void>;
@@ -106,7 +107,7 @@ const storage = {
     return authStorage.get();
   },
   set: (v: string, persistence: LoginPersistence = { remember: false, biometric: false }) => writeStorage(async () => {
-    await authStorage.set(v, persistence);
+    if (!await authStorage.set(v, persistence)) throw new Error('로그인 저장에 실패했어요.');
   }),
   clear: () => writeStorage(async () => {
     await authStorage.clear();
@@ -249,9 +250,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (t) {
           setToken(t);
           await refreshAfterAuth();
+        } else if (await hasBiometricLogin() && mounted && generation === session.current) {
+          // A cancelled biometric prompt should show the credential login,
+          // not replay the first-entry guide.
+          setRoute({ name: 'login' });
         }
       } catch (e) {
-        if (mounted) setError((e as Error).message);
+        if (mounted) {
+          if (e instanceof ApiError && e.status === 401) {
+            setError('');
+            setRoute({ name: 'login' });
+            notify('로그인 시간이 만료됐어요. 아이디로 다시 로그인해주세요.');
+          } else setError((e as Error).message);
+        }
       } finally {
         if (mounted) setLoading(false);
       }
@@ -346,7 +357,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (attempt !== authAttempt.current || generation !== session.current) return false;
       await refreshAfterAuth();
       if (attempt !== authAttempt.current || generation !== session.current || !actor.current) return false;
-      if (!saved) notify('로그인했어요. 저장 공간을 사용할 수 없어 새로고침하면 다시 로그인해야 해요.');
+      if (!saved) notify(persistence.biometric
+        ? '로그인했지만 생체 인증 설정을 완료하지 못했어요. 다음에는 비밀번호로 로그인해주세요.'
+        : '로그인했어요. 저장 공간을 사용할 수 없어 새로고침하면 다시 로그인해야 해요.');
       return true;
     } catch (e) {
       if (attempt !== authAttempt.current) return false;
@@ -376,13 +389,45 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (attempt !== authAttempt.current || generation !== session.current) return false;
       await refreshAfterAuth();
       if (attempt !== authAttempt.current || generation !== session.current || !actor.current) return false;
-      if (!saved) notify('로그인했어요. 저장 공간을 사용할 수 없어 새로고침하면 다시 로그인해야 해요.');
+      if (!saved) notify(persistence.biometric
+        ? '로그인했지만 생체 인증 설정을 완료하지 못했어요. 다음에는 비밀번호로 로그인해주세요.'
+        : '로그인했어요. 저장 공간을 사용할 수 없어 새로고침하면 다시 로그인해야 해요.');
       return true;
     } catch (e) {
       if (attempt !== authAttempt.current) return false;
       const message = (e as Error).message;
       setError(message);
       notify(message);
+      return false;
+    } finally {
+      if (attempt === authAttempt.current) { authLock.current = false; setBusy(false); }
+    }
+  };
+  const biometricLogin = async () => {
+    if (authLock.current || mutationLock.current || !await hasBiometricLogin()) return false;
+    authLock.current = true;
+    const attempt = ++authAttempt.current;
+    const generation = ++session.current;
+    setBusy(true);
+    setError('');
+    try {
+      const savedToken = await storage.get();
+      if (attempt !== authAttempt.current || generation !== session.current) return false;
+      if (!savedToken) {
+        if (!await hasBiometricLogin()) notify('저장된 생체 인증 정보가 만료됐어요. 아이디로 다시 로그인해주세요.');
+        return false;
+      }
+      setToken(savedToken);
+      await refreshAfterAuth();
+      return attempt === authAttempt.current && generation === session.current && Boolean(actor.current);
+    } catch (e) {
+      if (attempt === authAttempt.current) {
+        setError('');
+        setRoute({ name: 'login' });
+        notify(e instanceof ApiError && e.status === 401
+          ? '로그인 시간이 만료됐어요. 아이디로 다시 로그인해주세요.'
+          : (e as Error).message);
+      }
       return false;
     } finally {
       if (attempt === authAttempt.current) { authLock.current = false; setBusy(false); }
@@ -413,7 +458,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (attempt !== authAttempt.current || generation !== session.current) return false;
       await refreshAfterAuth();
       if (attempt !== authAttempt.current || generation !== session.current || !actor.current) return false;
-      if (!saved) notify('로그인했어요. 저장 공간을 사용할 수 없어 새로고침하면 다시 로그인해야 해요.');
+      if (!saved) notify(persistence.biometric
+        ? '로그인했지만 생체 인증 설정을 완료하지 못했어요. 다음에는 비밀번호로 로그인해주세요.'
+        : '로그인했어요. 저장 공간을 사용할 수 없어 새로고침하면 다시 로그인해야 해요.');
       notify('소셜 계정으로 로그인했어요.');
       return true;
     } catch (e) {
@@ -488,6 +535,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         refresh,
         login,
         testLogin,
+        biometricLogin,
         socialLogin,
         oauthProviders,
         logout,
