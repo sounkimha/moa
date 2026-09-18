@@ -176,9 +176,7 @@ npm run android -w @moa/mobile
 
 이미 개발 빌드를 설치했다면 `npm run dev:mobile`로 API와 Metro를 함께 시작할 수 있습니다. **SDK 54에 맞는 개발 빌드**를 사용하세요. 최신 App Store Expo Go가 이 고정 SDK 버전을 지원한다고 가정하면 안 됩니다.
 
-- iOS simulator API 기본값: `http://localhost:4000`.
-- Android emulator 기본값: `http://10.0.2.2:4000`.
-- 실제 휴대폰: `apps/mobile/.env.example`을 `.env`로 복사하고 `EXPO_PUBLIC_API_URL=http://내컴퓨터의LAN주소:4000`으로 설정합니다. 컴퓨터와 휴대폰은 같은 네트워크여야 합니다. 환경변수 변경 뒤 Metro를 재시작합니다.
+- Expo Go/native API 기본값은 배포된 데모 API입니다. 로컬 API를 사용할 때만 `apps/mobile/.env.example`을 `.env`로 복사하고 `EXPO_PUBLIC_API_URL=http://내컴퓨터의LAN주소:4000`으로 설정합니다. 실제 휴대폰에서 로컬 API를 사용할 경우 컴퓨터와 휴대폰은 같은 네트워크여야 하며, 환경변수 변경 뒤 Metro를 재시작합니다.
 - 기관/회사 단말 정책으로 네트워크가 차단되면 개인 개발 환경에서 실행하세요. 단말 정책을 우회하는 설정은 포함하지 않습니다.
 
 이 환경에서는 iOS/Android 코드 번들 생성까지만 검증했습니다. Xcode/Gradle 네이티브 빌드·실제 단말 실행 검증은 별도입니다.

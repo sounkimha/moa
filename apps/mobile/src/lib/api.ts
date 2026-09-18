@@ -1,8 +1,11 @@
 import { Platform } from 'react-native';
 import { apiErrorMessage } from './api-errors';
+const deployedApiUrl = 'https://moa-production-52f1.up.railway.app';
 function defaultApiUrl() {
-  if (Platform.OS === 'android') return 'http://10.0.2.2:4000';
-  if (Platform.OS !== 'web') return 'http://localhost:4000';
+  // Expo Go on a physical phone cannot reach the computer's localhost. Use
+  // the deployed demo API by default; local simulators/development servers
+  // can still override this with EXPO_PUBLIC_API_URL.
+  if (Platform.OS !== 'web') return deployedApiUrl;
   // Web development is served through the same-origin proxy on 8081. Keeping
   // auth on that origin avoids stale API ports and supports OAuth callbacks.
   return window.location.origin;
