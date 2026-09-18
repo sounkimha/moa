@@ -8,6 +8,7 @@ import {
   Heart,
   Link,
   Plane,
+  Cloud,
   ScanLine,
   ShoppingBag,
   Search,
@@ -183,15 +184,24 @@ export function Home() {
   const hero = cities.slice().sort((left, right) => right.travelers - left.travelers)[0];
   const heroTravelers = hero ? d.users.filter((user) => d.trips.some((item) => item.travelerId === user.id && item.destinationCity === hero.city)) : [];
   return <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20, paddingBottom: 32, gap: 28 }}>
-    <Row style={{ justifyContent: 'space-between' }}>
+    {a.role !== 'buyer' && <Row style={{ justifyContent: 'space-between' }}>
       <Row style={{ gap: 4 }}><Logo size={34} /><Txt size={10} color={c.secondary}>체험</Txt></Row>
-      <Row style={{ gap: 2 }}><Pressable accessibilityRole="button" accessibilityLabel="이용 모드 설정" onPress={() => a.nav('settings')} style={{ minHeight: 44, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center' }}><Row style={{ gap: 4 }}><Txt size={12} weight="600" color={c.secondary}>{a.role === 'buyer' ? '부탁하기 모드' : '여행하기 모드'}</Txt><ChevronRight size={12} color={c.secondary} /></Row></Pressable><IconButton icon={Bell} label="알림" onPress={() => a.nav('notifications')} /></Row>
-    </Row>
+      <Row style={{ gap: 2 }}><Pressable accessibilityRole="button" accessibilityLabel="이용 모드 설정" onPress={() => a.nav('settings')} style={{ minHeight: 44, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center' }}><Row style={{ gap: 4 }}><Txt size={12} weight="600" color={c.secondary}>여행하기 모드</Txt><ChevronRight size={12} color={c.secondary} /></Row></Pressable><IconButton icon={Bell} label="알림" onPress={() => a.nav('notifications')} /></Row>
+    </Row>}
     {a.role === 'buyer' ? <>
-      <Stack gap={16}>
-        <Stack gap={6}><Txt size={26} weight="900">{d.me.nickname}님, 반가워요</Txt><Txt size={30} weight="800">지금 누군가는{ '\n' }그곳으로 가고 있어요.</Txt></Stack>
-        <Pressable accessibilityRole="button" accessibilityLabel="도시와 장소 검색" onPress={() => a.tab('search')} style={({ pressed }) => ({ minHeight: 54, borderRadius: 16, paddingHorizontal: 16, backgroundColor: pressed ? c.primarySoft : c.paper, borderWidth: 1, borderColor: c.border, flexDirection: 'row', gap: 10, alignItems: 'center' })}><Search size={21} color={c.primaryStrong} /><Txt size={15} color={c.secondary}>도시, 매장, 갖고 싶은 물건</Txt></Pressable>
-      </Stack>
+      <View style={{ position: 'relative', overflow: 'hidden', padding: 20, borderRadius: 24, backgroundColor: c.primarySoft, borderWidth: 1, borderColor: c.primaryTint }}>
+        <Svg width="180" height="110" viewBox="0 0 180 110" style={{ position: 'absolute', right: 0, top: 26, opacity: 0.75 }} pointerEvents="none"><Path d="M8 82 C62 108 110 78 102 48 C98 32 84 24 72 30" stroke={c.primaryTint} strokeWidth="2" strokeDasharray="5 6" fill="none" /><Circle cx="72" cy="30" r="4" fill={c.primaryTint} /></Svg>
+        <View style={{ position: 'absolute', right: 18, top: 44, transform: [{ rotate: '18deg' }], opacity: 0.72 }}><Plane size={48} color={c.primaryStrong} strokeWidth={1.8} /></View>
+        <View style={{ position: 'absolute', right: 82, top: 68, opacity: 0.62 }}><Cloud size={26} color={c.primaryStrong} strokeWidth={1.8} /></View>
+        <Stack gap={14}>
+          <Row style={{ justifyContent: 'space-between' }}>
+            <Row style={{ gap: 4 }}><Logo size={30} /><Txt size={10} color={c.secondary}>체험</Txt></Row>
+            <Row style={{ gap: 2 }}><Pressable accessibilityRole="button" accessibilityLabel="이용 모드 설정" onPress={() => a.nav('settings')} style={{ minHeight: 36, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center' }}><Row style={{ gap: 3 }}><Txt size={12} weight="700" color={c.secondary}>부탁하기 모드</Txt><ChevronRight size={12} color={c.secondary} /></Row></Pressable><IconButton icon={Bell} label="알림" onPress={() => a.nav('notifications')} /></Row>
+          </Row>
+          <Stack gap={2} style={{ paddingTop: 2 }}><Txt size={30} weight="900">{d.me.nickname}님,</Txt><Txt size={26} weight="900" color={c.primaryStrong}>오늘도 좋은 하루예요.</Txt><Txt size={15} color={c.secondary}>지금 누군가는 그곳으로 가고 있어요.</Txt></Stack>
+          <Pressable accessibilityRole="button" accessibilityLabel="도시와 장소 검색" onPress={() => a.tab('search')} style={({ pressed }) => ({ minHeight: 54, borderRadius: 16, paddingHorizontal: 16, backgroundColor: pressed ? '#F2F7FF' : c.paper, borderWidth: 1, borderColor: c.border, flexDirection: 'row', gap: 10, alignItems: 'center' })}><Search size={21} color={c.primaryStrong} /><Txt size={15} color={c.secondary}>도시, 매장, 갖고 싶은 물건</Txt></Pressable>
+        </Stack>
+      </View>
       {hero && <View style={{ borderRadius: 24, overflow: 'hidden', backgroundColor: c.primaryDeep }}>
         <Pressable accessibilityRole="button" accessibilityLabel={`${hero.city}에서 부탁하기`} onPress={() => a.nav('search', { placeId: hero.place.id })} style={({ pressed }) => ({ opacity: pressed ? 0.86 : 1 })}>
           <View style={{ height: 228, overflow: 'hidden' }}><View style={{ position: 'absolute', inset: 0 }}><PlaceCover place={hero.place} thumbnail /></View><View style={{ position: 'absolute', inset: 0, backgroundColor: '#10244375' }} />
