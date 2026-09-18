@@ -189,7 +189,7 @@ export function Home() {
     </Row>
     {a.role === 'buyer' ? <>
       <Stack gap={14}>
-        <Stack gap={3}><Txt size={30} weight="900">{d.me.nickname}님, <Txt size={30} weight="900" color={c.primaryStrong}>반가워요!</Txt></Txt><Txt size={15} color={c.secondary}>지금, 필요한 물건이 그곳에 있어요.</Txt></Stack>
+        <Stack gap={3}><Txt size={30} weight="900" color={c.primaryStrong}>{d.me.nickname}님, <Txt size={30} weight="900">반가워요!</Txt></Txt><Txt size={15} color={c.secondary}>지금, 필요한 물건이 그곳에 있어요.</Txt></Stack>
         <Pressable accessibilityRole="button" accessibilityLabel="도시와 장소 검색" onPress={() => a.tab('search')} style={({ pressed }) => ({ minHeight: 56, borderRadius: 18, paddingHorizontal: 16, backgroundColor: pressed ? c.primarySoft : c.paper, borderWidth: 1, borderColor: c.border, flexDirection: 'row', gap: 10, alignItems: 'center' })}><Search size={21} color={c.primaryStrong} /><Txt size={15} color={c.secondary}>도시, 매장, 갖고 싶은 물건</Txt></Pressable>
       </Stack>
       {hero && <View style={{ borderRadius: 24, overflow: 'hidden', backgroundColor: c.primaryDeep }}>
