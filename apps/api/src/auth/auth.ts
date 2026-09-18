@@ -9,7 +9,7 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { Request } from 'express';
 import { z } from 'zod';
 import { base, parse, get } from '../common/validation';
@@ -55,6 +55,42 @@ export class AuthController {
     private readonly sessions: Sessions,
     private readonly store: Store,
   ) {}
+  @Post('test') async test(@Body() body: unknown) {
+    const { username, password, reset } = parse(
+      z.object({
+        username: z.string().trim().min(3).max(32).regex(/^[A-Za-z0-9._-]+$/, '아이디를 확인해주세요.'),
+        password: z.string().min(8, '비밀번호는 8자 이상이어야 해요.').max(128)
+          .regex(/[A-Za-z]/, '비밀번호에 영문을 포함해주세요.')
+          .regex(/[0-9]/, '비밀번호에 숫자를 포함해주세요.')
+          .regex(/[^A-Za-z0-9]/, '비밀번호에 특수문자를 포함해주세요.'),
+        reset: z.boolean().default(false),
+      }).strict(),
+      body,
+    );
+    const expectedUsername = process.env.MOA_TEST_USERNAME || 'wasabi';
+    const expectedPasswordHash = process.env.MOA_TEST_PASSWORD_SHA256 || 'ffcaaabfead29c4d47e2e5c68a91a687a0ea2a93927654eb4b6b786d9ea495bc';
+    const passwordHash = createHash('sha256').update(password).digest('hex');
+    if (username !== expectedUsername || passwordHash !== expectedPasswordHash) {
+      throw new UnauthorizedException('테스트 아이디 또는 비밀번호를 확인해주세요.');
+    }
+    const resetApplied = reset && !process.env.DATABASE_URL;
+    if (resetApplied) {
+      await this.store.resetDemo();
+      this.sessions.clear();
+    }
+    await this.store.transaction((db) => {
+      get(db.users, 'u-me');
+      const providerUserId = `test:${username}`;
+      if (!db.authIdentities.some((identity) => identity.provider === 'DEMO' && identity.providerUserId === providerUserId))
+        db.authIdentities.push({ ...base(), userId: 'u-me', provider: 'DEMO', providerUserId, status: 'DEMO_LINKED' });
+    });
+    return {
+      ...this.sessions.create('u-me'),
+      provider: 'DEMO',
+      resetApplied,
+      notice: '테스트 계정으로 로그인했어요.',
+    };
+  }
   @Post('demo') async demo(@Body() body: unknown) {
     const { userId, provider, reset } = parse(
       z

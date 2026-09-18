@@ -66,7 +66,7 @@ export function globalPlaces(createdAt: string): Place[] {
     id, createdAt, country, city, name, englishName, latitude, longitude,
     region: name,
     description: `${city}에서 여행자가 많이 찾는 대표 명소예요. 운영일·입장 조건을 확인하고 주변 매장과 상품을 부탁해보세요.`,
-    tags: ['대표 명소', '여행 코스', '로컬 쇼핑'],
+    tags: ['대표 명소', '여행 코스', '로컬 쇼핑', ...(city === '라스베이거스' ? ['라스베가스'] : [])],
     visitors: 0, requestCount: 0, recentTrades: 0, averageReward: 0,
     theme: 'blue', photo: 'local', extraMinutes: 0,
   }));

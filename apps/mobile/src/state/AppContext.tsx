@@ -70,6 +70,7 @@ type AppValue = {
   tab: (name: Screen) => void;
   refresh: () => Promise<void>;
   login: (provider?: string, userId?: string, reset?: boolean) => Promise<boolean>;
+  testLogin: (username: string, password: string, reset?: boolean) => Promise<boolean>;
   socialLogin: (provider: OAuthProvider) => Promise<boolean>;
   oauthProviders: Record<OAuthProvider, boolean>;
   logout: () => Promise<void>;
@@ -349,6 +350,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (attempt === authAttempt.current) { authLock.current = false; setBusy(false); }
     }
   };
+  const testLogin = async (username: string, password: string, reset = false) => {
+    if (authLock.current || mutationLock.current) return false;
+    authLock.current = true;
+    const attempt = ++authAttempt.current;
+    setBusy(true);
+    session.current++;
+    try {
+      const result = await api<{ token: string }>('/auth/test', { username, password, reset });
+      if (attempt !== authAttempt.current) return false;
+      const generation = await clearSession();
+      if (attempt !== authAttempt.current || generation !== session.current) return false;
+      setToken(result.token);
+      const saved = await storage.set(result.token);
+      if (attempt !== authAttempt.current || generation !== session.current) return false;
+      await refresh();
+      if (attempt !== authAttempt.current || generation !== session.current || !actor.current) return false;
+      if (!saved) notify('로그인했어요. 저장 공간을 사용할 수 없어 새로고침하면 다시 로그인해야 해요.');
+      return true;
+    } catch (e) {
+      if (attempt !== authAttempt.current) return false;
+      const message = (e as Error).message;
+      setError(message);
+      notify(message);
+      return false;
+    } finally {
+      if (attempt === authAttempt.current) { authLock.current = false; setBusy(false); }
+    }
+  };
   const socialLogin = async (provider: OAuthProvider) => {
     if (authLock.current || mutationLock.current || !oauthProviders[provider]) return false;
     authLock.current = true;
@@ -447,6 +476,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         tab,
         refresh,
         login,
+        testLogin,
         socialLogin,
         oauthProviders,
         logout,

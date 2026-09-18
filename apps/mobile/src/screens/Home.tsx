@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import * as Location from 'expo-location';
-import { Image, Platform, Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
+import { Image, Platform, Pressable, ScrollView, TextInput, useWindowDimensions, View } from 'react-native';
 import {
   ArrowRight,
   Bell,
@@ -72,7 +72,20 @@ const kmBetween = (a: { latitude: number; longitude: number }, b: { latitude: nu
 export function Onboarding() {
   const a = useApp();
   const [otherLogins, setOtherLogins] = useState(false);
+  const [testOpen, setTestOpen] = useState(false);
+  const [testUsername, setTestUsername] = useState('wasabi');
+  const [testPassword, setTestPassword] = useState('h112828!');
+  const [testError, setTestError] = useState('');
   const kakaoReady = a.oauthProviders.KAKAO;
+  const submitTestLogin = async () => {
+    if (testPassword.length < 8 || !/[A-Za-z]/.test(testPassword) || !/[0-9]/.test(testPassword) || !/[^A-Za-z0-9]/.test(testPassword)) {
+      setTestError('비밀번호는 8자 이상이며 영문·숫자·특수문자를 포함해야 해요.');
+      return;
+    }
+    setTestError('');
+    const ok = await a.testLogin(testUsername, testPassword, true);
+    if (!ok) setTestError('아이디 또는 비밀번호를 확인해주세요.');
+  };
   return (
     <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 24, paddingTop: 48, paddingBottom: 32, gap: 28, justifyContent: 'center' }}>
       <Logo size={46} />
@@ -92,6 +105,14 @@ export function Onboarding() {
         <Button testID="start-demo" label="체험 계정으로 로그인" kind={kakaoReady ? 'secondary' : 'primary'} loading={a.busy} onPress={() => a.login('DEMO', 'u-me', true)} />
         <Button label={otherLogins ? '로그인 방법 접기' : '다른 방법으로 계속하기'} kind="ghost" onPress={() => setOtherLogins(!otherLogins)} />
         {otherLogins && <Stack gap={8}>{(['GOOGLE', 'NAVER'] as const).filter((provider) => a.oauthProviders[provider]).map((provider) => <Button key={provider} label={provider === 'GOOGLE' ? 'Google로 계속하기' : '네이버로 계속하기'} kind="secondary" loading={a.busy} onPress={() => a.socialLogin(provider)} />)}{!a.oauthProviders.GOOGLE && !a.oauthProviders.NAVER && <Notice>소셜 로그인은 연결 준비 중이에요. 지금은 체험 계정으로 둘러보세요.</Notice>}</Stack>}
+        <Button label={testOpen ? '테스트 로그인 닫기' : '테스트 아이디로 로그인'} kind="ghost" onPress={() => { setTestOpen(!testOpen); setTestError(''); }} />
+        {testOpen && <Stack gap={8}>
+          <TextInput value={testUsername} onChangeText={setTestUsername} autoCapitalize="none" autoCorrect={false} placeholder="아이디" placeholderTextColor={c.muted} style={{ minHeight: 48, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: c.border, backgroundColor: c.paper, color: c.ink, fontSize: 15 }} />
+          <TextInput value={testPassword} onChangeText={setTestPassword} autoCapitalize="none" autoCorrect={false} secureTextEntry placeholder="비밀번호" placeholderTextColor={c.muted} style={{ minHeight: 48, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: c.border, backgroundColor: c.paper, color: c.ink, fontSize: 15 }} />
+          {testError && <Notice tone="error">{testError}</Notice>}
+          <Button label="테스트 계정으로 로그인" loading={a.busy} onPress={submitTestLogin} />
+          <Txt size={12} color={c.secondary}>비밀번호는 8자 이상 · 영문·숫자·특수문자를 포함해요.</Txt>
+        </Stack>}
         <Txt size={12} color={c.secondary} style={{ textAlign: 'center' }}>체험에서는 실제 결제나 정산이 발생하지 않아요.</Txt>
       </Stack>
     </ScrollView>
@@ -195,7 +216,7 @@ export function Home() {
       {hero && <View style={{ borderRadius: 24, overflow: 'hidden', backgroundColor: c.primaryDeep }}>
         <Pressable accessibilityRole="button" accessibilityLabel={`${hero.city}에서 부탁하기`} onPress={() => a.nav('search', { placeId: hero.place.id })} style={({ pressed }) => ({ opacity: pressed ? 0.86 : 1 })}>
           <View style={{ height: 228, overflow: 'hidden' }}><View style={{ position: 'absolute', inset: 0 }}><PlaceCover place={hero.place} thumbnail /></View><View style={{ position: 'absolute', inset: 0, backgroundColor: '#10244375' }} /><View style={{ position: 'absolute', top: 16, left: 16, width: 34, height: 34, borderRadius: 17, backgroundColor: c.paper, alignItems: 'center', justifyContent: 'center' }}><MapPin size={17} color={c.ink} /></View>
-            <Stack gap={10} style={{ flex: 1, padding: 22, justifyContent: 'flex-end' }}><Txt size={12} weight="600" color={c.navyTextBright}>{countryName(hero.place.country)} · {hero.city}</Txt><Txt size={26} weight="800" color="white">{hero.travelers ? `${hero.travelers}명의 여행자가\n${hero.city}로 떠나요.` : `${hero.city}의 발견,\n누군가의 여행으로.`}</Txt><Row style={{ justifyContent: 'space-between', marginTop: 6 }}><Row style={{ gap: 8 }}><AvatarStack users={heroTravelers} /><Txt size={12} color="white">{hero.travelers ? '여행 일정 둘러보기' : '장소 둘러보기'}</Txt></Row><View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: c.paper, justifyContent: 'center', alignItems: 'center' }}><ArrowRight size={19} color={c.primaryStrong} /></View></Row></Stack>
+            <Stack gap={10} style={{ flex: 1, minWidth: 0, width: '100%', padding: 22, justifyContent: 'flex-end' }}><Txt size={12} weight="600" color={c.navyTextBright} style={{ flexShrink: 1 }}>{countryName(hero.place.country)} · {hero.city}</Txt><Txt size={26} weight="800" color="white" style={{ flexShrink: 1, maxWidth: '100%' }}>{hero.travelers ? `${hero.travelers}명의 여행자가\n${hero.city}로 떠나요.` : `${hero.city}의 발견,\n누군가의 여행으로.`}</Txt><Row style={{ justifyContent: 'space-between', marginTop: 6, minWidth: 0 }}><Row style={{ gap: 8, minWidth: 0, flexShrink: 1 }}><AvatarStack users={heroTravelers} /><Txt size={12} color="white" style={{ flexShrink: 1 }}>{hero.travelers ? '여행 일정 둘러보기' : '장소 둘러보기'}</Txt></Row><View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: c.paper, justifyContent: 'center', alignItems: 'center', flexShrink: 0 }}><ArrowRight size={19} color={c.primaryStrong} /></View></Row></Stack>
           </View>
         </Pressable>
         <PhotoCredit place={hero.place} />
@@ -271,8 +292,9 @@ export function SearchScreen() {
     [view, setView] = useState('목록'),
     [resultsWidth, setResultsWidth] = useState(0),
     [selected, setSelected] = useState<Place | null>(null);
-  const q = query.trim().toLowerCase();
-  const match = (text: string) => text.toLowerCase().includes(q);
+  const normalizeSearch = (value: string) => value.toLowerCase().replace(/라스베가스/g, '라스베이거스');
+  const q = normalizeSearch(query.trim());
+  const match = (text: string) => normalizeSearch(text).includes(q);
   const places = d.places.filter(
     (p) =>
       (country === 'ALL' || p.country === country) && (!cities.length || cities.includes(p.city)) &&
