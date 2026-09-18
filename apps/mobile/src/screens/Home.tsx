@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import * as Location from 'expo-location';
 import { Image, Platform, Pressable, ScrollView, TextInput, useWindowDimensions, View } from 'react-native';
 import {
   ArrowRight,
+  ArrowLeft,
   Bell,
   ChevronRight,
   Heart,
@@ -16,6 +17,7 @@ import {
   ShieldCheck,
   PackageCheck,
   Wallet,
+  Fingerprint,
 } from 'lucide-react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { groupForTrip, money, Place, shortDate, countryName } from '@moa/domain';
@@ -45,6 +47,7 @@ import { PageTransition } from '../components/motion';
 import RouteMap from '../components/RouteMap';
 import { getPlacePhoto } from '../lib/place-photos';
 import { PhotoCredit } from '../components/PhotoCredit';
+import { supportsBiometric } from '../lib/auth-storage';
 
 function readRecentPlaces(): string[] {
   try {
@@ -71,21 +74,7 @@ const kmBetween = (a: { latitude: number; longitude: number }, b: { latitude: nu
 
 export function Onboarding() {
   const a = useApp();
-  const [otherLogins, setOtherLogins] = useState(false);
-  const [loginFormOpen, setLoginFormOpen] = useState(false);
-  const [testUsername, setTestUsername] = useState('wasabi');
-  const [testPassword, setTestPassword] = useState('h112828!');
-  const [testError, setTestError] = useState('');
   const kakaoReady = a.oauthProviders.KAKAO;
-  const submitTestLogin = async () => {
-    if (testPassword.length < 8 || !/[A-Za-z]/.test(testPassword) || !/[0-9]/.test(testPassword) || !/[^A-Za-z0-9]/.test(testPassword)) {
-      setTestError('비밀번호는 8자 이상이며 영문·숫자·특수문자를 포함해야 해요.');
-      return;
-    }
-    setTestError('');
-    const ok = await a.testLogin(testUsername, testPassword, true);
-    if (!ok) setTestError('아이디 또는 비밀번호를 확인해주세요.');
-  };
   return (
     <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 24, paddingTop: 48, paddingBottom: 32, gap: 28, justifyContent: 'center' }}>
       <Logo size={46} />
@@ -101,21 +90,66 @@ export function Onboarding() {
       </Stack>
       {a.error && <Notice tone="error">{a.error}</Notice>}
       <Stack gap={10}>
+        <Button testID="start-demo" label="체험 계정으로 로그인" kind={kakaoReady ? 'secondary' : 'primary'} onPress={() => a.nav('login')} />
         {kakaoReady && <Button label="카카오로 계속하기" loading={a.busy} onPress={() => a.socialLogin('KAKAO')} style={{ backgroundColor: '#FEE500' }} kind="secondary" />}
-        {!loginFormOpen ? <Button testID="start-demo" label="체험 계정으로 로그인" kind={kakaoReady ? 'secondary' : 'primary'} onPress={() => { setLoginFormOpen(true); setTestError(''); }} /> : <Stack gap={10}>
-          <Row style={{ justifyContent: 'space-between' }}><Txt size={20} weight="700">체험 계정 로그인</Txt><Pressable accessibilityRole="button" accessibilityLabel="로그인 입력 닫기" onPress={() => { setLoginFormOpen(false); setTestError(''); }}><Txt size={13} weight="600" color={c.primaryStrong}>뒤로</Txt></Pressable></Row>
-          <TextInput value={testUsername} onChangeText={setTestUsername} autoCapitalize="none" autoCorrect={false} placeholder="아이디" placeholderTextColor={c.muted} style={{ minHeight: 52, paddingHorizontal: 16, borderRadius: 14, borderWidth: 1, borderColor: c.border, backgroundColor: c.paper, color: c.ink, fontSize: 15 }} />
-          <TextInput value={testPassword} onChangeText={setTestPassword} autoCapitalize="none" autoCorrect={false} secureTextEntry placeholder="비밀번호" placeholderTextColor={c.muted} style={{ minHeight: 52, paddingHorizontal: 16, borderRadius: 14, borderWidth: 1, borderColor: c.border, backgroundColor: c.paper, color: c.ink, fontSize: 15 }} />
-          {testError && <Notice tone="error">{testError}</Notice>}
-          <Button label="로그인하기" loading={a.busy} onPress={submitTestLogin} />
-          <Txt size={12} color={c.secondary}>비밀번호는 8자 이상 · 영문·숫자·특수문자를 포함해요.</Txt>
-        </Stack>}
-        <Button label={otherLogins ? '로그인 방법 접기' : '다른 방법으로 계속하기'} kind="ghost" onPress={() => setOtherLogins(!otherLogins)} />
-        {otherLogins && <Stack gap={8}>{(['GOOGLE', 'NAVER'] as const).filter((provider) => a.oauthProviders[provider]).map((provider) => <Button key={provider} label={provider === 'GOOGLE' ? 'Google로 계속하기' : '네이버로 계속하기'} kind="secondary" loading={a.busy} onPress={() => a.socialLogin(provider)} />)}{!a.oauthProviders.GOOGLE && !a.oauthProviders.NAVER && <Notice>소셜 로그인은 연결 준비 중이에요. 지금은 체험 계정으로 둘러보세요.</Notice>}</Stack>}
+        <Button label="다른 방법으로 계속하기" kind="ghost" onPress={() => a.nav('login')} />
         <Txt size={12} color={c.secondary} style={{ textAlign: 'center' }}>체험에서는 실제 결제나 정산이 발생하지 않아요.</Txt>
       </Stack>
     </ScrollView>
   );
+}
+
+function LoginOption({ selected, disabled, label, detail, icon: Icon, onPress }: { selected: boolean; disabled?: boolean; label: string; detail: string; icon: typeof Fingerprint; onPress: () => void }) {
+  return <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: selected, disabled }} disabled={disabled} onPress={onPress} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, opacity: disabled ? 0.45 : 1 }}>
+    <View style={{ width: 24, height: 24, borderRadius: 8, borderWidth: 1.5, borderColor: selected ? c.primary : c.border, backgroundColor: selected ? c.primary : c.paper, alignItems: 'center', justifyContent: 'center' }}>{selected && <Check size={15} color="white" />}</View>
+    <Icon size={20} color={selected ? c.primaryStrong : c.secondary} />
+    <Stack gap={2} style={{ flex: 1 }}><Txt size={14} weight="600">{label}</Txt><Txt size={12} color={c.secondary}>{detail}</Txt></Stack>
+  </Pressable>;
+}
+
+/** Credential login lives on its own screen so the onboarding page stays short and calm. */
+export function LoginScreen() {
+  const a = useApp();
+  const [username, setUsername] = useState('wasabi');
+  const [password, setPassword] = useState('h112828!');
+  const [remember, setRemember] = useState(true);
+  const [biometric, setBiometric] = useState(false);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [error, setError] = useState('');
+  useEffect(() => { supportsBiometric().then(setBiometricAvailable); }, []);
+  const persistence = { remember, biometric: biometric && biometricAvailable };
+  const submit = async () => {
+    if (password.length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
+      setError('비밀번호는 8자 이상이며 영문·숫자·특수문자를 포함해야 해요.');
+      return;
+    }
+    setError('');
+    const ok = await a.testLogin(username.trim(), password, true, persistence);
+    if (ok) a.tab('home');
+    else setError('아이디 또는 비밀번호를 확인해주세요.');
+  };
+  const social = async (provider: 'GOOGLE' | 'KAKAO' | 'NAVER') => {
+    const ok = await a.socialLogin(provider, persistence);
+    if (ok) a.tab('home');
+  };
+  return <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1, padding: 24, paddingTop: 28, paddingBottom: 40, gap: 24 }}>
+    <Row style={{ justifyContent: 'space-between', alignItems: 'center' }}><Pressable accessibilityRole="button" accessibilityLabel="로그인 닫기" onPress={() => a.back()} style={{ width: 44, height: 44, alignItems: 'flex-start', justifyContent: 'center' }}><ArrowLeft size={24} color={c.ink} /></Pressable><Logo size={32} /><View style={{ width: 44 }} /></Row>
+    <Stack gap={8}><Txt size={28} weight="800">로그인하기</Txt><Txt size={15} color={c.secondary}>MOA에서 여행과 부탁을 이어가요.</Txt></Stack>
+    <Stack gap={12}>
+      <Txt size={14} weight="700">아이디로 로그인</Txt>
+      <TextInput value={username} onChangeText={setUsername} autoCapitalize="none" autoCorrect={false} placeholder="아이디" placeholderTextColor={c.muted} style={{ minHeight: 54, paddingHorizontal: 16, borderRadius: 14, borderWidth: 1, borderColor: c.border, backgroundColor: c.paper, color: c.ink, fontSize: 16 }} />
+      <TextInput value={password} onChangeText={setPassword} autoCapitalize="none" autoCorrect={false} secureTextEntry placeholder="비밀번호" placeholderTextColor={c.muted} style={{ minHeight: 54, paddingHorizontal: 16, borderRadius: 14, borderWidth: 1, borderColor: c.border, backgroundColor: c.paper, color: c.ink, fontSize: 16 }} />
+      <Txt size={12} color={c.secondary}>비밀번호는 8자 이상 · 영문·숫자·특수문자를 포함해요.</Txt>
+      {(error || a.error) && <Notice tone="error">{error || a.error}</Notice>}
+      <Button label="로그인하기" loading={a.busy} onPress={submit} />
+    </Stack>
+    <Stack gap={2}>
+      <LoginOption selected={remember} label="자동 로그인" detail="다음부터 이 기기에서 바로 로그인해요." icon={Check} onPress={() => setRemember(!remember)} />
+      <LoginOption selected={biometric} disabled={!biometricAvailable || !remember} label="생체 인증으로 빠르게 로그인" detail={biometricAvailable ? 'Face ID, 지문 또는 기기 인증을 사용해요.' : '이 기기에서는 생체 인증을 지원하지 않아요.'} icon={Fingerprint} onPress={() => setBiometric(!biometric)} />
+    </Stack>
+    {(a.oauthProviders.KAKAO || a.oauthProviders.GOOGLE || a.oauthProviders.NAVER) && <Stack gap={8}><Txt size={14} weight="700">다른 방법으로 로그인</Txt>{a.oauthProviders.KAKAO && <Button label="카카오로 계속하기" loading={a.busy} onPress={() => social('KAKAO')} style={{ backgroundColor: '#FEE500' }} kind="secondary" />}{a.oauthProviders.GOOGLE && <Button label="Google로 계속하기" loading={a.busy} onPress={() => social('GOOGLE')} kind="secondary" />}{a.oauthProviders.NAVER && <Button label="네이버로 계속하기" loading={a.busy} onPress={() => social('NAVER')} kind="secondary" />}</Stack>}
+    <Txt size={12} color={c.secondary} style={{ textAlign: 'center' }}>체험 계정에서는 실제 결제나 정산이 발생하지 않아요.</Txt>
+  </ScrollView>;
 }
 
 const guideSlides = [

@@ -20,7 +20,7 @@ import { colors as c } from './src/theme/tokens';
 import { Badge, Button, Row, Sheet, Stack, Txt } from './src/components/ui';
 import { LoadingSkeleton, PageTransition } from './src/components/motion';
 import { Logo } from './src/components/visuals';
-import { CreateActions, CreateScreen, GuideScreen, Home, Onboarding, PlaceScreen, SearchScreen } from './src/screens/Home';
+import { CreateActions, CreateScreen, GuideScreen, Home, LoginScreen, Onboarding, PlaceScreen, SearchScreen } from './src/screens/Home';
 import { RequestForm } from './src/screens/Forms';
 import { TripForm } from './src/screens/TripForm';
 import { FlightProofScreen } from './src/screens/FlightProof';
@@ -56,6 +56,7 @@ import {
 } from './src/screens/Account';
 const screens: Record<Screen, React.ComponentType> = {
   home: Home,
+  login: LoginScreen,
   search: SearchScreen,
   create: CreateScreen,
   trades: TradesScreen,
@@ -284,7 +285,7 @@ function Shell() {
                 <Button label="로그인부터 다시 시작" kind="ghost" onPress={() => a.logout()} />
               </Stack>
             ) : !a.data ? (
-              entryGuideComplete ? <Onboarding /> : <GuideScreen onComplete={() => setEntryGuideComplete(true)} />
+              a.route.name === 'login' ? <LoginScreen /> : entryGuideComplete ? <Onboarding /> : <GuideScreen onComplete={() => setEntryGuideComplete(true)} />
             ) : a.data.me.profileCompleted === false ? (
               <ProfileSetupScreen />
             ) : (

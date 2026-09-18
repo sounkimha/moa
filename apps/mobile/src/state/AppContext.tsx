@@ -4,6 +4,7 @@ import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
 import { Art, Category, Country, Role, Snapshot, Transport, ProductAvailability, ProductStore, RecognizedLocation } from '@moa/domain';
 import { api, ApiError, setToken } from '../lib/api';
+import { authStorage, LoginPersistence } from '../lib/auth-storage';
 import { parseRoute, routeHash, Route, Screen } from './navigation';
 import { clearDraft, readDraft, writeDraft } from './draft-session';
 import {
@@ -69,9 +70,9 @@ type AppValue = {
   back: () => void;
   tab: (name: Screen) => void;
   refresh: () => Promise<void>;
-  login: (provider?: string, userId?: string, reset?: boolean) => Promise<boolean>;
-  testLogin: (username: string, password: string, reset?: boolean) => Promise<boolean>;
-  socialLogin: (provider: OAuthProvider) => Promise<boolean>;
+  login: (provider?: string, userId?: string, reset?: boolean, persistence?: LoginPersistence) => Promise<boolean>;
+  testLogin: (username: string, password: string, reset?: boolean, persistence?: LoginPersistence) => Promise<boolean>;
+  socialLogin: (provider: OAuthProvider, persistence?: LoginPersistence) => Promise<boolean>;
   oauthProviders: Record<OAuthProvider, boolean>;
   logout: () => Promise<void>;
   switchActor: (id: string) => Promise<boolean>;
@@ -102,16 +103,13 @@ const savedRole = (): Role => {
 const storage = {
   get: async () => {
     await storageWrites;
-    try { return Platform.OS === 'web' ? window.sessionStorage.getItem('moa-token') : await SecureStore.getItemAsync('moa-token'); }
-    catch { return null; }
+    return authStorage.get();
   },
-  set: (v: string) => writeStorage(async () => {
-    if (Platform.OS === 'web') window.sessionStorage.setItem('moa-token', v);
-    else await SecureStore.setItemAsync('moa-token', v);
+  set: (v: string, persistence: LoginPersistence = { remember: false, biometric: false }) => writeStorage(async () => {
+    await authStorage.set(v, persistence);
   }),
   clear: () => writeStorage(async () => {
-    if (Platform.OS === 'web') window.sessionStorage.removeItem('moa-token');
-    else await SecureStore.deleteItemAsync('moa-token');
+    await authStorage.clear();
   }),
 };
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -320,7 +318,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
     return () => subscription.remove();
   }, []);
-  const login = async (provider = 'DEMO', userId = 'u-me', reset = false) => {
+  const login = async (provider = 'DEMO', userId = 'u-me', reset = false, persistence: LoginPersistence = { remember: false, biometric: false }) => {
     if (authLock.current || mutationLock.current) return false;
     authLock.current = true;
     const attempt = ++authAttempt.current;
@@ -332,7 +330,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const generation = await clearSession();
       if (attempt !== authAttempt.current || generation !== session.current) return false;
       setToken(result.token);
-      const saved = await storage.set(result.token);
+      const saved = await storage.set(result.token, persistence);
       if (attempt !== authAttempt.current || generation !== session.current) return false;
       await refresh();
       if (attempt !== authAttempt.current || generation !== session.current || !actor.current) return false;
@@ -350,7 +348,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (attempt === authAttempt.current) { authLock.current = false; setBusy(false); }
     }
   };
-  const testLogin = async (username: string, password: string, reset = false) => {
+  const testLogin = async (username: string, password: string, reset = false, persistence: LoginPersistence = { remember: false, biometric: false }) => {
     if (authLock.current || mutationLock.current) return false;
     authLock.current = true;
     const attempt = ++authAttempt.current;
@@ -362,7 +360,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const generation = await clearSession();
       if (attempt !== authAttempt.current || generation !== session.current) return false;
       setToken(result.token);
-      const saved = await storage.set(result.token);
+      const saved = await storage.set(result.token, persistence);
       if (attempt !== authAttempt.current || generation !== session.current) return false;
       await refresh();
       if (attempt !== authAttempt.current || generation !== session.current || !actor.current) return false;
@@ -378,7 +376,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (attempt === authAttempt.current) { authLock.current = false; setBusy(false); }
     }
   };
-  const socialLogin = async (provider: OAuthProvider) => {
+  const socialLogin = async (provider: OAuthProvider, persistence: LoginPersistence = { remember: false, biometric: false }) => {
     if (authLock.current || mutationLock.current || !oauthProviders[provider]) return false;
     authLock.current = true;
     const attempt = ++authAttempt.current;
@@ -399,10 +397,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const generation = await clearSession();
       if (attempt !== authAttempt.current || generation !== session.current) return false;
       setToken(exchanged.token);
-      await storage.set(exchanged.token);
+      const saved = await storage.set(exchanged.token, persistence);
       if (attempt !== authAttempt.current || generation !== session.current) return false;
       await refresh();
       if (attempt !== authAttempt.current || generation !== session.current || !actor.current) return false;
+      if (!saved) notify('로그인했어요. 저장 공간을 사용할 수 없어 새로고침하면 다시 로그인해야 해요.');
       notify('소셜 계정으로 로그인했어요.');
       return true;
     } catch (e) {

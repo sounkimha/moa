@@ -47,7 +47,12 @@
           "locationWhenInUsePermission": "내 주변 여행 일정과 직거래 위치를 지도에서 확인하기 위해 현재 위치를 사용해요."
         }
       ],
-      "expo-secure-store"
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": "MOA에서 생체 인증으로 안전하게 로그인해요."
+        }
+      ]
     ],
     "extra": {
       "eas": {

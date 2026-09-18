@@ -1,5 +1,5 @@
 export type Screen =
-  | 'home' | 'search' | 'create' | 'trades' | 'my' | 'place' | 'request'
+  | 'home' | 'login' | 'search' | 'create' | 'trades' | 'my' | 'place' | 'request'
   | 'request-form' | 'trip-form' | 'flight-proof' | 'trip-route' | 'offers' | 'profile' | 'profile-edit'
   | 'offer-form' | 'bundle' | 'payment' | 'transaction' | 'chat' | 'receipt'
   | 'receive' | 'payouts' | 'wallet' | 'wallet-topup' | 'wallet-withdraw'
@@ -15,7 +15,7 @@ export interface Route {
   method?: 'link' | 'photo';
 }
 const screens: Screen[] = [
-  'home', 'search', 'create', 'trades', 'my', 'place', 'request', 'request-form',
+  'home', 'login', 'search', 'create', 'trades', 'my', 'place', 'request', 'request-form',
   'trip-form', 'flight-proof', 'trip-route', 'offers', 'profile', 'profile-edit', 'offer-form', 'bundle', 'payment',
   'transaction', 'chat', 'receipt', 'receive', 'payouts', 'wallet', 'wallet-topup',
   'wallet-withdraw', 'identity', 'payment-methods', 'notifications', 'favorites',
