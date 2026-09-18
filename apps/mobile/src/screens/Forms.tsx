@@ -263,9 +263,15 @@ function RequestFormContent() {
   });
   const findRecognizedPlace = (value?: ProductAvailability) => {
     if (!value) return undefined;
+    const normalized = (input: string) => input.toLocaleLowerCase('ko-KR').replace(/[\s·_\-]/g, '');
+    const inferredCountry = value.countryCode || COUNTRY_CODES.find((code) => {
+      const name = normalized(value.countryName || '');
+      return name.length > 0 && (name === normalized(code) || name === normalized(DESTINATIONS[code].name));
+    });
     const score = (candidate: typeof d.places[number]) =>
       (value.placeId && candidate.id === value.placeId ? 10 : 0) +
-      (value.countryCode && candidate.country === value.countryCode ? 4 : 0) +
+      (inferredCountry && candidate.country === inferredCountry ? 4 : 0) +
+      (!inferredCountry && value.countryName && normalized(DESTINATIONS[candidate.country].name).includes(normalized(value.countryName)) ? 4 : 0) +
       (value.city && candidate.city.toLocaleLowerCase().includes(value.city.toLocaleLowerCase()) ? 4 : 0) +
       (value.district && `${candidate.name} ${candidate.region}`.toLocaleLowerCase().includes(value.district.toLocaleLowerCase()) ? 3 : 0);
     const best = d.places.map((candidate) => ({ candidate, score: score(candidate) })).sort((a, b) => b.score - a.score)[0];
@@ -393,25 +399,32 @@ function RequestFormContent() {
     const detectedImage = uploadedImage ?? result.suggestion?.imageUrl ?? result.product?.image;
     setImage(typeof detectedImage === 'string' ? detectedImage : '');
     const recognizedAvailability = result.suggestion?.availability;
-    const detectedPlaceId = result.product?.placeId || result.suggestion?.placeId || recognizedAvailability?.placeId || null;
-    const detectedPlace = d.places.find((p) => p.id === detectedPlaceId) || findRecognizedPlace(recognizedAvailability);
+    const normalizedAvailability = recognizedAvailability
+      ? {
+          ...recognizedAvailability,
+          countryCode: recognizedAvailability.countryCode || COUNTRY_CODES.find((code) =>
+            recognizedAvailability.countryName && DESTINATIONS[code].name === recognizedAvailability.countryName,
+          ) || null,
+        }
+      : undefined;
+    const detectedPlaceId = result.product?.placeId || result.suggestion?.placeId || normalizedAvailability?.placeId || null;
+    const detectedPlace = d.places.find((p) => p.id === detectedPlaceId) || findRecognizedPlace(normalizedAvailability);
     const detectedStore = result.suggestion?.storeName || result.suggestion?.stores?.[0]?.name || '';
     const recognized: RecognizedLocation = {
-      countryCode: recognizedAvailability?.countryCode || detectedPlace?.country || null,
-      countryName: recognizedAvailability?.countryName || (detectedPlace ? countryName(detectedPlace.country) : ''),
-      city: recognizedAvailability?.city || detectedPlace?.city || '',
-      district: recognizedAvailability?.district || detectedPlace?.region || '',
+      countryCode: normalizedAvailability?.countryCode || detectedPlace?.country || null,
+      countryName: normalizedAvailability?.countryName || (detectedPlace ? countryName(detectedPlace.country) : ''),
+      city: normalizedAvailability?.city || detectedPlace?.city || '',
+      district: normalizedAvailability?.district || detectedPlace?.region || '',
       placeId: detectedPlace?.id || detectedPlaceId,
       storeName: detectedStore,
       purchaseLocation: result.suggestion?.purchaseLocation || '',
     };
-    const hasRecognizedRegion = Boolean(detectedPlace || recognizedAvailability?.countryCode || recognizedAvailability?.city || recognizedAvailability?.district);
-    const locationSpecific = Boolean(detectedPlaceId || recognizedAvailability?.city || recognizedAvailability?.district);
-    const mismatch = locationSpecific
-      ? Boolean(detectedPlace && placeId && detectedPlace.id !== placeId)
-      : Boolean(recognizedAvailability?.countryCode && recognizedAvailability.countryCode !== place.country);
+    const hasRecognizedRegion = Boolean(detectedPlace || normalizedAvailability?.countryCode || normalizedAvailability?.countryName || normalizedAvailability?.city || normalizedAvailability?.district);
+    const mismatch = detectedPlace && placeId
+      ? detectedPlace.id !== placeId
+      : Boolean(normalizedAvailability?.countryCode && normalizedAvailability.countryCode !== place.country);
     if (!placeId && detectedPlace) setPlaceId(detectedPlace.id);
-    setAvailability(recognizedAvailability ? { ...recognizedAvailability, placeId: detectedPlace?.id || detectedPlaceId } : undefined);
+    setAvailability(normalizedAvailability ? { ...normalizedAvailability, placeId: detectedPlace?.id || detectedPlaceId } : undefined);
     setStores(result.suggestion?.stores || []);
     setRecognizedLocation(hasRecognizedRegion ? recognized : undefined);
     setBrandName(result.suggestion?.brandName || '');

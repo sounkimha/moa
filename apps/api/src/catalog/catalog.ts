@@ -266,6 +266,29 @@ const priceEstimateSchema = z.object({
   amount: z.number().nonnegative().nullable(),
   confidence: z.number().min(0).max(1),
 }).strict();
+const locationInferenceJsonSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    countryCode: { type: ['string', 'null'], enum: [...COUNTRY_CODES, null] },
+    countryName: { type: 'string' },
+    city: { type: 'string' },
+    district: { type: 'string' },
+    storeName: { type: 'string' },
+    purchaseLocation: { type: 'string' },
+    confidence: { type: 'number', minimum: 0, maximum: 1 },
+  },
+  required: ['countryCode', 'countryName', 'city', 'district', 'storeName', 'purchaseLocation', 'confidence'],
+} as const;
+const locationInferenceSchema = z.object({
+  countryCode: z.enum(COUNTRY_CODES).nullable(),
+  countryName: z.string().max(80),
+  city: z.string().max(80),
+  district: z.string().max(100),
+  storeName: z.string().max(120),
+  purchaseLocation: z.string().max(160),
+  confidence: z.number().min(0).max(1),
+}).strict();
 @Injectable()
 export class CatalogService {
   constructor(
@@ -743,6 +766,54 @@ export class CatalogService {
         } catch {
           // The main recognition result remains usable if the optional estimate fails.
         }
+      }
+    }
+    // A package often reveals its country of origin or usual retail market
+    // even when there is no store name or price tag in the photo. Run a small
+    // text-only verification pass in that case so a selected place (for
+    // example Tokyo/Shibuya) is not silently treated as the product's market.
+    if (
+      source === 'OPENAI_VISION' &&
+      signals.productName &&
+      process.env.OPENAI_API_KEY &&
+      (!signals.availability.countryCode || signals.confidence.location < 0.75)
+    ) {
+      try {
+        const locationResponse = await fetch('https://api.openai.com/v1/responses', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: process.env.OPENAI_VISION_MODEL || 'gpt-4.1-mini',
+            store: false,
+            text: { format: { type: 'json_schema', name: 'product_location_inference', strict: true, schema: locationInferenceJsonSchema } },
+            input: [{
+              role: 'user',
+              content: [{
+                type: 'input_text',
+                text: `상품의 실제 판매 시장을 보수적으로 확인하세요. 사용자가 선택한 장소나 앱 UI는 제공되지 않았으므로 임의로 도쿄/시부야로 맞추지 마세요. 상품 포장·브랜드·OCR·판매처 단서와 일반적인 유통 지식을 사용해 국가/도시/지역/매장을 추론하세요. 근거가 충분하지 않으면 countryCode는 null로 두세요. 국가만 확실하면 도시·지역은 빈 문자열로 두고, 특정 국가에서 흔히 판매되는 상품(예: 인도네시아 스낵 브랜드)은 그 국가를 반환하세요. 상품명: ${signals.productName}; 브랜드: ${signals.brandName || '미상'}; 제품 유형: ${signals.productType || '미상'}; 기존 판매처: ${signals.storeName || '미상'}; 기존 판매지역: ${signals.purchaseLocation || '미상'}; OCR: ${signals.extractedText.join(', ') || '없음'}`,
+              }],
+            }],
+          }),
+          signal: AbortSignal.timeout(15000),
+        });
+        if (locationResponse.ok) {
+          const locationResult = (await locationResponse.json()) as VisionResponse;
+          const locationText = locationResult.output?.flatMap((item) => item.content || []).find((item) => item.type === 'output_text')?.text;
+          if (locationText) {
+            const inferred = locationInferenceSchema.parse(JSON.parse(locationText.replace(/^```json\s*|\s*```$/g, '')));
+            if (inferred.countryCode && inferred.confidence >= Math.max(0.55, signals.confidence.location)) {
+              signals.availability.countryCode = inferred.countryCode;
+              signals.availability.countryName = inferred.countryName || countryName(inferred.countryCode);
+              signals.availability.city = inferred.city;
+              signals.availability.district = inferred.district;
+              if (!signals.storeName && inferred.storeName) signals.storeName = inferred.storeName;
+              if (!signals.purchaseLocation && inferred.purchaseLocation) signals.purchaseLocation = inferred.purchaseLocation;
+              signals.confidence.location = inferred.confidence;
+            }
+          }
+        }
+      } catch {
+        // Location verification is supplemental; the original vision result remains usable.
       }
     }
     const ranked = rankCatalogProducts(signals);
