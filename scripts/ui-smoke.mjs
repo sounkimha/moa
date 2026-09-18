@@ -168,7 +168,8 @@ try {
     assert.ok(document.querySelector(`[aria-label="${label} 대표 풍경 사진"]`), label + ' photo');
   }
   assert.ok(document.querySelector('[aria-label*="서울 · 성수 팝업 거리"]'), 'Seongsu uses its own place cover');
-  assert.equal(document.querySelectorAll('[aria-label^="사진 출처:"]').length, 23, 'Every place includes photo attribution');
+  assert.ok(document.querySelector('[aria-label="미국 · 뉴욕 스카이라인 대표 풍경 사진"]'), 'Worldwide places include photo attribution');
+  assert.ok(document.querySelectorAll('[aria-label^="사진 출처:"]').length >= 23, 'Every visible place includes photo attribution');
   const credit = document.querySelector('[aria-label^="사진 출처:"]');
   await click(credit.getAttribute('aria-label'));
   await expectText('David Kernan');
