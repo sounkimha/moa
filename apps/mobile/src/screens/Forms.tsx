@@ -609,8 +609,8 @@ function RequestFormContent() {
               />
               <Txt size={13} color={c.secondary}>
                 {d.recognition?.image === false
-                  ? '사진 자동 인식은 준비 중이에요. 샘플로 먼저 체험할 수 있어요.'
-                  : '상품 이름과 포장이 잘 보이는 사진을 골라주세요.'}
+                  ? '사진은 저장해둘게요. AI 연결 후 상품명·종류·판매처를 자동으로 채울 수 있어요.'
+                  : '상품명·종류·판매처를 자동으로 채워드려요. 가격은 사진에 보일 때만 읽어요.'}
               </Txt>
               <Txt size={12} color={c.muted}>
                 자동 인식을 위해 선택한 사진이 전송돼요.

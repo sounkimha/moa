@@ -78,7 +78,10 @@ async function fetchPage(value: string) {
   for (let redirects = 0; redirects < 4; redirects++) {
     const response = await fetch(current, {
       redirect: 'manual',
-      headers: { 'User-Agent': 'MoaLinkPreview/1.0', Accept: 'text/html,application/xhtml+xml' },
+      headers: {
+        'User-Agent': 'MoaLinkPreview/1.0',
+        Accept: 'text/html,application/xhtml+xml,image/jpeg,image/png,image/webp,image/gif',
+      },
       signal,
     });
     if (response.status >= 300 && response.status < 400) {
@@ -104,8 +107,14 @@ async function fetchPage(value: string) {
       }
       chunks.push(value);
     }
-    const html = Buffer.concat(chunks).toString('utf8');
-    return { response, html, finalUrl: current.toString(), contentType: response.headers.get('content-type') || '' };
+    const bytes = Buffer.concat(chunks);
+    return {
+      response,
+      bytes,
+      html: bytes.toString('utf8'),
+      finalUrl: current.toString(),
+      contentType: response.headers.get('content-type') || '',
+    };
   }
   return null;
 }
@@ -314,6 +323,31 @@ export class CatalogService {
         notice: '링크를 열지 못했어요. 공개된 상품 링크인지 확인해주세요.',
       };
     if (/^image\/(?:jpeg|jpg|png|webp|gif)(?:;|$)/i.test(page.contentType)) {
+      const mime = page.contentType.toLocaleLowerCase().split(';')[0] === 'image/jpg'
+        ? 'image/jpeg'
+        : page.contentType.toLocaleLowerCase().split(';')[0];
+      // A pasted image URL is still a useful photo input. When server-side
+      // vision is configured, send the fetched bytes through the same guarded
+      // recognition path as an uploaded photo. If vision is unavailable or
+      // the image format is unsupported, keep the image-only fallback below.
+      if (process.env.OPENAI_API_KEY && mime !== 'image/gif') {
+        try {
+          const recognized = await this.recognize(`data:${mime};base64,${page.bytes.toString('base64')}`);
+          const result = {
+            ...recognized,
+            suggestion: recognized.suggestion
+              ? { ...recognized.suggestion, imageUrl: page.finalUrl }
+              : recognized.suggestion,
+            source: page.finalUrl,
+            notice: `${recognized.notice} 이미지 링크에서 사진을 읽었어요.`,
+          };
+          await this.cache.set(cacheKey, result);
+          return result;
+        } catch {
+          // Fall back to the safe manual form when the remote image cannot be
+          // analyzed. Never block a request just because AI recognition failed.
+        }
+      }
       const result = {
         status: 'IMAGE_LINK',
         product: null,

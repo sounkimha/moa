@@ -61,6 +61,36 @@ test('image-only links keep the real image instead of falling back to a sample i
   }
 });
 
+test('image-only links use the same vision recognizer when the server key is configured', async () => {
+  const originalFetch = global.fetch, originalLookup = dns.lookup, oldKey = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = 'test-key-not-a-real-secret';
+  try {
+    dns.lookup = async () => [{ address: '93.184.216.34', family: 4 }];
+    const signals = {
+      extractedText: ['감자칩'], character: '', productName: '감자칩', productType: '스낵',
+      category: 'LOCAL', art: 'bag', storeName: '', purchaseLocation: '',
+      priceAmount: null, currency: null, colors: [],
+    };
+    global.fetch = async (url, init) => {
+      if (String(url).startsWith('https://api.openai.com/')) {
+        const body = JSON.parse(init.body);
+        assert.equal(body.input[0].content[1].image_url, 'data:image/jpeg;base64,aW1hZ2UtYnl0ZXM=');
+        return Response.json({ output: [{ content: [{ type: 'output_text', text: JSON.stringify(signals) }] }] });
+      }
+      return new Response('image-bytes', { headers: { 'content-type': 'image/jpeg' } });
+    };
+    const result = await catalog().metadata('https://mblogthumb-phinf.pstatic.net/vision-example');
+    assert.equal(result.source, 'https://mblogthumb-phinf.pstatic.net/vision-example');
+    assert.equal(result.suggestion.productName, '감자칩');
+    assert.equal(result.suggestion.imageUrl, 'https://mblogthumb-phinf.pstatic.net/vision-example');
+  } finally {
+    global.fetch = originalFetch;
+    dns.lookup = originalLookup;
+    if (oldKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = oldKey;
+  }
+});
+
 test('vision response handling preserves uncertain products rather than inventing an exact catalog match', async () => {
   const originalFetch = global.fetch, oldKey = process.env.OPENAI_API_KEY;
   process.env.OPENAI_API_KEY = 'test-key-not-a-real-secret';
