@@ -149,7 +149,7 @@ export function GuideScreen({ onComplete }: { onComplete?: () => void }) {
   return (
     <View style={{ flex: 1, backgroundColor: c.paper }}>
       <Row style={{ paddingHorizontal: 24, paddingTop: 20, paddingBottom: 12, justifyContent: 'space-between' }}><Logo size={34} /><Txt size={12} color={c.secondary}>여행에 취향을 싣다.</Txt></Row>
-      <PageTransition routeKey={`guide-${index}`}><ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24, gap: 24 }}>
+      <PageTransition routeKey={`guide-${index}`}><ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24, gap: 24 }}>
         <Stack gap={10}><Txt size={12} weight="700" color={c.primaryStrong}>{slide.eyebrow}</Txt><Txt size={32} weight="800">{slide.title}</Txt><Txt size={15} color={c.secondary} style={{ maxWidth: 320 }}>{slide.body}</Txt></Stack>
         <View style={{ minHeight: 280, justifyContent: 'center', paddingVertical: 16 }}>
           {index === 0 ? <View style={{ height: 280, borderRadius: 24, backgroundColor: c.ultraSoft, overflow: 'hidden', alignItems: 'center' }}>
@@ -163,7 +163,11 @@ export function GuideScreen({ onComplete }: { onComplete?: () => void }) {
           </View>}
         </View>
       </ScrollView></PageTransition>
-      <Stack gap={20} style={{ padding: 24, paddingTop: 12 }}><Row style={{ justifyContent: 'center', gap: 7 }}>{guideSlides.map((item, dot) => <View key={item.eyebrow} style={{ width: dot === index ? 24 : 6, height: 6, borderRadius: 4, backgroundColor: dot === index ? c.primaryStrong : c.border }} />)}</Row><Button label={last ? (firstEntry ? '모아 시작하기' : '홈으로 가기') : '다음'} icon={ArrowRight} onPress={() => last ? (onComplete ? onComplete() : a.tab('home')) : setIndex((current) => current + 1)} />{index > 0 && <Button small label="이전" kind="ghost" onPress={() => setIndex(index - 1)} />}</Stack>
+      <Stack gap={20} style={{ padding: 24, paddingTop: 12 }}>
+        <Row style={{ justifyContent: 'center', gap: 7 }}>{guideSlides.map((item, dot) => <View key={item.eyebrow} style={{ width: dot === index ? 24 : 6, height: 6, borderRadius: 4, backgroundColor: dot === index ? c.primaryStrong : c.border }} />)}</Row>
+        <Button label={last ? (firstEntry ? '모아 시작하기' : '홈으로 가기') : '다음'} icon={ArrowRight} onPress={() => last ? (onComplete ? onComplete() : a.tab('home')) : setIndex((current) => current + 1)} />
+        <View style={{ minHeight: 44, justifyContent: 'center' }}>{index > 0 && <Button small label="이전" kind="ghost" onPress={() => setIndex(index - 1)} />}</View>
+      </Stack>
     </View>
   );
 }

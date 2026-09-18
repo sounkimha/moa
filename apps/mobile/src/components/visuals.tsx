@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Image, Pressable, View } from 'react-native';
+import { Image, Platform, Pressable, View } from 'react-native';
 import Svg, { Circle, Ellipse, Path, Rect, Line, G, Text as SvgText } from 'react-native-svg';
 import {
   ArrowUpRight,
@@ -32,6 +32,15 @@ import { colors as c } from '../theme/tokens';
 import { Badge, Card, Divider, Row, Stack, Txt } from './ui';
 import { getPlacePhoto } from '../lib/place-photos';
 import { PhotoCredit } from './PhotoCredit';
+
+// The first-entry guide uses this local image immediately. Warm the browser/native
+// image cache as soon as the visual component module is loaded so the guide does
+// not briefly show an empty/loading tile on a cold app start.
+const CHIIKAWA_SOURCE = require('../../assets/chiikawa-featured.jpg');
+if (Platform.OS === 'web') {
+  const uri = Image.resolveAssetSource(CHIIKAWA_SOURCE)?.uri;
+  if (uri) void Image.prefetch(uri).catch(() => undefined);
+}
 export function Logo({ size = 38 }: { size?: number }) {
   return (
     <Image
@@ -74,7 +83,7 @@ export function ProductArt({
   if (featured)
     return (
       <Image
-        source={require('../../assets/chiikawa-featured.jpg')}
+        source={CHIIKAWA_SOURCE}
         accessibilityLabel="치이카와 캐릭터 키링 상품 사진"
         style={{ width: size, height: size, borderRadius: 18, backgroundColor: c.mint }}
         resizeMode="cover"
