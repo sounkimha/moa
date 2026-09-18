@@ -104,20 +104,31 @@ export default function MeetupMap({ latitude, longitude, zoom, onMove }: MeetupM
       const level = Math.max(1, Math.min(14, Math.round(20 - zoom)));
       const map = new host.maps.Map(mapElement.current, { center, level, draggable: true, scrollwheel: true });
       mapRef.current = map;
-      geocoderRef.current = new host.maps.services.Geocoder();
-      host.maps.event.addListener(map, 'idle', () => {
-        if (cancelled) return;
-        if (statusRef.current !== 'ready') { clearTimeout(timer); finish('ready'); }
-        choose(map.getCenter());
-      });
-      host.maps.event.addListener(map, 'dragend', () => choose(map.getCenter()));
-      host.maps.event.addListener(map, 'click', (event: any) => { map.panTo(event.latLng); choose(event.latLng); });
+      try {
+        if (host.maps.services?.Geocoder) geocoderRef.current = new host.maps.services.Geocoder();
+      } catch {
+        // Address lookup is an enhancement; a usable map should not fail if
+        // Kakao's optional services bundle is unavailable.
+        geocoderRef.current = null;
+      }
+      try {
+        host.maps.event.addListener(map, 'idle', () => {
+          if (cancelled) return;
+          if (statusRef.current !== 'ready') { clearTimeout(timer); finish('ready'); }
+          choose(map.getCenter());
+        });
+        host.maps.event.addListener(map, 'dragend', () => choose(map.getCenter()));
+        host.maps.event.addListener(map, 'click', (event: any) => { map.panTo(event.latLng); choose(event.latLng); });
+      } catch {
+        // Older WebViews can expose the map without the event helper. Keep the
+        // map interactive where supported and still allow the central pin.
+      }
       // Some mobile WebViews do not emit the first `idle` event even though
       // the map instance and tiles are already mounted. The map is usable at
       // this point, so don't let the loading timeout cover a working map.
       clearTimeout(timer);
       finish('ready');
-      choose(center);
+      try { choose(center); } catch { /* keep the mounted map usable */ }
     }).catch(() => { if (!cancelled) finish('error'); });
     return () => { cancelled = true; clearTimeout(timer); mapRef.current = null; geocoderRef.current = null; };
   }, [apiKey, latitude, longitude, zoom, retry]);
