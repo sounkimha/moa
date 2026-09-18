@@ -7,7 +7,7 @@ const { randomBytes, scryptSync, createHmac } = require('node:crypto');
 const { Store } = require('../dist/infrastructure/store');
 const { quote } = require('@moa/domain');
 
-let app, url, temp;
+let app, url, temp, todayPaymentAmount;
 const password = 'Only-for-admin-tests-2026!';
 const secret = randomBytes(20).toString('hex');
 function code() {
@@ -49,10 +49,17 @@ before(async () => {
   await app.get(Store).transaction((db) => {
     const request = db.requests.find((r) => r.id === 'r-1');
     const offer = db.offers.find((o) => o.id === 'offer-1');
+    const current = new Date().toISOString();
+    const currentQuote = quote(request, offer.reward, 'DOMESTIC_PARCEL');
+    todayPaymentAmount = currentQuote.totalPrice;
     request.createdAt = past(13);
     db.trips.find((trip) => trip.id === offer.tripId).endDate = past(9).slice(0, 10);
     db.transactions.push({ id: 'tx-shipping-case', createdAt: past(12), ...quote(request, offer.reward, 'DOMESTIC_PARCEL'), requestId: request.id, offerId: offer.id, buyerId: 'u-me', travelerId: 'u-min', status: 'SHIPPED', revision: 4, transport: 'DOMESTIC_PARCEL', estimatedDeliveryDate: past(7).slice(0, 10) });
     db.payments.push({ id: 'pay-shipping-case', createdAt: past(11), transactionId: 'tx-shipping-case', buyerId: 'u-me', amount: 33248, provider: 'MOCK_CARD', paymentMethodId: 'payment-u-me-card', status: 'HELD', providerRef: 'mock-payment' });
+    db.transactions.push({ id: 'tx-today-case', createdAt: current, ...currentQuote, requestId: request.id, offerId: offer.id, buyerId: 'u-me', travelerId: 'u-min', status: 'PAYMENT_HELD', revision: 2, transport: 'DOMESTIC_PARCEL', estimatedDeliveryDate: past(-1).slice(0, 10) });
+    db.payments.push({ id: 'pay-today-case', createdAt: current, transactionId: 'tx-today-case', buyerId: 'u-me', amount: currentQuote.totalPrice, provider: 'MOCK_CARD', paymentMethodId: 'payment-u-me-card', status: 'HELD', providerRef: 'mock-payment-today' });
+    db.transactions.push({ id: 'tx-refunded-case', createdAt: current, ...currentQuote, requestId: request.id, offerId: offer.id, buyerId: 'u-me', travelerId: 'u-min', status: 'CANCELLED', revision: 3, transport: 'DOMESTIC_PARCEL', estimatedDeliveryDate: past(-1).slice(0, 10) });
+    db.payments.push({ id: 'pay-refunded-case', createdAt: current, transactionId: 'tx-refunded-case', buyerId: 'u-me', amount: currentQuote.totalPrice, provider: 'MOCK_CARD', paymentMethodId: 'payment-u-me-card', status: 'REFUNDED', providerRef: 'mock-payment-refunded' });
     db.escrows.push({ id: 'esc-shipping-case', createdAt: past(11), transactionId: 'tx-shipping-case', amount: 33248, holder: 'MOCK_LEDGER', status: 'HELD' });
     db.receipts.push({ id: 'receipt-shipping-case', createdAt: past(10), transactionId: 'tx-shipping-case', travelerId: 'u-min', outcome: 'PURCHASED', productImage: '', receiptImage: '', storeName: '도쿄역 캐릭터 스트리트', purchasedAt: past(10).slice(0, 10), localAmount: 2420, currency: 'JPY', locationNote: '매장에서 구매' });
     db.shipments.push({ id: 'shipment-shipping-case', createdAt: past(8), transactionId: 'tx-shipping-case', transport: 'DOMESTIC_PARCEL', carrier: '테스트 택배', trackingNumber: 'TRACK-123-456', status: 'SHIPPED' });
@@ -111,6 +118,10 @@ test('shipping inquiry finds the transaction and its evidence without exposing m
   assert.equal(detail.data.timeline.at(-1).to, 'SHIPPED');
   assert.equal(detail.data.payout, null);
   assert.equal(detail.data.adminActions.length, 0);
+  const dashboard = await call('/dashboard', { cookie });
+  assert.equal(dashboard.status, 200);
+  assert.equal(dashboard.data.periodTransactions.today.transactionCount, 1);
+  assert.equal(dashboard.data.periodTransactions.today.transactionAmount, null);
 });
 test('finance sees amounts but not chat or tracking number', async () => {
   const cookie = await login('FINANCE');
@@ -122,6 +133,10 @@ test('finance sees amounts but not chat or tracking number', async () => {
   const dashboard = await call('/dashboard', { cookie });
   assert.equal(dashboard.status, 200);
   assert.equal(dashboard.data.alerts.find((a) => a.key === 'SHIPPING_DELAY').count, 1);
+  assert.equal(dashboard.data.periodTransactions.today.transactionCount, 1);
+  assert.equal(dashboard.data.periodTransactions.today.transactionAmount, todayPaymentAmount);
+  assert.ok(dashboard.data.periodTransactions.month.transactionCount >= 1);
+  assert.ok(dashboard.data.periodTransactions.year.transactionCount >= dashboard.data.periodTransactions.month.transactionCount);
   const sorted = await call('/transactions?sort=amount_desc&page=1&size=1', { cookie });
   assert.equal(sorted.status, 200);
   assert.equal(sorted.data.rows.length, 1);

@@ -9,9 +9,16 @@ export type TransactionRow = {
   amounts: { productPrice: number; travelerReward: number; platformFee: number; shippingFee: number; totalPrice: number } | null;
 };
 export type Person = { id: string; nickname: string };
+export type PeriodTransactionMetric = {
+  label: string;
+  periodLabel: string;
+  transactionCount: number;
+  transactionAmount: number | null;
+};
 export type DashboardData = {
   generatedAt: string; mode: string;
   kpis: { newUsersToday: number; newRequestsToday: number; matchedToday: number; activeTransactions: number; shippedToday: number; openDisputes: number; gmv: number | null; settled: number | null };
+  periodTransactions: { today: PeriodTransactionMetric; month: PeriodTransactionMetric; year: PeriodTransactionMetric };
   funnel: { key: string; label: string; count: number }[];
   alerts: { key: Issue; count: number }[];
   recent: TransactionRow[];

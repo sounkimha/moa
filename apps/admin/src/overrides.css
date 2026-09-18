@@ -16,3 +16,90 @@
 .filter-search {
   min-width: 260px;
 }
+
+.period-transactions {
+  margin-bottom: 18px;
+}
+
+.period-transaction-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+}
+
+.period-transaction {
+  min-width: 0;
+  padding: 20px;
+  border-right: 1px solid #edf1f5;
+}
+
+.period-transaction:last-child {
+  border-right: 0;
+}
+
+.period-transaction-head,
+.period-transaction-values,
+.period-transaction-values > div {
+  display: flex;
+}
+
+.period-transaction-head {
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.period-transaction-head strong {
+  color: #243953;
+  font-size: 14px;
+}
+
+.period-transaction-head span,
+.period-transaction-values span {
+  color: #8795a8;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.period-transaction-values {
+  align-items: flex-start;
+  gap: 28px;
+}
+
+.period-transaction-values > div {
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.period-transaction-values strong {
+  color: #172943;
+  font-size: 20px;
+  letter-spacing: -0.04em;
+  white-space: nowrap;
+}
+
+.period-transaction-values > div:last-child strong {
+  color: #31516f;
+}
+
+.period-footnote {
+  border-top: 1px solid #edf1f5;
+  padding-top: 12px;
+}
+
+@media (max-width: 860px) {
+  .period-transaction-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .period-transaction {
+    border-right: 0;
+    border-bottom: 1px solid #edf1f5;
+  }
+
+  .period-transaction:last-child {
+    border-bottom: 0;
+  }
+}

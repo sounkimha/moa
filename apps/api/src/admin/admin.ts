@@ -6,7 +6,7 @@ import {
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { Request, Response } from 'express';
 import { z } from 'zod';
-import { Database, Status, STATUS_LABEL, Transaction } from '@moa/domain';
+import { Database, Payment, Status, STATUS_LABEL, Transaction } from '@moa/domain';
 import { Store } from '../infrastructure/store';
 
 type AdminRole = 'SUPER_ADMIN' | 'OPERATIONS' | 'CUSTOMER_SUPPORT' | 'FINANCE' | 'VIEWER';
@@ -159,6 +159,43 @@ function rowFor(db: Database, transaction: Transaction, role: AdminRole) {
   };
 }
 
+type SeoulDate = { year: number; month: number; day: number };
+type PeriodPaymentSource = Pick<Payment, 'createdAt' | 'status' | 'amount'>;
+const seoulDateFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit',
+});
+function seoulDate(value: Date): SeoulDate | null {
+  if (Number.isNaN(value.getTime())) return null;
+  const values = Object.fromEntries(seoulDateFormatter.formatToParts(value)
+    .filter((part) => part.type !== 'literal')
+    .map((part) => [part.type, part.value]));
+  const year = Number(values.year);
+  const month = Number(values.month);
+  const day = Number(values.day);
+  return Number.isInteger(year) && Number.isInteger(month) && Number.isInteger(day) ? { year, month, day } : null;
+}
+function periodTransactionMetrics(rows: PeriodPaymentSource[], canViewMoney: boolean, now = new Date()) {
+  const current = seoulDate(now);
+  const periods = [
+    { key: 'today' as const, label: '오늘', periodLabel: current ? `${current.month}월 ${current.day}일` : '오늘', matches: (date: SeoulDate) => !!current && date.year === current.year && date.month === current.month && date.day === current.day },
+    { key: 'month' as const, label: '이번 달', periodLabel: current ? `${current.year}년 ${current.month}월` : '이번 달', matches: (date: SeoulDate) => !!current && date.year === current.year && date.month === current.month },
+    { key: 'year' as const, label: '올해', periodLabel: current ? `${current.year}년` : '올해', matches: (date: SeoulDate) => !!current && date.year === current.year },
+  ];
+  return Object.fromEntries(periods.map((period) => {
+    const transactions = rows.filter((row) => {
+      if (row.status === 'REFUNDED') return false;
+      const createdAt = seoulDate(new Date(row.createdAt));
+      return !!createdAt && period.matches(createdAt);
+    });
+    return [period.key, {
+      label: period.label,
+      periodLabel: period.periodLabel,
+      transactionCount: transactions.length,
+      transactionAmount: canViewMoney ? transactions.reduce((sum, row) => sum + (Number.isFinite(row.amount) ? row.amount : 0), 0) : null,
+    }];
+  })) as { today: { label: string; periodLabel: string; transactionCount: number; transactionAmount: number | null }; month: { label: string; periodLabel: string; transactionCount: number; transactionAmount: number | null }; year: { label: string; periodLabel: string; transactionCount: number; transactionAmount: number | null } };
+}
+
 @Controller('admin')
 export class AdminController {
   constructor(private readonly sessions: AdminSessions, private readonly store: Store) {}
@@ -183,12 +220,13 @@ export class AdminController {
 
   @UseGuards(AdminGuard) @Get('dashboard') dashboard(@Req() request: AdminRequest) {
     return this.store.read((db) => {
-      const today = new Date().toISOString().slice(0, 10);
+      const generatedAt = new Date();
+      const today = generatedAt.toISOString().slice(0, 10);
       const rows = db.transactions.map((t) => rowFor(db, t, request.admin.role));
       const issueKinds = ['PAYMENT_WAIT', 'PURCHASE_DELAY', 'RETURN_DELAY', 'SHIPPING_DELAY', 'SETTLEMENT_DELAY', 'DISPUTED'] as const;
       const stage = (status: Status) => db.transactions.filter((t) => t.status === status || db.events.some((event) => event.transactionId === t.id && event.to === status)).length;
       return {
-        generatedAt: new Date().toISOString(), mode: 'demo-readonly',
+        generatedAt: generatedAt.toISOString(), mode: 'demo-readonly',
         kpis: {
           newUsersToday: db.users.filter((u) => u.createdAt.slice(0, 10) === today).length,
           newRequestsToday: db.requests.filter((r) => r.createdAt.slice(0, 10) === today).length,
@@ -199,6 +237,7 @@ export class AdminController {
           gmv: moneyAccess(request.admin.role) ? db.payments.filter((p) => p.status !== 'REFUNDED').reduce((sum, p) => sum + p.amount, 0) : null,
           settled: moneyAccess(request.admin.role) ? db.payouts.reduce((sum, p) => sum + p.amount, 0) : null,
         },
+        periodTransactions: periodTransactionMetrics(db.payments, moneyAccess(request.admin.role), generatedAt),
         funnel: [
           { key: 'REQUESTED', label: '요청 등록', count: db.requests.length },
           { key: 'MATCHED', label: '매칭', count: stage('MATCHED') },
