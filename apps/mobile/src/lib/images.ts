@@ -106,8 +106,12 @@ export async function pickImage(options?: { quality?: number; allowsEditing?: bo
   if (!asset.base64) throw new Error('이미지를 읽지 못했어요. 다른 파일을 선택해주세요.');
   if (asset.base64.length > 2_700_000)
     throw new Error('사진은 2MB 이하의 JPG·PNG·WebP로 선택해주세요.');
-  const mime = asset.mimeType || 'image/jpeg';
-  if (!acceptedMimeTypes.includes(mime))
-    throw new Error('JPG·PNG·WebP 이미지를 선택해주세요.');
+  // Expo returns JPEG-encoded base64 on iOS even when the original photo's
+  // mimeType is HEIC. Label the bytes we actually send, not the source file.
+  const mime = asset.base64.startsWith('/9j/') ? 'image/jpeg'
+    : asset.base64.startsWith('iVBORw0KGgo') ? 'image/png'
+    : asset.base64.startsWith('UklGR') ? 'image/webp'
+    : null;
+  if (!mime) throw new Error('사진을 변환하지 못했어요. 다른 사진으로 다시 시도해주세요.');
   return `data:${mime};base64,${asset.base64}`;
 }
