@@ -27,6 +27,10 @@ function loadKakaoMaps(key: string) {
     const script = document.createElement('script');
     script.dataset.moaKakaoMaps = 'true';
     script.async = true;
+    // Kakao rejects this public JavaScript key when an unregistered preview
+    // domain is sent as Referer. Keep the referrer policy scoped to the SDK
+    // request; the rest of MOA keeps the API's normal policy.
+    script.referrerPolicy = 'no-referrer';
     script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(key)}&libraries=services&autoload=false`;
     script.addEventListener('load', finish, { once: true });
     script.addEventListener('error', () => reject(new Error('Kakao Maps SDK failed to load')), { once: true });
