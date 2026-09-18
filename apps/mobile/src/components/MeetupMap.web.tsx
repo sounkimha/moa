@@ -136,7 +136,13 @@ export default function MeetupMap({ latitude, longitude, zoom, onMove }: MeetupM
   if (!apiKey) return <MeetupMapUnavailable provider="Kakao" onOpen={() => { void Linking.openURL(`https://map.kakao.com/link/map/${encodeURIComponent('만남 위치')},${latitude},${longitude}`).catch(() => {}); }} />;
   return <View style={{ position: 'relative', height: 300 }}>
     <div ref={mapElement} role="application" aria-label="카카오 직거래 위치 지도" style={{ width: '100%', height: 300, background: '#eaf2ff' }} />
-    <div aria-hidden="true" style={{ position: 'absolute', left: '50%', top: '50%', width: 26, height: 26, background: '#3478f6', border: '3px solid white', borderRadius: '50% 50% 50% 0', transform: 'translate(-50%, -100%) rotate(-45deg)', pointerEvents: 'none', boxShadow: '0 2px 8px #17203344' }} />
+    <div aria-hidden="true" style={{ position: 'absolute', zIndex: 20, left: '50%', top: '50%', transform: 'translate(-50%, -100%)', display: 'flex', flexDirection: 'column', alignItems: 'center', pointerEvents: 'none' }}>
+      <div style={{ padding: '3px 8px', marginBottom: 4, borderRadius: 999, background: '#172033', color: '#fff', fontSize: 11, lineHeight: '16px', fontWeight: 700, whiteSpace: 'nowrap', boxShadow: '0 2px 6px #17203344' }}>이 핀에서 만나요</div>
+      <div style={{ position: 'relative', width: 38, height: 38, borderRadius: '50%', background: '#3478f6', border: '3px solid #fff', boxShadow: '0 2px 8px #17203366', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#fff' }} />
+      </div>
+      <div style={{ width: 12, height: 12, marginTop: -6, background: '#3478f6', borderRight: '3px solid #fff', borderBottom: '3px solid #fff', transform: 'rotate(45deg)', boxShadow: '2px 2px 4px #17203322' }} />
+    </div>
     <RouteMapStatus provider="Kakao" status={status} onRetry={() => setRetry((count) => count + 1)} onOpen={() => { void Linking.openURL(`https://map.kakao.com/link/map/${encodeURIComponent('만남 위치')},${latitude},${longitude}`).catch(() => {}); }} />
   </View>;
 }

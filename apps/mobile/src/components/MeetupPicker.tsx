@@ -71,7 +71,7 @@ export function MeetupPicker({ value, onChange, history, legacyName, country = '
     </View>}
     <View style={{ borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: c.border }}>
       <MeetupMap {...center} onMove={(latitude, longitude, name, address) => {
-        setCandidate((p) => ({ name: name || '위치를 확인하는 중…', address: address || '', detail: p?.detail || '', latitude, longitude }));
+        setCandidate((p) => ({ name: name || '지도 중앙 위치', address: address || '', detail: p?.detail || '', latitude, longitude }));
         onChange(undefined);
       }} />
     </View>
