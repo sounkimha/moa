@@ -150,6 +150,7 @@ function RequestFormContent() {
     [category, setCategory] = useState<Category>(preset?.category || draft?.category || 'CHARACTER'),
     [storeName, setStoreName] = useState(preset?.storeName || draft?.storeName || ''),
     [brandName, setBrandName] = useState(preset?.brandName || draft?.brandName || ''),
+    [recognizedCurrency, setRecognizedCurrency] = useState<Currency | null | undefined>(preset?.recognizedCurrency ?? draft?.recognizedCurrency),
     [availability, setAvailability] = useState<ProductAvailability | undefined>(preset?.availability || draft?.availability),
     [stores, setStores] = useState<ProductStore[]>(preset?.stores || draft?.stores || []),
     [recognizedLocation, setRecognizedLocation] = useState<RecognizedLocation | undefined>(preset?.recognizedLocation || draft?.recognizedLocation),
@@ -204,6 +205,7 @@ function RequestFormContent() {
     setOriginalText(undefined);
     setName(''); setPrice(''); setImage(''); setStoreName('');
     setBrandName(''); setAvailability(undefined); setStores([]); setRecognizedLocation(undefined);
+    setRecognizedCurrency(undefined);
     setLocationSource('USER_SELECTED'); setLocationMismatch(false);
     setOption('기본 옵션'); setInventoryStatus('CHECK_REQUIRED');
     setAiFilled(false); setSampleFilled(false); setEditingDetails(false);
@@ -304,6 +306,7 @@ function RequestFormContent() {
       category,
       storeName,
       brandName,
+      recognizedCurrency,
       availability,
       stores,
       recognizedLocation,
@@ -343,6 +346,7 @@ function RequestFormContent() {
     category,
     storeName,
     brandName,
+    recognizedCurrency,
     availability,
     stores,
     recognizedLocation,
@@ -405,6 +409,7 @@ function RequestFormContent() {
     setStores(result.suggestion?.stores || []);
     setRecognizedLocation(hasRecognizedRegion ? recognized : undefined);
     setBrandName(result.suggestion?.brandName || '');
+    setRecognizedCurrency(result.product?.currency || result.suggestion?.currency || null);
     setLocationMismatch(mismatch);
     setLocationSource(mismatch ? 'USER_SELECTED' : hasRecognizedRegion ? 'AI_RECOGNIZED' : 'USER_SELECTED');
     const detectedCurrency = result.product?.currency || result.suggestion?.currency;
@@ -591,6 +596,7 @@ function RequestFormContent() {
         category,
         storeName: storeName.trim(),
         brandName: brandName.trim() || undefined,
+        recognizedCurrency,
         availability,
         stores,
         recognizedLocation,
@@ -763,7 +769,7 @@ function RequestFormContent() {
                     {stores.length > 1 && <Button small kind="ghost" label={`구매 가능한 매장 ${stores.length}곳`} onPress={() => setStoreSheetOpen(true)} />}
                     {!!recognizedLocationLabel && <Button small kind="secondary" label="판매지역 수정" onPress={() => { setEditingDetails(true); locationMismatch ? setLocationMismatchOpen(true) : setPlaceSearchOpen(true); }} />}
                     <Txt size={24} weight="800">{price ? money(q.productPrice) : '가격 확인 필요'}</Txt>
-                    <Txt size={12} color={c.secondary}>{CATEGORIES[category]} · {localMoney(Number(price), currencyForCountry(place.country))}</Txt>
+                    <Txt size={12} color={c.secondary}>{CATEGORIES[category]} · {localMoney(Number(price), recognizedCurrency || currencyForCountry(availability?.countryCode || place.country))}</Txt>
                     {option !== '기본 옵션' && <Txt size={13} color={c.secondary}>{option}</Txt>}
                   </Stack>
                 </Row>
@@ -806,7 +812,7 @@ function RequestFormContent() {
             </Stack>
           </Row>
           <Field
-            label={`현지가 (${currencyForCountry(place.country)})`}
+            label={`현지가 (${recognizedCurrency || currencyForCountry(availability?.countryCode || place.country)})`}
             required
             value={price}
             onChange={(v) => setPrice(v.replace(/[^0-9.]/g, ''))}

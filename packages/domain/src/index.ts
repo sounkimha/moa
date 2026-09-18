@@ -176,6 +176,7 @@ export interface ProductRequest extends Entity {
   inventoryStatus?: 'IN_STOCK' | 'OUT_OF_STOCK' | 'PREORDER' | 'CHECK_REQUIRED';
   /** AI-derived product context retained for review and later validation. */
   brandName?: string;
+  recognizedCurrency?: Currency | null;
   availability?: ProductAvailability;
   stores?: ProductStore[];
   recognizedLocation?: RecognizedLocation;

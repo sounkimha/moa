@@ -35,6 +35,7 @@ export type RequestDraft = {
   category: Category;
   storeName: string;
   brandName?: string;
+  recognizedCurrency?: import('@moa/domain').Currency | null;
   availability?: ProductAvailability;
   stores?: ProductStore[];
   recognizedLocation?: RecognizedLocation;

@@ -35,6 +35,7 @@ const createSchema = z.object({
     .default(''),
   storeName: z.string().trim().max(120).optional(),
   brandName: z.string().trim().max(120).optional(),
+  recognizedCurrency: z.enum(['KRW', 'JPY', 'TWD', 'HKD', 'CNY', 'THB', 'VND', 'SGD', 'MYR', 'IDR', 'USD', 'CAD', 'MXN', 'BRL', 'ARS', 'CLP', 'PEN', 'COP', 'GBP', 'EUR', 'CHF', 'AUD', 'NZD', 'INR', 'PHP', 'KHR', 'AED', 'TRY', 'ZAR', 'EGP', 'MAD', 'KES', 'TZS']).nullable().optional(),
   availability: z.object({
     countryCode: z.enum(COUNTRY_CODES).nullable().optional(),
     countryName: z.string().max(80).optional(), city: z.string().max(80).optional(), district: z.string().max(100).optional(),
