@@ -704,6 +704,7 @@ function RequestFormContent() {
                 if (method === item.value) return;
                 pendingUrl.current = '';
                 recognitionRun.current++; setResolving(false); clearFeedback(); setMethod(item.value);
+                if (item.value === 'photo') void photo();
               }}
               style={({ pressed }) => ({ flex: 1, minHeight: 88, borderRadius: 18, padding: 16, gap: 12, borderWidth: 1.5, borderColor: method === item.value ? c.primary : c.border, backgroundColor: method === item.value ? c.primarySoft : c.paper, opacity: pressed ? 0.7 : 1 })}>
               <Row style={{ justifyContent: 'space-between' }}><item.icon size={23} color={method === item.value ? c.primaryStrong : c.secondary} />{method === item.value && <Check size={16} color={c.primaryStrong} />}</Row>
@@ -734,7 +735,7 @@ function RequestFormContent() {
           ) : (
             <Stack gap={10}>
               <Button
-                label={image ? '사진 다시 선택하고 인식하기' : '사진 보내고 바로 인식하기'}
+                label={image ? '사진 다시 선택하고 인식하기' : '사진 선택하고 바로 인식하기'}
                 icon={ImagePlus}
                 kind="secondary"
                 loading={resolving}
