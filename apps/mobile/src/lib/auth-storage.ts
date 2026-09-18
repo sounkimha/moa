@@ -56,7 +56,7 @@ async function enrollWebBiometric(token: string): Promise<boolean> {
         attestation: 'none',
       },
     });
-    if (!(credential instanceof PublicKeyCredential)) return false;
+    if (!(credential instanceof window.PublicKeyCredential)) return false;
     const record: WebBiometricRecord = { id: toBase64(credential.rawId), token };
     window.localStorage.setItem(WEB_BIOMETRIC_KEY, JSON.stringify(record));
     return true;
