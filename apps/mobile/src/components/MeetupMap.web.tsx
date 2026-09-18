@@ -12,7 +12,17 @@ function loadKakaoMaps(key: string) {
   const host = window as Window & { kakao?: Kakao };
   if (host.kakao?.maps?.Map) return Promise.resolve(host.kakao);
   if (kakaoLoader) return kakaoLoader;
-  kakaoLoader = new Promise<Kakao>((resolve, reject) => {
+  // Kakao's JavaScript key validates the document referrer. Railway preview
+  // domains are not always registered in the key, so suppress the referrer
+  // before the SDK (and the SDK's follow-up asset requests) starts loading.
+  if (!document.querySelector('meta[data-moa-kakao-referrer]')) {
+    const referrerMeta = document.createElement('meta');
+    referrerMeta.dataset.moaKakaoReferrer = 'true';
+    referrerMeta.name = 'referrer';
+    referrerMeta.content = 'no-referrer';
+    document.head.appendChild(referrerMeta);
+  }
+  const load = new Promise<Kakao>((resolve, reject) => {
     const finish = () => {
       if (!host.kakao?.maps?.load) { reject(new Error('Kakao Maps SDK is unavailable')); return; }
       host.kakao.maps.load(() => resolve(host.kakao));
@@ -35,6 +45,12 @@ function loadKakaoMaps(key: string) {
     script.addEventListener('load', finish, { once: true });
     script.addEventListener('error', () => reject(new Error('Kakao Maps SDK failed to load')), { once: true });
     document.head.appendChild(script);
+  });
+  kakaoLoader = load.catch((error) => {
+    // Allow the retry CTA to create a fresh SDK request after a transient or
+    // domain-validation failure instead of reusing a rejected promise.
+    kakaoLoader = undefined;
+    throw error;
   });
   return kakaoLoader;
 }
