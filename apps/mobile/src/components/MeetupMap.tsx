@@ -5,7 +5,7 @@ import { meetupMapHtml } from './meetup-map-html';
 import { MeetupMapUnavailable, RouteMapStatus, RouteMapLoadState, ROUTE_MAP_TIMEOUT } from './RouteMapStatus';
 export type MeetupMapProps = {
   latitude: number; longitude: number; zoom: number;
-  onMove: (latitude: number, longitude: number) => void;
+  onMove: (latitude: number, longitude: number, name?: string, address?: string) => void;
 };
 export default function MeetupMap({ latitude, longitude, zoom, onMove }: MeetupMapProps) {
   const [status, setStatus] = useState<RouteMapLoadState>('loading'), [retry, setRetry] = useState(0);
@@ -35,7 +35,7 @@ export default function MeetupMap({ latitude, longitude, zoom, onMove }: MeetupM
       if (p.error) { finish('error'); return; }
       if (statusRef.current === 'error') return;
       if (p.ready) { finish('ready'); return; }
-      if (statusRef.current === 'ready' && Number.isFinite(p.latitude) && Math.abs(p.latitude) <= 90 && Number.isFinite(p.longitude) && Math.abs(p.longitude) <= 180) onMove(p.latitude, p.longitude);
+      if (statusRef.current === 'ready' && Number.isFinite(p.latitude) && Math.abs(p.latitude) <= 90 && Number.isFinite(p.longitude) && Math.abs(p.longitude) <= 180) onMove(p.latitude, p.longitude, typeof p.name === 'string' ? p.name : undefined, typeof p.address === 'string' ? p.address : undefined);
     } catch {} }} />
     <RouteMapStatus status={status} onRetry={() => setRetry((count) => count + 1)} onOpen={() => { void Linking.openURL('https://www.google.com/maps/search/?api=1&query=' + latitude + ',' + longitude).catch(() => {}); }} />
   </View>;

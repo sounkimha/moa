@@ -47,7 +47,7 @@ export function MeetupPicker({ value, onChange, history, legacyName, country = '
     setResults([]); setSearched(false); onChange(undefined);
   };
   return <Stack gap={12}>
-    <Txt size={13} color={c.secondary}>{mapCanPick ? '지도를 움직여 만날 위치를 맞춰주세요.' : '검색한 장소나 이전에 만났던 장소를 선택해주세요.'}</Txt>
+    <Txt size={13} color={c.secondary}>{mapCanPick ? '지도를 움직이면 위에 현재 위치가 바로 표시돼요.' : '검색한 장소나 이전에 만났던 장소를 선택해주세요.'}</Txt>
     <Field label="장소 검색" value={query} onSubmit={search} onChange={(text) => { run.current++; setBusy(false); setQuery(text); setError(''); setResults([]); setSearched(false); }} placeholder="역, 동네, 건물 이름으로 검색" />
     <Button label="장소 검색하기" icon={Search} onPress={search} loading={busy} disabled={searchAvailable === false || country !== 'KR'} kind="secondary" />
     {searchAvailable === false && <Notice>{mapCanPick ? '이 환경에서는 장소 이름 검색이 아직 연결되지 않았어요. 아래 지도에서 위치를 지정할 수 있어요.' : '장소 검색과 지도 연결을 준비 중이에요. 이전 만남 장소를 선택하거나 국내 택배를 이용해주세요.'}</Notice>}
@@ -65,9 +65,13 @@ export function MeetupPicker({ value, onChange, history, legacyName, country = '
       {history.map((point, index) => <Button key={index} label={point.name} kind="secondary" icon={MapPin} onPress={() => select(point)} />)}
     </Stack>}
     {!candidate && legacyName && <Notice>이전 부탁의 장소: {legacyName}. 지도에서 정확한 위치를 다시 확인해주세요.</Notice>}
+    {candidate && <View style={{ padding: 14, borderRadius: 14, backgroundColor: c.primarySoft, borderWidth: 1, borderColor: c.primaryTint, gap: 4 }}>
+      <Txt size={12} color={c.primaryDeep}>현재 선택 위치</Txt>
+      <Row style={{ gap: 8, alignItems: 'flex-start' }}><MapPin size={18} color={c.primaryStrong} /><View style={{ flex: 1, minWidth: 0 }}><Txt weight="700" lines={1}>{candidate.name}</Txt>{!!candidate.address && <Txt size={12} color={c.secondary} lines={2}>{candidate.address}</Txt>}</View></Row>
+    </View>}
     <View style={{ borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: c.border }}>
-      <MeetupMap {...center} onMove={(latitude, longitude) => {
-        setCandidate((p) => ({ name: p?.name || '지도에서 지정한 위치', address: p?.address || '', detail: p?.detail || '', providerId: p?.providerId, latitude, longitude }));
+      <MeetupMap {...center} onMove={(latitude, longitude, name, address) => {
+        setCandidate((p) => ({ name: name || p?.name || '지도에서 지정한 위치', address: address || p?.address || '', detail: p?.detail || '', providerId: p?.providerId, latitude, longitude }));
         onChange(undefined);
       }} />
     </View>
