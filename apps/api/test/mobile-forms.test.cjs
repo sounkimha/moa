@@ -104,6 +104,16 @@ test('request and trip form state regressions', async (t) => {
       await click('결제 금액 확인하기');
       assert.equal(app.submitted.transport, 'DOMESTIC_PARCEL');
     });
+    await t.test('convenience parcel keeps the delivery address and reaches the request payload', async () => {
+      await mount(RequestForm, draft());
+      await click('편의점 택배 · 예상 ₩3,000');
+      assert.equal(app.requestDraft.transport, 'CONVENIENCE_PARCEL');
+      assert.match(host.textContent, /주소 수령형 편의점 택배/);
+      await click('결제 금액 확인하기');
+      assert.equal(app.submitted.transport, 'CONVENIENCE_PARCEL');
+      assert.equal(app.submitted.deliveryAddress1, '서울 중구');
+      assert.equal(app.submitted.deliveryPhone, '01012345678');
+    });
     await t.test('canceling an edit restores the existing confirmed meetup, committing replaces it', async () => {
       await mount(RequestForm, draft('MEETUP'));
       await click('직거래 위치 변경'); await click('지도 이동');

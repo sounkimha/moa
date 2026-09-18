@@ -447,16 +447,18 @@ export function Section({
   subtitle,
   action,
   onPress,
+  titleSize = typography.section,
 }: {
   title: string;
   subtitle?: string;
   action?: string;
   onPress?: () => void;
+  titleSize?: number;
 }) {
   return (
     <Row style={{ justifyContent: 'space-between', marginBottom: 16, alignItems: 'flex-start' }}>
       <View style={{ flex: 1 }}>
-        <Txt size={typography.section} weight="700">
+        <Txt size={titleSize} weight="700">
           {title}
         </Txt>
         {!!subtitle && (

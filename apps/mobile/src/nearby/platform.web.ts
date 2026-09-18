@@ -1,0 +1,17 @@
+import type { NearbyPayload, Point } from './model';
+export type Permissions = { location: boolean; notifications: boolean; background: boolean };
+export const supported = false;
+export const backgroundSupported = false;
+export const TASK_NAME = 'moa-nearby-place-entry-v1';
+export const permissions = async (): Promise<Permissions> => ({ location: false, notifications: false, background: false });
+export const requestPermissions = async (_stillAllowed: () => boolean): Promise<Permissions> => permissions();
+export const requestBackground = async () => false;
+export const currentPoint = async (): Promise<Point | null> => null;
+export const watchPosition = async (_onPoint: (p: Point) => void, _onError: () => void) => ({ remove() {} });
+export const startRegions = async (_regions: unknown[]) => {};
+export const stopRegions = async () => {};
+export const deliver = async (_content: { title: string; body: string; data: NearbyPayload }) => { throw new Error('앱에서 테스트해주세요.'); };
+export const dismissNearby = async () => {};
+export const listenToTaps = (_onTap: (data: unknown, identifier: string) => void) => () => {};
+export const clearLastTap = async () => {};
+export const installPresentationGuard = (_allow: (data: unknown) => Promise<boolean>) => {};

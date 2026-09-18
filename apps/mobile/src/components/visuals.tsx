@@ -8,6 +8,7 @@ import {
   Check,
   ShieldCheck,
   ChevronRight,
+  Plane,
 } from 'lucide-react-native';
 import {
   Art,
@@ -25,6 +26,7 @@ import {
   localMoney,
   shortDate,
   DOMESTIC_PARCEL_FEE,
+  CONVENIENCE_PARCEL_FEE,
   quote,
   countryName,
 } from '@moa/domain';
@@ -32,6 +34,7 @@ import { colors as c } from '../theme/tokens';
 import { Badge, Card, Divider, Row, Stack, Txt } from './ui';
 import { getPlacePhoto } from '../lib/place-photos';
 import { PhotoCredit } from './PhotoCredit';
+import { getSampleProductPhoto, SamplePhotoProduct } from '../lib/sample-product-photos';
 
 // The first-entry guide uses this local image immediately. Warm the browser/native
 // image cache as soon as the visual component module is loaded so the guide does
@@ -83,28 +86,32 @@ export function ProductArt({
   size = 96,
   image,
   featured = false,
+  product,
 }: {
   art?: Art;
   size?: number;
   image?: string;
   featured?: boolean;
+  product?: SamplePhotoProduct;
 }) {
   const [failedImage, setFailedImage] = useState<string>();
+  const samplePhoto = !image ? getSampleProductPhoto(product) : undefined;
+  const imageKey = image || samplePhoto?.sourcePage;
   const bg =
     art === 'plush' ? c.butter : art === 'pouch' ? c.lilac : art === 'tshirt' ? c.blue : c.mint;
-  if (image && failedImage === image) return (
+  if (imageKey && failedImage === imageKey) return (
     <View accessibilityLabel="상품 사진을 불러오지 못했어요" style={{ width: size, height: size, borderRadius: 16, backgroundColor: bg, padding: 8, justifyContent: 'center' }}>
       <Txt size={11} color={c.secondary} style={{ textAlign: 'center' }}>사진을 불러오지 못했어요</Txt>
     </View>
   );
-  if (image)
+  if (image || samplePhoto)
     return (
       <Image
-        source={{ uri: image }}
-        onError={() => setFailedImage(image)}
-        accessibilityLabel="등록된 상품 이미지"
-        style={{ width: size, height: size, borderRadius: 18, backgroundColor: bg }}
-        resizeMode="cover"
+        source={image ? { uri: image } : samplePhoto!.source}
+        onError={() => setFailedImage(imageKey)}
+        accessibilityLabel={samplePhoto ? `${samplePhoto.label} 실제 상품 참고 사진` : '등록된 상품 이미지'}
+        style={{ width: size, height: size, borderRadius: 18, backgroundColor: samplePhoto ? c.paper : bg }}
+        resizeMode={samplePhoto ? 'contain' : 'cover'}
       />
     );
   if (featured)
@@ -253,7 +260,7 @@ export function AvatarStack({ users }: { users: User[] }) {
     </Row>
   );
 }
-export function PlaceCover({ place, thumbnail = false }: { place: Place; thumbnail?: boolean }) {
+export function PlaceCover({ place, thumbnail = false, fill = false }: { place: Place; thumbnail?: boolean; fill?: boolean }) {
   const photo = getPlacePhoto(place);
   const [failedId, setFailedId] = useState<string>();
   return (
@@ -263,7 +270,7 @@ export function PlaceCover({ place, thumbnail = false }: { place: Place; thumbna
           place.theme === 'lilac' ? c.lilac : place.theme === 'butter' ? c.butter : c.mint,
         overflow: 'hidden',
         width: '100%',
-        aspectRatio: 8 / 5,
+        ...(fill ? { height: '100%' } : { aspectRatio: 8 / 5 }),
       }}
     >
       {photo && failedId !== place.id ? (
@@ -307,6 +314,8 @@ export function PlaceCard({
   onFavorite,
   variant = 'card',
   countType = 'requests',
+  showPhotoCredit = true,
+  titleSize,
 }: {
   place: Place;
   onPress: () => void;
@@ -314,6 +323,9 @@ export function PlaceCard({
   onFavorite?: () => void;
   variant?: 'card' | 'list';
   countType?: 'requests' | 'trades';
+  /** Home links to the detail screen where attribution remains available. */
+  showPhotoCredit?: boolean;
+  titleSize?: number;
 }) {
   const list = variant === 'list';
   const countLabel = countType === 'trades' ? '거래' : '부탁';
@@ -355,13 +367,13 @@ export function PlaceCard({
             </Txt>
             {!list && <ArrowUpRight size={16} color={c.muted} />}
           </Row>
-          <Txt size={list ? 16 : 18} weight="700" lines={2}>
+          <Txt size={titleSize ?? (list ? 16 : 18)} weight="700" lines={2}>
             {place.name}
           </Txt>
           {list ? <><Txt size={12} color={c.secondary}>{place.visitors}명 방문 예정 · {countLabel} {count}건</Txt><Txt size={13} color={c.primaryStrong} weight="700">{place.requestCount ? `평균 보상 ${money(place.averageReward)}` : '첫 부탁 남기기'}</Txt></> : <Row style={{ marginTop: 8, paddingTop: 12, borderTopWidth: 1, borderColor: c.border, justifyContent: 'space-between' }}><Row style={{ gap: 6 }}><Users size={16} color={c.primaryStrong} /><Txt size={13} color={c.secondary}><Txt size={15} weight="700">{place.visitors}명</Txt> 방문 예정</Txt></Row><Txt size={13} color={c.secondary}>{countLabel} <Txt size={15} weight="700" color={c.primaryStrong}>{count}건</Txt></Txt></Row>}
         </View>
       </Pressable>
-      <PhotoCredit place={place} list={list} />
+      {showPhotoCredit && <PhotoCredit place={place} list={list} />}
       {onFavorite && (
         <Pressable
           accessibilityRole="button"
@@ -394,12 +406,14 @@ export function ProductRow({
   aside,
   krw = true,
   fxRate,
+  travelerNote,
 }: {
   request: ProductRequest;
   onPress: () => void;
   aside?: React.ReactNode;
   krw?: boolean;
   fxRate?: number;
+  travelerNote?: string;
 }) {
   const converted = fxRate === undefined
     ? quote({ ...request, quantity: 1 }, 0, request.transport).productPrice
@@ -418,6 +432,7 @@ export function ProductRow({
     >
       <Row style={{ gap: 14, alignItems: 'center' }}>
         <ProductArt
+          product={request}
           art={request.art}
           image={request.productImage}
           featured={request.productName.includes('치이카와')}
@@ -438,6 +453,7 @@ export function ProductRow({
               수량 {request.quantity}개
             </Txt>
           </Row>
+          {travelerNote && <Row style={{ gap: 5, alignItems: 'flex-start' }}><Plane size={14} color={c.secondary} style={{ marginTop: 2 }} /><Txt size={12} color={c.secondary} style={{ flex: 1 }}>{travelerNote}</Txt></Row>}
         </Stack>
         {aside || <ChevronRight size={18} color={c.muted} />}
       </Row>
@@ -447,7 +463,7 @@ export function ProductRow({
 export function MoneyBreakdown({ price, compact = false, rewardPending = false, localAmount, localCurrency, localPriceEstimated = false }: {
   price: Price; compact?: boolean; rewardPending?: boolean; localAmount?: number; localCurrency?: Currency; localPriceEstimated?: boolean;
 }) {
-  const legacyFee = price.shippingFee !== 0 && price.shippingFee !== DOMESTIC_PARCEL_FEE;
+  const legacyFee = price.shippingFee !== 0 && ![DOMESTIC_PARCEL_FEE, CONVENIENCE_PARCEL_FEE].includes(price.shippingFee);
   const rate = price.fxRate.toLocaleString('ko-KR', { maximumFractionDigits: 6 });
   const rateTime = price.fxAsOf?.includes('T') ? `${price.fxAsOf.slice(0, 16).replace('T', ' ')} UTC` : price.fxAsOf ? `${shortDate(price.fxAsOf)} 기준` : '';
   const rateNote = price.priceSource === 'KRW_PARITY' ? '원화 상품 · 환전 없음'
@@ -457,7 +473,7 @@ export function MoneyBreakdown({ price, compact = false, rewardPending = false, 
   const rows = [
     ['상품가격', price.productPrice],
     ['여행자 보상', rewardPending ? '보상 미정' : price.travelerReward],
-    [legacyFee ? '이전 체험 운송비 (기록)' : '국내 전달비', price.shippingFee],
+    [legacyFee ? '이전 체험 운송비 (기록)' : '전달비', price.shippingFee],
     ['세금 예치액 (데모)', price.taxReserve],
   ] as const;
   return (
@@ -488,8 +504,8 @@ export function MoneyBreakdown({ price, compact = false, rewardPending = false, 
       {rewardPending && <Txt size={12} color={c.secondary}>보상이 정해지면 예상 결제금액에 합산해요.</Txt>}
       <Txt size={12} color={c.secondary}>
         {legacyFee
-          ? '이전 체험 거래의 결제 기록이에요. 현재 국내 택배 예상비는 3,500원, 직거래는 0원이에요.'
-          : `${rateNote} · 국내 택배 예상 3,500원 / 직거래 0원`}
+          ? '이전 체험 거래의 결제 기록이에요. 현재 국내 택배 예상비는 3,500원, 편의점 택배는 3,000원, 직거래는 0원이에요.'
+          : `${rateNote} · 국내 택배 예상 3,500원 / 편의점 택배 예상 3,000원 / 직거래 0원`}
       </Txt>
     </Stack>
   );

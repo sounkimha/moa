@@ -78,7 +78,7 @@ export function TradesScreen() {
     if (t.status === 'MATCHED') return buyer ? '결제를 완료해주세요' : '이전 거래 · 결제 확인이 필요해요';
     if (t.status === 'PAYMENT_HELD') return buyer ? '여행자가 구매할 차례예요' : '구매 후 사진을 올려주세요';
     if (t.status === 'PURCHASED') return '약속한 방법으로 전달을 준비해요';
-    if (t.status === 'TRAVELING') return buyer ? '전달 소식을 기다려요' : t.transport === 'MEETUP' ? '만날 약속을 등록해주세요' : '국내 택배 정보를 등록해주세요';
+    if (t.status === 'TRAVELING') return buyer ? '전달 소식을 기다려요' : t.transport === 'MEETUP' ? '만날 약속을 등록해주세요' : t.transport === 'CONVENIENCE_PARCEL' ? '편의점 택배 정보를 등록해주세요' : '국내 택배 정보를 등록해주세요';
     if (['SHIPPED', 'DELIVERED'].includes(t.status)) return buyer ? '받으셨다면 구매를 확정해주세요' : '구매자의 수령을 기다려요';
     if (t.status === 'CONFIRMED') return buyer ? '받은 상품은 어떠셨나요?' : '정산을 받을 수 있어요';
     return STATUS_LABEL[t.status];
@@ -117,7 +117,7 @@ export function TradesScreen() {
             return <Card key={t.id} style={{ padding: 0, overflow: 'hidden' }}>
               <Pressable accessibilityRole="button" accessibilityLabel={r.productName + ' 거래 보기'} onPress={() => a.nav(t.status === 'MATCHED' && buyer ? 'payment' : 'transaction', { id: t.id })} style={{ padding: 18, gap: 16 }}>
                 <Row style={{ justifyContent: 'space-between' }}><Badge color={t.status === 'DISPUTED' ? c.danger : c.primaryStrong} bg={t.status === 'DISPUTED' ? c.dangerBg : c.primarySoft}>{tradeStatusLabel(t, r.country === r.deliveryCountry)}</Badge><Txt size={12} color={c.secondary}>{r.city}</Txt></Row>
-                <Row><ProductArt art={r.art} image={r.productImage} featured={r.productName.includes('치이카와')} size={64} /><Stack gap={5} style={{ flex: 1 }}><Txt weight="700" lines={2}>{r.productName}</Txt><Txt size={13} color={c.secondary}>{shortDate(t.estimatedDeliveryDate)} 전달 · {TRANSPORT_LABEL[t.transport]}</Txt><Txt weight="700">{buyer ? money(t.totalPrice) : '보상 ' + money(t.travelerReward)}</Txt></Stack></Row>
+                <Row><ProductArt product={r} art={r.art} image={r.productImage} featured={r.productName.includes('치이카와')} size={64} /><Stack gap={5} style={{ flex: 1 }}><Txt weight="700" lines={2}>{r.productName}</Txt><Txt size={13} color={c.secondary}>{shortDate(t.estimatedDeliveryDate)} 전달 · {TRANSPORT_LABEL[t.transport]}</Txt><Txt weight="700">{buyer ? money(t.totalPrice) : '보상 ' + money(t.travelerReward)}</Txt></Stack></Row>
                 {progress >= 0 && <Row style={{ gap: space.xs }}>{[0, 2, 3, 4, 6].map((step) => <View key={step} style={{ flex: 1, height: 3, borderRadius: 2, backgroundColor: progress >= step ? c.primary : c.border }} />)}</Row>}
                 <Row><Txt size={14} color={t.status === 'DISPUTED' ? c.danger : c.primaryStrong} weight="600" style={{ flex: 1 }}>{actionLabel(t)}</Txt><ChevronRight size={17} color={c.primary} /></Row>
               </Pressable>
@@ -185,7 +185,7 @@ function LegacyPaymentScreen() {
       </Row>
       <Card style={{ padding: 0, overflow: 'hidden' }}>
         <Row style={{ padding: space.lg, alignItems: 'flex-start' }}>
-          <ProductArt art={r.art} image={r.productImage} featured={r.productName.includes('치이카와')} size={80} />
+          <ProductArt product={r} art={r.art} image={r.productImage} featured={r.productName.includes('치이카와')} size={80} />
           <Stack gap={space.xs} style={{ flex: 1, minWidth: 0 }}><Txt size={12} color={c.primary} weight="600">{r.city} · {r.storeName}</Txt><Txt size={17} weight="700" lines={3}>{r.productName}</Txt><Txt size={13} color={c.secondary}>{r.quantity}개 · {TRANSPORT_LABEL[t.transport]}</Txt></Stack>
         </Row>
         <View style={{ padding: space.lg, borderTopWidth: 1, borderStyle: 'dashed', borderColor: c.border, backgroundColor: c.primarySoft }}><Row><Avatar user={u} size={32} /><Stack gap={2} style={{ flex: 1 }}><Txt size={13} weight="600">{u.nickname}님이 가져와요</Txt><Txt size={12} color={c.secondary}>{shortDate(t.estimatedDeliveryDate)} 전달 예정</Txt></Stack><ShieldCheck size={20} color={c.primary} /></Row></View>
@@ -253,7 +253,7 @@ export function TransactionScreen() {
   if (shipping && !buyer && t.status === 'TRAVELING')
     return (
       <Page
-        title={t.transport === 'MEETUP' ? '전달 약속 등록' : '운송장 등록'}
+        title={t.transport === 'MEETUP' ? '전달 약속 등록' : t.transport === 'CONVENIENCE_PARCEL' ? '편의점 택배 등록' : '운송장 등록'}
         backLabel="거래로"
         onBack={() => setShipping(false)}
         footer={
@@ -273,19 +273,19 @@ export function TransactionScreen() {
           <Txt size={28} weight="800">
             {t.transport === 'MEETUP'
               ? '만날 장소와 시간을\n입력해요.'
-              : '구매자에게 보낼\n배송 정보를 입력해요.'}
+              : t.transport === 'CONVENIENCE_PARCEL' ? '편의점 택배\n접수 정보를 입력해요.' : '구매자에게 보낼\n배송 정보를 입력해요.'}
           </Txt>
           <Txt color={c.secondary}>
             {t.transport === 'MEETUP'
               ? '합의한 전달 약속을 등록하면 구매자가 수령을 확인할 수 있어요.'
-              : '운송장을 등록하면 거래가 배송 중으로 바뀌고 구매자에게 알림이 가요.'}
+              : t.transport === 'CONVENIENCE_PARCEL' ? '접수한 편의점 또는 택배사와 운송장 번호를 등록하면 구매자에게 알림이 가요.' : '운송장을 등록하면 거래가 배송 중으로 바뀌고 구매자에게 알림이 가요.'}
           </Txt>
         </Stack>
         <ProductRow request={r} onPress={() => a.nav('request', { id: r.id })} />
         <Card>
           <Stack gap={16}>
             <Field
-              label={t.transport === 'MEETUP' ? '전달 장소' : '배송사'}
+              label={t.transport === 'MEETUP' ? '전달 장소' : t.transport === 'CONVENIENCE_PARCEL' ? '접수 편의점 또는 택배사' : '배송사'}
               value={carrier}
               onChange={setCarrier}
               required
@@ -314,7 +314,7 @@ export function TransactionScreen() {
     next = { label: '전달 준비 시작하기', run: () => action('TRAVEL') };
   if (!buyer && t.status === 'TRAVELING')
     next = {
-      label: t.transport === 'MEETUP' ? '전달 일정 등록' : '운송장 등록하기',
+      label: t.transport === 'MEETUP' ? '전달 일정 등록' : t.transport === 'CONVENIENCE_PARCEL' ? '편의점 택배 등록하기' : '운송장 등록하기',
       run: () => {
         if (t.transport === 'MEETUP' && !carrier) setCarrier(r.meetupLocation || '');
         setShipping(true);
@@ -341,7 +341,7 @@ export function TransactionScreen() {
   const isDomesticDelivery = ['SHIPPED', 'DELIVERED'].includes(t.status);
   const handoffIcon = t.transport === 'MEETUP' ? MapPin : Truck;
   const StatusIcon = isComingHome ? Plane : t.status === 'TRAVELING' && domestic ? MapPin : isDomesticDelivery ? handoffIcon : ['CONFIRMED', 'SETTLED'].includes(t.status) ? CheckCircle2 : t.status === 'DISPUTED' ? AlertCircle : Package;
-  const statusTitle = isComingHome ? `${travelerUser.nickname}님이\n상품과 함께 돌아와요` : t.status === 'TRAVELING' && domestic ? '약속한 곳으로 이동해요' : isDomesticDelivery ? t.transport === 'MEETUP' ? t.status === 'DELIVERED' ? '상품을 전달받았어요' : '만날 약속이 준비됐어요' : t.status === 'DELIVERED' ? '상품이 도착했어요' : '국내 택배로 오는 중이에요' : ['CONFIRMED', 'SETTLED'].includes(t.status) ? '이번 여정을 함께 마쳤어요' : STATUS_LABEL[t.status];
+  const statusTitle = isComingHome ? `${travelerUser.nickname}님이\n상품과 함께 돌아와요` : t.status === 'TRAVELING' && domestic ? '약속한 곳으로 이동해요' : isDomesticDelivery ? t.transport === 'MEETUP' ? t.status === 'DELIVERED' ? '상품을 전달받았어요' : '만날 약속이 준비됐어요' : t.status === 'DELIVERED' ? '상품이 도착했어요' : t.transport === 'CONVENIENCE_PARCEL' ? '편의점 택배로 오는 중이에요' : '국내 택배로 오는 중이에요' : ['CONFIRMED', 'SETTLED'].includes(t.status) ? '이번 여정을 함께 마쳤어요' : STATUS_LABEL[t.status];
   if (buyer && t.status === 'CANCELLED')
     return (
       <Page
@@ -816,6 +816,7 @@ export function ReceiveScreen() {
     >
       <View style={{ alignItems: 'center', padding: space.xl, backgroundColor: c.primarySoft, borderRadius: radius.lg, gap: space.md }}>
         <ProductArt
+          product={r}
           art={r.art}
           image={r.productImage}
           featured={r.productName.includes('치이카와')}

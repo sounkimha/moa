@@ -9,17 +9,19 @@ function storageHarness({ platform = 'ios', expoGo = false, enrolled = true, fai
   const compiled = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
   }).outputText;
-  const saved = new Map();
+  const saved = new Map(), optionsByKey = new Map();
   let cancelled = false;
   const secureStore = {
+    AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: 'after-first-unlock-device-only',
     canUseBiometricAuthentication: () => enrolled,
     getItemAsync: async (key, options) => {
       if (key === 'moa-biometric-token' && options?.requireAuthentication && cancelled) throw new Error('cancelled');
       return saved.get(key) ?? null;
     },
-    setItemAsync: async (key, value) => {
+    setItemAsync: async (key, value, options) => {
       if (key === 'moa-biometric-token' && failBiometricSave) throw new Error('device rejected enrollment');
       saved.set(key, value);
+      optionsByKey.set(key, options);
     },
     deleteItemAsync: async (key) => { saved.delete(key); },
   };
@@ -30,7 +32,7 @@ function storageHarness({ platform = 'ios', expoGo = false, enrolled = true, fai
     if (name === 'expo') return { isRunningInExpoGo: () => expoGo };
     throw new Error(`Unexpected import: ${name}`);
   });
-  return { ...module.exports, saved, cancel: () => { cancelled = true; } };
+  return { ...module.exports, saved, optionsByKey, cancel: () => { cancelled = true; } };
 }
 
 test('biometric login requires device authentication and never falls back to a plain token', async () => {
@@ -82,4 +84,31 @@ test('changed biometrics invalidate only the protected login and require credent
   assert.equal(await auth.authStorage.get(), null);
   assert.equal(await auth.hasBiometricLogin(), false);
   assert.equal(auth.saved.has('moa-token'), false);
+});
+
+test('background nearby tasks never unlock or copy a biometric-protected token', async () => {
+  const auth = storageHarness();
+  assert.equal(await auth.backgroundLoginToken(), null);
+  await auth.authStorage.set('ordinary-session', { remember: true, biometric: false });
+  assert.equal(await auth.backgroundLoginToken(), 'ordinary-session');
+  assert.equal(auth.optionsByKey.get('moa-token').keychainAccessible, 'after-first-unlock-device-only');
+  assert.equal(auth.optionsByKey.get('moa-auto-login').keychainAccessible, 'after-first-unlock-device-only');
+  assert.equal(auth.optionsByKey.get('moa-background-login-ready').keychainAccessible, 'after-first-unlock-device-only');
+  await auth.authStorage.set('protected-session', { remember: true, biometric: true });
+  auth.saved.set('moa-token', 'legacy-unprotected-copy');
+  auth.cancel();
+  assert.equal(await auth.backgroundLoginToken(), null);
+  await auth.authStorage.clear(); assert.equal(await auth.backgroundLoginToken(), null);
+});
+
+test('legacy auto-login remains usable but requires fresh login before background access', async () => {
+  const auth = storageHarness();
+  auth.saved.set('moa-auto-login', '1'); auth.saved.set('moa-token', 'legacy-session');
+  assert.equal(await auth.authStorage.get(), 'legacy-session');
+  assert.equal(await auth.backgroundLoginToken(), null);
+  await auth.authStorage.set('new-session', { remember: true, biometric: false });
+  assert.equal(await auth.backgroundLoginToken(), 'new-session');
+  await auth.authStorage.set('no-remember', { remember: false, biometric: false });
+  assert.equal(await auth.backgroundLoginToken(), null);
+  assert.equal(auth.saved.has('moa-background-login-ready'), false);
 });

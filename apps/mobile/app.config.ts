@@ -32,6 +32,15 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     );
   }
 
+  // Expo Go has its own native map setup. Custom builds use the platform-
+  // restricted SDK keys through the installed react-native-maps config plugin.
+  if (!plugins.some((plugin) => (Array.isArray(plugin) ? plugin[0] : plugin) === 'react-native-maps')) {
+    plugins.push(['react-native-maps', {
+      ...(googleMapsAndroidApiKey ? { androidGoogleMapsApiKey: googleMapsAndroidApiKey } : {}),
+      ...(googleMapsIosApiKey ? { iosGoogleMapsApiKey: googleMapsIosApiKey } : {}),
+    }]);
+  }
+
   return {
     ...baseConfig,
     plugins,

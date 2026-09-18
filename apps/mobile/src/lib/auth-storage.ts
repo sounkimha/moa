@@ -6,6 +6,7 @@ const TOKEN_KEY = 'moa-token';
 const AUTO_LOGIN_KEY = 'moa-auto-login';
 const BIOMETRIC_KEY = 'moa-biometric-enabled';
 const BIOMETRIC_TOKEN_KEY = 'moa-biometric-token';
+const BACKGROUND_READY_KEY = 'moa-background-login-ready';
 const WEB_BIOMETRIC_KEY = 'moa-web-biometric';
 
 export type LoginPersistence = {
@@ -24,6 +25,18 @@ export async function hasBiometricLogin(): Promise<boolean> {
     return await SecureStore.getItemAsync(AUTO_LOGIN_KEY) === '1'
       && await SecureStore.getItemAsync(BIOMETRIC_KEY) === '1';
   } catch { return false; }
+}
+
+// Headless location tasks cannot ask for Face ID. Never copy or bypass a
+// biometric-protected credential to enable background alerts.
+export async function backgroundLoginToken(): Promise<string | null> {
+  if (Platform.OS === 'web') return null;
+  try {
+    if (await SecureStore.getItemAsync(BACKGROUND_READY_KEY) !== '1'
+      || await SecureStore.getItemAsync(AUTO_LOGIN_KEY) !== '1'
+      || await SecureStore.getItemAsync(BIOMETRIC_KEY) === '1') return null;
+    return await SecureStore.getItemAsync(TOKEN_KEY);
+  } catch { return null; }
 }
 
 export const authStorage = {
@@ -74,7 +87,10 @@ export const authStorage = {
     try {
       await SecureStore.deleteItemAsync(TOKEN_KEY);
       await SecureStore.deleteItemAsync(BIOMETRIC_TOKEN_KEY);
-      await SecureStore.setItemAsync(AUTO_LOGIN_KEY, persistence.remember ? '1' : '0');
+      await SecureStore.deleteItemAsync(BACKGROUND_READY_KEY);
+      await SecureStore.setItemAsync(AUTO_LOGIN_KEY, persistence.remember ? '1' : '0', {
+        keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
+      });
       await SecureStore.deleteItemAsync(BIOMETRIC_KEY);
       if (!persistence.remember) return true;
       if (persistence.biometric) {
@@ -85,7 +101,15 @@ export const authStorage = {
         });
         await SecureStore.setItemAsync(BIOMETRIC_KEY, '1');
       } else {
-        await SecureStore.setItemAsync(TOKEN_KEY, token);
+        // Ordinary remembered sessions can be used by explicitly consented
+        // background tasks after the device's first unlock. Never migrate this
+        // credential to another device, and never apply this to Face ID tokens.
+        await SecureStore.setItemAsync(TOKEN_KEY, token, {
+          keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
+        });
+        await SecureStore.setItemAsync(BACKGROUND_READY_KEY, '1', {
+          keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
+        });
       }
       saved = true;
     } catch {
@@ -111,6 +135,7 @@ export const authStorage = {
       SecureStore.deleteItemAsync(AUTO_LOGIN_KEY),
       SecureStore.deleteItemAsync(BIOMETRIC_KEY),
       SecureStore.deleteItemAsync(BIOMETRIC_TOKEN_KEY),
+      SecureStore.deleteItemAsync(BACKGROUND_READY_KEY),
     ]).catch(() => undefined);
   },
 };

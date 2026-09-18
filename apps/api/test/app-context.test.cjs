@@ -44,6 +44,7 @@ async function harness(options = {}) {
   const reactNative = { Platform: { OS: options.platform || 'web' }, AppState: { currentState: 'active' }, BackHandler: { addEventListener: () => ({ remove() {} }) } };
   const secureStore = { getItemAsync: async () => null, setItemAsync: async () => {}, deleteItemAsync: async () => {}, canUseBiometricAuthentication: () => false, ...options.secureStore };
   const imports = {
+    '../nearby/lifecycle': load('nearby/lifecycle.ts', {}, dom.window),
     'react-native': reactNative,
     'expo-secure-store': secureStore,
     'expo-web-browser': { maybeCompleteAuthSession() {}, openAuthSessionAsync: async () => ({ type: 'success', url: 'http://localhost:8081/?oauth_code=once' }) },
@@ -63,6 +64,7 @@ async function harness(options = {}) {
   await act(async () => { root.render(React.createElement(context.AppProvider, null, React.createElement(Probe))); });
   return {
     get current() { return value; }, get token() { return token; }, dom, ApiError, clearedTrips,
+    nearbyRevision: () => imports['../nearby/lifecycle'].nearbyRevision(),
     intercept: (next) => { intercept = next; },
     run: async (operation) => { let result; await act(async () => { result = await operation(value); }); return result; },
     start: async (operation) => { let pending; await act(async () => { pending = operation(value); await Promise.resolve(); }); return { pending }; },
@@ -74,6 +76,18 @@ async function harness(options = {}) {
   };
 }
 
+test('choosing the already-selected mode does not tear down nearby tracking', async () => {
+  const app = await harness();
+  try {
+    await app.run((a) => a.setRole('traveler'));
+    const revision = app.nearbyRevision();
+    await app.run((a) => a.setRole('traveler'));
+    assert.equal(app.nearbyRevision(), revision);
+    await app.run((a) => a.setRole('buyer'));
+    assert.equal(app.nearbyRevision(), revision + 1);
+  } finally { await app.close(); }
+});
+
 test('denied session storage still allows an in-memory login and immediate logout', async () => {
   const app = await harness({ storageDenied: true });
   try {
@@ -83,6 +97,55 @@ test('denied session storage still allows an in-memory login and immediate logou
     assert.match(app.current.toast, /새로고침하면 다시 로그인/);
     assert.equal(app.current.busy, false);
     await app.run((a) => a.logout());
+    assert.equal(app.current.data, null);
+    assert.equal(app.token, '');
+  } finally { await app.close(); }
+});
+
+test('credential login loads the chosen traveler and preserves login preferences without requesting a reset', async () => {
+  const calls = [];
+  const app = await harness({ intercept: (url, body) => {
+    if (url === '/auth/test') { calls.push(body); return { token: 'token-u-haru', defaultRole: 'traveler' }; }
+  } });
+  try {
+    assert.equal(await app.run((a) => a.testLogin('haru', 'DemoPass1!', false, { remember: true, biometric: false })), true);
+    assert.deepEqual(calls, [{ username: 'haru', password: 'DemoPass1!', reset: false }]);
+    assert.equal(app.current.data.me.id, 'u-haru');
+    assert.equal(app.current.role, 'traveler');
+    assert.equal(app.dom.window.localStorage.getItem('moa-token'), 'token-u-haru');
+    await app.run((a) => a.logout());
+    assert.equal(app.dom.window.localStorage.getItem('moa-token'), null);
+  } finally { await app.close(); }
+});
+
+test('signup installs only its own session and keeps automatic/biometric login opt-in', async () => {
+  const calls = [];
+  const app = await harness({ intercept: (url, body) => {
+    if (url === '/auth/register') { calls.push(body); return { token: 'token-new-member' }; }
+  } });
+  try {
+    assert.equal(await app.run((a) => a.register('new_member', 'DemoPass1!', '새 여행자')), true);
+    assert.equal(app.current.data.me.id, 'new-member');
+    assert.deepEqual(calls, [{ username: 'new_member', password: 'DemoPass1!', nickname: '새 여행자' }]);
+    assert.equal(app.dom.window.localStorage.getItem('moa-token'), null);
+    assert.equal(app.dom.window.sessionStorage.getItem('moa-token'), 'token-new-member');
+    assert.equal(app.current.busy, false);
+  } finally { await app.close(); }
+});
+
+test('failed signup stays logged out and logout cancels a late registration response', async () => {
+  const app = await harness();
+  try {
+    app.intercept((url) => url === '/auth/register' ? Promise.reject(new app.ApiError('이미 사용 중인 아이디예요.', 409)) : undefined);
+    assert.equal(await app.run((a) => a.register('used_name', 'DemoPass1!', '새 여행자')), false);
+    assert.equal(app.current.data, null);
+    assert.match(app.current.error, /이미 사용 중/);
+    assert.equal(app.current.busy, false);
+    const signup = deferred();
+    app.intercept((url) => url === '/auth/register' ? signup.promise : undefined);
+    const { pending } = await app.start((a) => a.register('new_name', 'DemoPass1!', '새 여행자'));
+    await app.run((a) => a.logout());
+    await app.run(async () => { signup.resolve({ token: 'token-new-member' }); assert.equal(await pending, false); });
     assert.equal(app.current.data, null);
     assert.equal(app.token, '');
   } finally { await app.close(); }

@@ -6,8 +6,8 @@ import { getPlacePhoto } from '../lib/place-photos';
 import { colors as c } from '../theme/tokens';
 import { Button, IconButton, Row, Stack, Txt } from './ui';
 
-/** Keep attribution one tap away without repeating a caption block in every card. */
-export function PhotoCredit({ place, list = false }: { place: Place; list?: boolean }) {
+/** Keep attribution one tap away without putting a floating information button over a detail photo. */
+export function PhotoCredit({ place, list = false, compact = false }: { place: Place; list?: boolean; compact?: boolean }) {
   const [open, setOpen] = useState(false);
   const photo = getPlacePhoto(place);
   if (!photo) return null;
@@ -16,25 +16,36 @@ export function PhotoCredit({ place, list = false }: { place: Place; list?: bool
   };
   return (
     <>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`사진 출처: ${photo.author}, ${photo.license}. ${photo.label} 사진 정보 보기`}
-        onPress={() => setOpen(true)}
-        style={({ pressed }) => ({
-          position: 'absolute',
-          left: list ? 12 : 6,
-          top: list ? 16 : 6,
-          width: 44,
-          height: 44,
-          alignItems: 'center',
-          justifyContent: 'center',
-          opacity: pressed ? 0.7 : 1,
-        })}
-      >
-        <Row style={{ gap: 4, backgroundColor: '#FFFFFFF2', borderRadius: 16, padding: 7 }}>
-          <Info size={15} color={c.ink} />
-        </Row>
-      </Pressable>
+      {compact ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`사진 출처: ${photo.author}, ${photo.license}. ${photo.label} 사진 정보 보기`}
+          onPress={() => setOpen(true)}
+          style={({ pressed }) => ({ alignSelf: 'flex-start', minHeight: 24, justifyContent: 'center', opacity: pressed ? 0.65 : 1 })}
+        >
+          <Txt size={11} color={c.muted}>대표 사진 · {photo.label} · 사진 정보</Txt>
+        </Pressable>
+      ) : (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`사진 출처: ${photo.author}, ${photo.license}. ${photo.label} 사진 정보 보기`}
+          onPress={() => setOpen(true)}
+          style={({ pressed }) => ({
+            position: 'absolute',
+            left: list ? 12 : 6,
+            top: list ? 16 : 6,
+            width: 44,
+            height: 44,
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: pressed ? 0.7 : 1,
+          })}
+        >
+          <Row style={{ gap: 4, backgroundColor: '#FFFFFFF2', borderRadius: 16, padding: 7 }}>
+            <Info size={15} color={c.ink} />
+          </Row>
+        </Pressable>
+      )}
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <View style={{ flex: 1, backgroundColor: '#14213D99', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
           <Pressable

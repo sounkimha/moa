@@ -82,7 +82,7 @@ with tempfile.TemporaryDirectory(prefix='moa-isolated-ui-') as tmp:
                     page.evaluate('(token)=>sessionStorage.setItem("moa-token",token)', token)
                     def go(route): page.goto(app_url+'/#'+route); page.reload()
                     go('home')
-                    expect(button(page,'링크로 찾기')).to_be_visible()
+                    expect(button(page,'도시와 장소 검색')).to_be_visible()
                     check_layout(page, 'home-'+str(width), output)
                     go('request-form?placeId=p-station')
                     button(page,'예시 링크로 빠르게 채우기').click()
@@ -125,6 +125,15 @@ with tempfile.TemporaryDirectory(prefix='moa-isolated-ui-') as tmp:
                     assert stored['meetupPoint']['latitude']==37.55
                     assert stored['meetupPoint']['detail']=='1번 출구 앞'
                     assert stored['transport']=='MEETUP'
+                    button(page,'편의점 택배 · 예상 ₩3,000').click()
+                    expect(button(page,'편의점 택배 · 예상 ₩3,000')).to_have_attribute('aria-pressed','true')
+                    expect(page.get_by_text('주소 수령형 편의점 택배예요.',exact=False)).to_be_visible()
+                    check_layout(page, 'convenience-parcel-'+str(width), output)
+                    page.reload()
+                    expect(button(page,'편의점 택배 · 예상 ₩3,000')).to_have_attribute('aria-pressed','true')
+                    expect(field(page,'여행자 보상 (원)')).to_have_value('5000')
+                    button(page,'직접 전달 · 무료').click()
+                    expect(page.get_by_text('1번 출구 앞',exact=True)).to_be_visible()
                     page.evaluate('''() => {
                       const date=(offset)=>{const d=new Date(); d.setDate(d.getDate()+offset); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
                       sessionStorage.setItem('moa-trip-draft-v1',JSON.stringify({ownerId:'u-me',draft:{departureCountry:'KR',departureCity:'부산',destinationCountry:'JP',cities:['도쿄'],startDate:date(4),endDate:date(7),placeIds:['p-shibuya'],capacity:'5'}}));

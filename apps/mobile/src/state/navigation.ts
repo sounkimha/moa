@@ -1,10 +1,10 @@
 export type Screen =
-  | 'home' | 'login' | 'search' | 'create' | 'trades' | 'my' | 'place' | 'request'
+  | 'home' | 'login' | 'signup' | 'search' | 'create' | 'trades' | 'my' | 'place' | 'request'
   | 'request-form' | 'trip-form' | 'flight-proof' | 'trip-route' | 'offers' | 'profile' | 'profile-edit'
   | 'offer-form' | 'bundle' | 'payment' | 'transaction' | 'chat' | 'receipt'
   | 'receive' | 'payouts' | 'wallet' | 'wallet-topup' | 'wallet-withdraw'
   | 'identity' | 'payment-methods' | 'notifications' | 'favorites' | 'trips'
-  | 'reviews' | 'settings' | 'addresses' | 'help' | 'guide';
+  | 'reviews' | 'settings' | 'addresses' | 'help' | 'guide' | 'nearby' | 'notification-settings' | 'nearby-test';
 
 export interface Route {
   name: Screen;
@@ -15,11 +15,11 @@ export interface Route {
   method?: 'link' | 'photo';
 }
 const screens: Screen[] = [
-  'home', 'login', 'search', 'create', 'trades', 'my', 'place', 'request', 'request-form',
+  'home', 'login', 'signup', 'search', 'create', 'trades', 'my', 'place', 'request', 'request-form',
   'trip-form', 'flight-proof', 'trip-route', 'offers', 'profile', 'profile-edit', 'offer-form', 'bundle', 'payment',
   'transaction', 'chat', 'receipt', 'receive', 'payouts', 'wallet', 'wallet-topup',
   'wallet-withdraw', 'identity', 'payment-methods', 'notifications', 'favorites',
-  'trips', 'reviews', 'settings', 'addresses', 'help', 'guide',
+  'trips', 'reviews', 'settings', 'addresses', 'help', 'guide', 'nearby', 'notification-settings', 'nearby-test',
 ];
 const validId = (value: string | null): value is string =>
   Boolean(value && value.length <= 200 && !/[\u0000-\u001f]/.test(value));

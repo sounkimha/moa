@@ -9,10 +9,11 @@ const { migrateLegacyDelivery } = require('../dist/infrastructure/delivery-migra
 const { Store } = require('../dist/infrastructure/store');
 
 test('only return-home delivery is offered; the 12,000 shipping estimate cannot recur', () => {
-  assert.deepEqual(Object.keys(TRANSPORT_LABEL).sort(), ['DOMESTIC_PARCEL', 'MEETUP']);
+  assert.deepEqual(Object.keys(TRANSPORT_LABEL).sort(), ['CONVENIENCE_PARCEL', 'DOMESTIC_PARCEL', 'MEETUP']);
   const request = { localPrice: 2420, quantity: 1, currency: 'JPY' };
   const reward = 7105;
   assert.equal(quote(request, reward, 'DOMESTIC_PARCEL').totalPrice, 33353);
+  assert.equal(quote(request, reward, 'CONVENIENCE_PARCEL').totalPrice, 32853);
   assert.equal(quote(request, reward, 'MEETUP').totalPrice, 29853);
   // Even an old client cache must not resurrect the removed 12,000 fee.
   assert.equal(quote(request, reward, 'INTERNATIONAL_SHIPPING').shippingFee, 3500);

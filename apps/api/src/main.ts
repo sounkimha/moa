@@ -51,11 +51,22 @@ export async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key'],
   });
   const hits = new Map<string, { count: number; until: number }>();
+  const authHits = new Map<string, { count: number; until: number }>();
   app.use((req: Request, res: Response, next: NextFunction) => {
     res.setHeader('X-Request-Id', randomUUID());
     res.setHeader('Cache-Control', 'no-store');
     const key = req.ip || 'local',
       now = Date.now();
+    if (req.method === 'POST' && /^\/api\/auth\/(?:login|test|register)\/?$/.test(req.path)) {
+      const attempt = authHits.get(key);
+      if (!attempt || attempt.until <= now) authHits.set(key, { count: 1, until: now + 60000 });
+      else if (++attempt.count > 30) {
+        res.setHeader('Retry-After', Math.ceil((attempt.until - now) / 1000));
+        res.status(429).json({ message: '로그인 시도가 많아요. 잠시 후 다시 시도해주세요.' });
+        return;
+      }
+      if (authHits.size > 10000) for (const [id, value] of authHits) if (value.until <= now) authHits.delete(id);
+    }
     const h = hits.get(key);
     if (!h || h.until < now) hits.set(key, { count: 1, until: now + 60000 });
     else if (++h.count > 300) {

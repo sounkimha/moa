@@ -32,7 +32,7 @@ export function readDraft(storage: SessionStorage, ownerId: string): RequestDraf
       (draft.entryPlaceId !== undefined && typeof draft.entryPlaceId !== 'string') ||
       (draft.entryMethod !== undefined && !['link', 'photo'].includes(draft.entryMethod)) ||
       !['aiFilled', 'editingDetails'].every((field) => typeof draft[field] === 'boolean') ||
-      !['MEETUP', 'DOMESTIC_PARCEL'].includes(draft.transport)) {
+      !['MEETUP', 'DOMESTIC_PARCEL', 'CONVENIENCE_PARCEL'].includes(draft.transport)) {
       clearDraft(storage);
       return null;
     }

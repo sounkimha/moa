@@ -50,13 +50,13 @@ export function basicReplies(context: ReplyContext): string[] {
     : ['옵션 한번 볼까요?', '방문일 맞춰볼까요?', '재고 확인해볼게요']
     : status === 'DELIVERED' ? buyer ? ['상품 확인해볼게요', '잘 챙겨주셔서 감사해요', '확인하고 알려드릴게요']
       : ['상품 상태 괜찮나요?', '확인 후 수령 눌러주세요', '불편한 점은 알려주세요']
-    : status === 'SHIPPED' && transport === 'DOMESTIC_PARCEL'
+    : status === 'SHIPPED' && transport !== 'MEETUP'
       ? ['배송조회 해볼게요', buyer ? '확인하고 알려드릴게요' : '받으시면 알려주세요', '변경되면 알려주세요']
     : [delivery, buyer ? '전달 일정 알려주세요' : '전달 정보 한번 봐주세요', '변경되면 알려주세요'];
   if (status === 'PAYMENT_HELD' && /색상|사이즈|옵션|다른 색/.test(question)) defaults.unshift(options);
   else if (status === 'PAYMENT_HELD' && /매장|방문|들르|들릴|들러/.test(question) && /언제|몇 시|시간|일정|날짜/.test(question)) defaults.unshift(visit);
   else if (['PAYMENT_HELD', 'PURCHASED', 'TRAVELING', 'SHIPPED'].includes(status) && /언제|몇 시|시간|만날|택배|배송/.test(question))
-    defaults.unshift(status === 'SHIPPED' && transport === 'DOMESTIC_PARCEL' ? '배송조회 해볼게요' : delivery);
+    defaults.unshift(status === 'SHIPPED' && transport !== 'MEETUP' ? '배송조회 해볼게요' : delivery);
   else if (/재고|품절/.test(question) && status === 'PAYMENT_HELD') defaults.unshift(buyer
     ? '품절이면 먼저 알려주세요' : '재고 확인해볼게요');
   return [...new Set(defaults)].slice(0, 3);

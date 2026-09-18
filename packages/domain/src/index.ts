@@ -15,13 +15,16 @@ export type Status =
   | 'SETTLED'
   | 'CANCELLED'
   | 'DISPUTED';
-export type Transport = 'DOMESTIC_PARCEL' | 'MEETUP';
+/** How the traveler hands the item over after returning from the trip. */
+export type Transport = 'DOMESTIC_PARCEL' | 'CONVENIENCE_PARCEL' | 'MEETUP';
 export const DOMESTIC_PARCEL_FEE = 3500;
+/** Estimated fee for address-delivery convenience-store parcel reception. */
+export const CONVENIENCE_PARCEL_FEE = 3000;
 export const MAX_DEMO_REWARD = 2_000_000;
 export const rewardCommission = (reward: number) => Math.round(reward * 0.1);
 /** Compatibility for old saved requests; never exposes a cross-border shipping option. */
 export const normalizeTransport = (value: unknown): Transport =>
-  value === 'MEETUP' ? 'MEETUP' : 'DOMESTIC_PARCEL';
+  value === 'MEETUP' || value === 'CONVENIENCE_PARCEL' ? value : 'DOMESTIC_PARCEL';
 export type Category = 'CHARACTER' | 'GAME' | 'POPUP' | 'LOCAL' | 'FASHION' | 'CONCERT';
 export type Art = 'keyring' | 'plush' | 'pouch' | 'tshirt' | 'pin' | 'bag';
 export interface Entity {
@@ -53,12 +56,14 @@ export interface UserVerification extends Entity {
   providerRef: string;
   method?: 'PASS' | 'SMS';
 }
-export type AuthProvider = 'DEMO' | 'PHONE' | 'KAKAO' | 'NAVER' | 'GOOGLE' | 'APPLE';
+export type AuthProvider = 'DEMO' | 'PHONE' | 'KAKAO' | 'NAVER' | 'GOOGLE' | 'APPLE' | 'PASSWORD';
 export interface AuthIdentity extends Entity {
   userId: string;
   provider: AuthProvider;
   providerUserId: string;
   status: 'DEMO_LINKED' | 'LINKED' | 'DISABLED';
+  /** Server-only salted password hash. Auth identities are excluded from snapshots. */
+  passwordHash?: string;
 }
 export interface Place extends Entity {
   name: string;
@@ -530,6 +535,7 @@ export const STATUS_LABEL: Record<Status, string> = {
 };
 export const TRANSPORT_LABEL: Record<Transport, string> = {
   DOMESTIC_PARCEL: '국내 택배',
+  CONVENIENCE_PARCEL: '편의점 택배',
   MEETUP: '직접 전달',
 };
 export const money = (v: number) => `₩${Math.round(v).toLocaleString('ko-KR')}`;
@@ -547,7 +553,12 @@ export function quote(
 ): Price {
   const fxRate = rate?.krwPerUnit ?? DEMO_FX_RATES[request.currency];
   const productPrice = Math.round(request.localPrice * request.quantity * fxRate);
-  const shippingFee = normalizeTransport(transport) === 'MEETUP' ? 0 : DOMESTIC_PARCEL_FEE;
+  const normalizedTransport = normalizeTransport(transport);
+  const shippingFee = normalizedTransport === 'MEETUP'
+    ? 0
+    : normalizedTransport === 'CONVENIENCE_PARCEL'
+      ? CONVENIENCE_PARCEL_FEE
+      : DOMESTIC_PARCEL_FEE;
   return {
     productPrice,
     travelerReward: reward,

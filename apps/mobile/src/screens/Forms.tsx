@@ -292,6 +292,7 @@ function RequestFormContent() {
   const previewReward = Number.isSafeInteger(reward) && reward >= 0 && reward <= MAX_DEMO_REWARD ? reward : 0;
   const q = quote(pricingInput, previewReward, mode, fx.rate || undefined);
   const parcelQuote = quote(pricingInput, previewReward, 'DOMESTIC_PARCEL', fx.rate || undefined);
+  const convenienceParcelQuote = quote(pricingInput, previewReward, 'CONVENIENCE_PARCEL', fx.rate || undefined);
   const meetupQuote = quote(pricingInput, previewReward, 'MEETUP', fx.rate || undefined);
   const completedMeetups = d.transactions.filter((t) =>
     (t.buyerId === d.me.id || t.travelerId === d.me.id) &&
@@ -596,9 +597,13 @@ function RequestFormContent() {
     }
     if (!deliveryCity.trim() || deliveryCity.trim().length > 40) { setError('수령 도시를 40자 안으로 입력해주세요.'); openDeliveryEditor('region'); return; }
     const addressIssue = addressValidation({ recipient: deliveryRecipient, phone: deliveryPhone, postalCode: deliveryPostalCode, address1: deliveryAddress1, address2: deliveryAddress2 });
-    if (mode === 'DOMESTIC_PARCEL' && addressIssue) {
+    if ((mode === 'DOMESTIC_PARCEL' || mode === 'CONVENIENCE_PARCEL') && addressIssue) {
       setError(addressIssue);
       openDeliveryEditor('address');
+      return;
+    }
+    if (mode === 'CONVENIENCE_PARCEL' && deliveryCountry !== 'KR') {
+      setError('편의점 택배는 현재 한국 수령만 선택할 수 있어요. 국내 택배나 직거래를 선택해주세요.');
       return;
     }
     if (mode === 'MEETUP' && !meetupPoint) {
@@ -636,7 +641,7 @@ function RequestFormContent() {
         transport: mode,
         inventoryStatus,
         ...(sourceRequest?.requesterId === d.me.id && sourceRequest.status === 'CANCELLED' ? { retryOfRequestId: sourceRequest.id } : {}),
-        ...(mode === 'DOMESTIC_PARCEL' ? {
+        ...(mode === 'DOMESTIC_PARCEL' || mode === 'CONVENIENCE_PARCEL' ? {
           deliveryAddressId: deliveryAddressId || undefined,
           deliveryRecipient: deliveryRecipient.trim(),
           deliveryPhone: deliveryPhone.trim(),
@@ -994,29 +999,34 @@ function RequestFormContent() {
             <Row style={{ justifyContent: 'space-between' }}><Txt size={17} weight="700">받는 방법</Txt><Pressable accessibilityRole="button" accessibilityLabel="수령 지역 변경" onPress={() => openDeliveryEditor('region')} style={{ minHeight: 44, justifyContent: 'center' }}><Row style={{ gap: 3 }}><Txt size={12} color={c.secondary}>{countryName(deliveryCountry)} · {deliveryCity}</Txt><ChevronRight size={14} color={c.muted} /></Row></Pressable></Row>
             {([
               ['DOMESTIC_PARCEL', '국내 택배 · ₩3,500', '국내 택배', '귀국 후 집으로 보내드려요', parcelQuote],
+              ['CONVENIENCE_PARCEL', '편의점 택배 · 예상 ₩3,000', '편의점 택배', '편의점에서 접수해 집으로 보내드려요', convenienceParcelQuote],
               ['MEETUP', '직접 전달 · 무료', '직접 만나요', '배송비 없이 가까운 곳에서 받아요', meetupQuote],
-            ] as const).map(([value, accessibilityLabel, label, description, priceQuote]) => <Pressable key={value} accessibilityRole="button" accessibilityLabel={accessibilityLabel} accessibilityState={{ selected: mode === value }} aria-selected={mode === value} aria-pressed={mode === value} onPress={() => { if (value === 'MEETUP' && !meetupPoint) openDeliveryEditor('meetup'); setTransport(value); }}
-              style={({ pressed }) => ({ padding: 16, borderRadius: 18, borderWidth: 1.5, borderColor: mode === value ? c.primary : c.border, backgroundColor: mode === value ? c.primarySoft : c.paper, gap: 14, opacity: pressed ? 0.7 : 1 })}>
+            ] as const).map(([value, accessibilityLabel, label, description, priceQuote]) => {
+              const unavailable = value === 'CONVENIENCE_PARCEL' && deliveryCountry !== 'KR';
+              return <Pressable key={value} accessibilityRole="button" accessibilityLabel={accessibilityLabel} accessibilityState={{ selected: mode === value, disabled: unavailable }} aria-selected={mode === value} aria-pressed={mode === value} disabled={unavailable} onPress={() => { if (value === 'MEETUP' && !meetupPoint) openDeliveryEditor('meetup'); setTransport(value); }}
+              style={({ pressed }) => ({ padding: 16, borderRadius: 18, borderWidth: 1.5, borderColor: mode === value ? c.primary : c.border, backgroundColor: mode === value ? c.primarySoft : c.paper, gap: 14, opacity: unavailable ? 0.45 : pressed ? 0.7 : 1 })}>
               <Row style={{ gap: 10 }}>
-                {value === 'DOMESTIC_PARCEL' ? <Package size={21} color={mode === value ? c.primaryStrong : c.secondary} /> : <MapPin size={21} color={mode === value ? c.primaryStrong : c.secondary} />}
+                {value === 'MEETUP' ? <MapPin size={21} color={mode === value ? c.primaryStrong : c.secondary} /> : <Package size={21} color={mode === value ? c.primaryStrong : c.secondary} />}
                 <Txt size={16} weight="700" style={{ flex: 1 }}>{label}</Txt>
                 <View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: mode === value ? c.primary : c.border, alignItems: 'center', justifyContent: 'center', backgroundColor: mode === value ? c.primary : c.paper }}>{mode === value && <Check size={13} color={c.onPrimary} />}</View>
               </Row>
               <Row style={{ alignItems: 'flex-end', justifyContent: 'space-between' }}>
-                <View style={{ flex: 1, gap: 5 }}><Txt size={12} color={c.secondary}>{description}</Txt><Txt size={12} weight="600" color={c.primaryDeep}>{value === 'MEETUP' ? '배송비 0원' : '배송비 3,500원'}</Txt></View>
+                <View style={{ flex: 1, gap: 5 }}><Txt size={12} color={c.secondary}>{description}</Txt><Txt size={12} weight="600" color={c.primaryDeep}>{value === 'MEETUP' ? '배송비 0원' : value === 'CONVENIENCE_PARCEL' ? '예상 배송비 3,000원' : '배송비 3,500원'}</Txt></View>
                 <View style={{ alignItems: 'flex-end', gap: 3 }}><Txt size={11} color={c.secondary}>{requestedReward === '' ? '보상 입력 전' : '예상 합계'}</Txt><Txt size={20} weight="800">{money(priceQuote.totalPrice)}</Txt></View>
               </Row>
-            </Pressable>)}
+            </Pressable>;
+            })}
           </Stack>
-          {mode === 'DOMESTIC_PARCEL' ? (
+          {mode === 'DOMESTIC_PARCEL' || mode === 'CONVENIENCE_PARCEL' ? (
             <Pressable accessibilityRole="button" accessibilityLabel="받을 배송지 변경" onPress={() => openDeliveryEditor('address')} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 }}>
-              <MapPin size={19} color={c.secondary} /><View style={{ flex: 1, gap: 5 }}><Txt size={13} weight="600">{deliveryAddressId && deliveryAddressId === defaultAddress?.id ? '기본 배송지' : '받을 배송지'}</Txt><Txt size={14} color={c.secondary}>{deliveryAddress1 ? `${deliveryAddress1} ${deliveryAddress2}`.trim() : '배송지를 추가해주세요'}</Txt>{!!deliveryRecipient && <Txt size={12} color={c.muted}>{deliveryRecipient} · {deliveryPhone}</Txt>}</View><ChevronRight size={19} color={c.muted} />
+              <MapPin size={19} color={c.secondary} /><View style={{ flex: 1, gap: 5 }}><Txt size={13} weight="600">{deliveryAddressId && deliveryAddressId === defaultAddress?.id ? '기본 배송지' : mode === 'CONVENIENCE_PARCEL' ? '편의점 택배 수령지' : '받을 배송지'}</Txt><Txt size={14} color={c.secondary}>{deliveryAddress1 ? `${deliveryAddress1} ${deliveryAddress2}`.trim() : '배송지를 추가해주세요'}</Txt>{!!deliveryRecipient && <Txt size={12} color={c.muted}>{deliveryRecipient} · {deliveryPhone}</Txt>}</View><ChevronRight size={19} color={c.muted} />
             </Pressable>
           ) : (
             <Pressable accessibilityRole="button" accessibilityLabel="직거래 위치 변경" onPress={() => openDeliveryEditor('meetup')} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 }}>
               <MapPin size={19} color={c.secondary} /><View style={{ flex: 1, gap: 5 }}><Txt size={14} weight="600">{meetupPoint?.name || '어디에서 만날까요?'}</Txt><Txt size={12} color={c.secondary}>{meetupPoint ? '직거래 위치가 저장됐어요' : '지도에서 만날 곳을 골라주세요'}</Txt>{!!meetupPoint?.detail && <Txt size={12} color={c.muted}>{meetupPoint.detail}</Txt>}</View><ChevronRight size={19} color={c.muted} />
             </Pressable>
           )}
+          {mode === 'CONVENIENCE_PARCEL' && <Notice>주소 수령형 편의점 택배예요. 접수 편의점과 실제 배송비는 매칭 뒤 여행자가 등록한 운송장에서 확인해주세요.</Notice>}
           <Divider />
           <DateField label="희망 수령일" value={desired} onChange={setDesired} min={future(0)} />
           <Stack gap={10}><Txt size={19} weight="700">고마운 마음, 얼마를 전할까요?</Txt><Field label="여행자 보상 (원)" value={requestedReward} onChange={(value) => { setRequestedReward(value.replace(/[^0-9]/g, '').slice(0, 7)); setError(''); }} keyboard="numeric" placeholder="직접 금액을 정해주세요" hint="보상은 부탁하는 사람이 자유롭게 정해요." /></Stack>

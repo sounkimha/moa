@@ -76,12 +76,14 @@ const createSchema = z.object({
   retryOfRequestId: z.string().min(1).max(100).optional(),
   inventoryStatus: z.enum(['IN_STOCK', 'OUT_OF_STOCK', 'PREORDER', 'CHECK_REQUIRED']).default('CHECK_REQUIRED'),
 }).strict().superRefine((data, ctx) => {
-  if (data.transport === 'DOMESTIC_PARCEL') {
+  if (data.transport === 'DOMESTIC_PARCEL' || data.transport === 'CONVENIENCE_PARCEL') {
     for (const [key, label] of [
       ['deliveryRecipient', '받는 분'], ['deliveryPhone', '연락처'],
       ['deliveryPostalCode', '우편번호'], ['deliveryAddress1', '주소'],
     ] as const) if (!data[key]) ctx.addIssue({ code: 'custom', path: [key], message: `${label}을 입력해주세요.` });
   }
+  if (data.transport === 'CONVENIENCE_PARCEL' && data.deliveryCountry !== 'KR')
+    ctx.addIssue({ code: 'custom', path: ['deliveryCountry'], message: '편의점 택배는 현재 한국 수령만 선택할 수 있어요.' });
   if (data.transport === 'MEETUP' && !data.meetupLocation)
     ctx.addIssue({ code: 'custom', path: ['meetupLocation'], message: '직거래 희망 장소를 선택해주세요.' });
 });

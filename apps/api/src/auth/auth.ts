@@ -2,6 +2,7 @@ import {
   Body,
   CanActivate,
   Controller,
+  ConflictException,
   ExecutionContext,
   Injectable,
   Post,
@@ -9,11 +10,12 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { Request } from 'express';
 import { z } from 'zod';
 import { base, parse, get } from '../common/validation';
 import { Store } from '../infrastructure/store';
+import { credentialsSchema, demoAccounts, hashPassword, registrationSchema, reservedUsername, verifyDemoPassword, verifyPassword } from './credentials';
 export interface ActorRequest extends Request {
   actorId: string;
 }
@@ -55,41 +57,53 @@ export class AuthController {
     private readonly sessions: Sessions,
     private readonly store: Store,
   ) {}
-  @Post('test') async test(@Body() body: unknown) {
-    const { username, password, reset } = parse(
-      z.object({
-        username: z.string().trim().min(3).max(32).regex(/^[A-Za-z0-9._-]+$/, '아이디를 확인해주세요.'),
-        password: z.string().min(8, '비밀번호는 8자 이상이어야 해요.').max(128)
-          .regex(/[A-Za-z]/, '비밀번호에 영문을 포함해주세요.')
-          .regex(/[0-9]/, '비밀번호에 숫자를 포함해주세요.')
-          .regex(/[^A-Za-z0-9]/, '비밀번호에 특수문자를 포함해주세요.'),
-        reset: z.boolean().default(false),
-      }).strict(),
-      body,
-    );
-    const expectedUsername = process.env.MOA_TEST_USERNAME || 'wasabi';
-    const expectedPasswordHash = process.env.MOA_TEST_PASSWORD_SHA256 || 'ffcaaabfead29c4d47e2e5c68a91a687a0ea2a93927654eb4b6b786d9ea495bc';
-    const passwordHash = createHash('sha256').update(password).digest('hex');
-    if (username !== expectedUsername || passwordHash !== expectedPasswordHash) {
-      throw new UnauthorizedException('테스트 아이디 또는 비밀번호를 확인해주세요.');
+  @Post('test') test(@Body() body: unknown) { return this.login(body); }
+
+  @Post('login') async login(@Body() body: unknown) {
+    const { username, password } = parse(credentialsSchema, body);
+    const account = demoAccounts().find((item) => item.username === username);
+    const denied = () => new UnauthorizedException('아이디 또는 비밀번호를 확인해주세요.');
+    if (account) {
+      if (!verifyDemoPassword(password, account.passwordHash)) throw denied();
+      await this.store.transaction((db) => {
+        get(db.users, account.userId).lastActive = new Date().toISOString();
+        const providerUserId = `test:${username}`;
+        if (!db.authIdentities.some((identity) => identity.provider === 'DEMO' && identity.providerUserId === providerUserId))
+          db.authIdentities.push({ ...base(), userId: account.userId, provider: 'DEMO', providerUserId, status: 'DEMO_LINKED' });
+      });
+      return { ...this.sessions.create(account.userId), provider: 'DEMO', defaultRole: account.role,
+        resetApplied: false, notice: '체험 계정으로 로그인했어요.' };
     }
-    const resetApplied = reset && !process.env.DATABASE_URL;
-    if (resetApplied) {
-      await this.store.resetDemo();
-      this.sessions.clear();
-    }
+    const identity = await this.store.read((db) => db.authIdentities.find((item) => item.provider === 'PASSWORD' && item.providerUserId === username));
+    if (!identity || identity.status === 'DISABLED' || !await verifyPassword(password, identity.passwordHash)) throw denied();
     await this.store.transaction((db) => {
-      get(db.users, 'u-me');
-      const providerUserId = `test:${username}`;
-      if (!db.authIdentities.some((identity) => identity.provider === 'DEMO' && identity.providerUserId === providerUserId))
-        db.authIdentities.push({ ...base(), userId: 'u-me', provider: 'DEMO', providerUserId, status: 'DEMO_LINKED' });
+      // Recheck after the asynchronous password calculation, before issuing a session.
+      const current = db.authIdentities.find((item) => item.id === identity.id);
+      if (!current || current.status === 'DISABLED' || current.passwordHash !== identity.passwordHash) throw denied();
+      get(db.users, identity.userId).lastActive = new Date().toISOString();
     });
-    return {
-      ...this.sessions.create('u-me'),
-      provider: 'DEMO',
-      resetApplied,
-      notice: '테스트 계정으로 로그인했어요.',
-    };
+    return { ...this.sessions.create(identity.userId), provider: 'PASSWORD', resetApplied: false, notice: '로그인했어요.' };
+  }
+
+  @Post('register') async register(@Body() body: unknown) {
+    const { username, password, nickname } = parse(registrationSchema, body);
+    const duplicate = () => new ConflictException('이미 사용 중인 아이디예요. 다른 아이디를 입력해주세요.');
+    if (reservedUsername(username)) throw duplicate();
+    const passwordHash = await hashPassword(password);
+    const userId = await this.store.transaction((db) => {
+      if (db.authIdentities.some((identity) => identity.provider === 'PASSWORD' && identity.providerUserId === username)) throw duplicate();
+      const user = { ...base(), nickname, initials: nickname.slice(0, 1), avatarColor: '#EAF2FF', bio: '',
+        profileCompleted: true, completed: 0, successRate: null, responseMinutes: 0,
+        lastActive: new Date().toISOString(), verificationLabels: [] };
+      db.users.push(user);
+      db.authIdentities.push({ ...base(), userId: user.id, provider: 'PASSWORD', providerUserId: username, status: 'LINKED', passwordHash });
+      db.wallets.push({ ...base(), userId: user.id, availableBalance: 0, pendingBalance: 0,
+        withdrawalPending: 0, currency: 'KRW', mode: 'DEMO' });
+      db.paymentMethods.push({ ...base(), userId: user.id, type: 'CARD', provider: 'MOCK_CARD',
+        label: '체험 카드', isDefault: true, status: 'DEMO_ONLY' });
+      return user.id;
+    });
+    return { ...this.sessions.create(userId), provider: 'PASSWORD', notice: '회원가입을 완료했어요.' };
   }
   @Post('demo') async demo(@Body() body: unknown) {
     const { userId, provider, reset } = parse(
@@ -107,7 +121,9 @@ export class AuthController {
       process.env.KAKAO_LOGIN_REST_API_KEY ||
       (process.env.NAVER_CLIENT_ID && process.env.NAVER_CLIENT_SECRET),
     );
-    const resetApplied = reset && !process.env.DATABASE_URL && !oauthConfigured;
+    // Older demo clients may still request a reset. Never erase registered members.
+    const hasRegisteredAccounts = reset && await this.store.read((db) => db.authIdentities.some((identity) => identity.provider === 'PASSWORD'));
+    const resetApplied = reset && !process.env.DATABASE_URL && !oauthConfigured && !hasRegisteredAccounts;
     if (resetApplied) {
       await this.store.resetDemo();
       this.sessions.clear();

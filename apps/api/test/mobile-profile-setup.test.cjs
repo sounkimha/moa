@@ -28,6 +28,7 @@ test('first social login asks for a public profile and offers an optional photo'
   }).outputText;
   const module = { exports: {} };
   const imports = (name) => {
+    if (name === './Nearby') return { NearbyRequestContext: () => null };
     if (name === 'react-native') return { View: shell, Pressable: button };
     if (name === 'lucide-react-native') return new Proxy({}, { get: () => () => null });
     if (name.endsWith('/AppContext')) return { useApp: () => app };
@@ -35,6 +36,7 @@ test('first social login asks for a public profile and offers an optional photo'
     if (name.endsWith('/visuals')) return { Avatar: () => h('span', null, '프로필 미리보기') };
     if (name.endsWith('/theme/tokens')) return { colors: {} };
     if (name.endsWith('/images')) return { pickImage: async () => undefined };
+    if (name.endsWith('/sample-product-photos')) return { getSampleProductPhoto: () => undefined };
     if (name.startsWith('../components/')) return new Proxy({}, { get: () => () => null });
     return require(name);
   };

@@ -119,7 +119,7 @@ function AccountDetails({ panel, onClose }: { panel: AccountPanel; onClose: () =
     {panel === 'settlement' && <Stack gap={20}>
       <Stack gap={8}><Wallet size={28} color={c.green} /><Txt size={21} weight="700">보상은 본인 명의 계좌로</Txt><Txt color={c.secondary}>구매자가 수령을 확인하면 정산할 수 있어요.</Txt></Stack>
       <View style={{ backgroundColor: c.canvas, borderRadius: 14, padding: 16, gap: 10 }}>
-        <Txt size={14}>여행자 보상 − 플랫폼 수수료 10%</Txt><Txt size={13} color={c.secondary}>상품 구매비와 국내 배송비는 보상과 별도로 돌려받아요.</Txt>
+        <Txt size={14}>여행자 보상 − 플랫폼 수수료 10%</Txt><Txt size={13} color={c.secondary}>상품 구매비와 배송비는 보상과 별도로 돌려받아요.</Txt>
       </View>
       <Notice>계좌 등록과 실제 송금은 아직 연결 전이에요. 현재 정산 내역은 체험용이며 계좌번호를 받지 않아요.</Notice>
       <Button label="정산 내역 보기" kind="secondary" onPress={() => navigate('payouts')} />
@@ -184,7 +184,7 @@ export function MyScreen() {
       </AccountGroup>
       <AccountGroup title="설정과 도움말">
         <AccountRow title="알림" icon={Bell} detail={d.notifications.filter((notice) => !notice.read).length ? '새 소식' : undefined} onPress={() => a.nav('notifications')} />
-        <AccountRow title="알림 설정" icon={Bell} onPress={() => setPanel('notifications')} />
+        <AccountRow title="알림 설정" icon={Bell} onPress={() => a.nav('notification-settings')} />
         <AccountRow title="설정" icon={Settings} onPress={() => a.nav('settings')} />
         <AccountRow title="고객센터" icon={HelpCircle} onPress={() => a.nav('help')} />
       </AccountGroup>
@@ -440,7 +440,7 @@ export function SettingsScreen() {
         <AccountRow title="본인 인증" icon={ShieldCheck} onPress={() => a.nav('identity')} />
         <AccountRow title="결제수단 관리" icon={CreditCard} onPress={() => a.nav('payment-methods')} />
         {a.role === 'traveler' && <AccountRow title="정산 계좌" icon={Wallet} onPress={() => a.nav('wallet-withdraw')} />}
-        <AccountRow title="알림 설정" icon={Bell} onPress={() => setPanel('notifications')} />
+        <AccountRow title="알림 설정" icon={Bell} onPress={() => a.nav('notification-settings')} />
       </AccountGroup>
       <AccountGroup title="도움말">
         <AccountRow title="고객센터" icon={HelpCircle} onPress={() => a.nav('help')} />

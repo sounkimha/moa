@@ -5,6 +5,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { Art, Category, Country, Role, Snapshot, Transport, ProductAvailability, ProductStore, RecognizedLocation } from '@moa/domain';
 import { api, ApiError, setToken } from '../lib/api';
 import { authStorage, hasBiometricLogin, LoginPersistence } from '../lib/auth-storage';
+import { interruptNearby } from '../nearby/lifecycle';
 import { parseRoute, routeHash, Route, Screen } from './navigation';
 import { clearDraft, readDraft, writeDraft } from './draft-session';
 import {
@@ -72,6 +73,7 @@ type AppValue = {
   refresh: () => Promise<void>;
   login: (provider?: string, userId?: string, reset?: boolean, persistence?: LoginPersistence) => Promise<boolean>;
   testLogin: (username: string, password: string, reset?: boolean, persistence?: LoginPersistence) => Promise<boolean>;
+  register: (username: string, password: string, nickname: string) => Promise<boolean>;
   biometricLogin: () => Promise<boolean>;
   socialLogin: (provider: OAuthProvider, persistence?: LoginPersistence) => Promise<boolean>;
   oauthProviders: Record<OAuthProvider, boolean>;
@@ -132,6 +134,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const draftStorageWarning = useRef(false);
   const notify = (s: string) => setToast(s);
   const setRole = (next: Role) => {
+    if (next !== role) interruptNearby();
     roleRevision.current++;
     updateRole(next);
     if (Platform.OS === 'web') {
@@ -177,6 +180,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [toast]);
   const clearSession = async () => {
+    interruptNearby();
     const generation = ++session.current;
     actor.current = null;
     setToken('');
@@ -277,6 +281,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => { active = false; };
   }, []);
   const nav = (name: Screen, params: Omit<Route, 'name'> = {}) => {
+    if (name === 'login' || name === 'signup') setError('');
     const next = { name, ...params };
     history.current.push(route);
     setRoute(next);
@@ -299,6 +304,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(timer);
   }, [data?.me.id]);
   const back = () => {
+    if (route.name === 'login' || route.name === 'signup') setError('');
     if (Platform.OS === 'web' && history.current.length) {
       window.history.back();
       return;
@@ -314,6 +320,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       );
   };
   const tab = (name: Screen) => {
+    if (name === 'login' || name === 'signup') setError('');
     history.current = [];
     setRoute({ name });
     if (Platform.OS === 'web') window.history.replaceState({ name }, '', `#${name}`);
@@ -373,14 +380,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (attempt === authAttempt.current) { authLock.current = false; setBusy(false); }
     }
   };
-  const testLogin = async (username: string, password: string, reset = false, persistence: LoginPersistence = { remember: false, biometric: false }) => {
+  const credentialAuth = async (path: '/auth/test' | '/auth/register', body: { username: string; password: string; nickname?: string; reset?: boolean }, persistence: LoginPersistence) => {
     if (authLock.current || mutationLock.current) return false;
     authLock.current = true;
     const attempt = ++authAttempt.current;
     setBusy(true);
+    setError('');
     session.current++;
     try {
-      const result = await api<{ token: string }>('/auth/test', { username, password, reset });
+      const result = await api<{ token: string; defaultRole?: Role }>(path, body);
       if (attempt !== authAttempt.current) return false;
       const generation = await clearSession();
       if (attempt !== authAttempt.current || generation !== session.current) return false;
@@ -389,6 +397,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (attempt !== authAttempt.current || generation !== session.current) return false;
       await refreshAfterAuth();
       if (attempt !== authAttempt.current || generation !== session.current || !actor.current) return false;
+      if (result.defaultRole) setRole(result.defaultRole);
       if (!saved) notify(persistence.biometric
         ? '로그인했지만 생체 인증 설정을 완료하지 못했어요. 다음에는 비밀번호로 로그인해주세요.'
         : '로그인했어요. 저장 공간을 사용할 수 없어 새로고침하면 다시 로그인해야 해요.');
@@ -403,6 +412,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (attempt === authAttempt.current) { authLock.current = false; setBusy(false); }
     }
   };
+  // Preserve the existing method/endpoint for installed clients; login no longer resets data.
+  const testLogin = (username: string, password: string, reset = false, persistence: LoginPersistence = { remember: false, biometric: false }) =>
+    credentialAuth('/auth/test', { username, password, reset }, persistence);
+  const register = (username: string, password: string, nickname: string) =>
+    credentialAuth('/auth/register', { username, password, nickname }, { remember: false, biometric: false });
   const biometricLogin = async () => {
     if (authLock.current || mutationLock.current || !await hasBiometricLogin()) return false;
     authLock.current = true;
@@ -535,6 +549,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         refresh,
         login,
         testLogin,
+        register,
         biometricLogin,
         socialLogin,
         oauthProviders,

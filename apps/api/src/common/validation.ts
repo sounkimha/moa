@@ -18,8 +18,8 @@ export const date = z
   );
 export const amount = z.number().int().min(0).max(2_000_000);
 export const localAmount = z.number().min(0).max(20_000_000).multipleOf(0.01);
-export const transport = z.enum(['DOMESTIC_PARCEL', 'MEETUP'], {
-  errorMap: () => ({ message: '귀국 후 국내 택배 또는 직거래만 선택할 수 있어요.' }),
+export const transport = z.enum(['DOMESTIC_PARCEL', 'CONVENIENCE_PARCEL', 'MEETUP'], {
+  errorMap: () => ({ message: '귀국 후 국내 택배, 편의점 택배 또는 직거래만 선택할 수 있어요.' }),
 });
 export const imageData = z
   .string()

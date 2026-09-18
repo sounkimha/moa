@@ -6,11 +6,15 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 const require = createRequire(import.meta.url),
   temp = await mkdtemp(path.join(tmpdir(), 'moa-ui-'));
 process.env.DATA_FILE = path.join(temp, 'state.json');
 process.env.PORT = '0';
 process.env.QUIET = '1';
+const testPassword = 'Home-QA-2026!';
+process.env.MOA_TEST_USERNAME = 'home-qa';
+process.env.MOA_TEST_PASSWORD_SHA256 = createHash('sha256').update(testPassword).digest('hex');
 delete process.env.DATABASE_URL;
 const { bootstrap } = require('../apps/api/dist/main.js');
 const app = await bootstrap();
@@ -121,17 +125,21 @@ try {
   await expectText('부탁할게요');
   await expectText('가져올게요');
   await click('체험 계정으로 로그인');
-  await expectText('링크나 사진만');
-  assert.ok(document.body.textContent.indexOf('요즘 떠나는 곳') < document.body.textContent.indexOf('찾는 물건이 있나요?'), 'Places must come before product entry');
+  await expectText('아이디로 로그인');
+  await fill(document.querySelector('input[placeholder="아이디"]'), 'home-qa');
+  await fill(document.querySelector('input[placeholder="비밀번호"]'), testPassword);
+  await click('로그인하기');
+  await expectText('요즘 떠나는 곳');
+  assert.ok(!document.body.textContent.includes('찾는 물건이 있나요?'), 'Product shortcuts belong in unified search, not a large home card');
   console.log('PASS: app entry → 3-step MOA guide → sign-in');
   await click('등록', 'tab');
-  await expectText('이거 부탁하기');
+  await expectText('사고 싶은 상품을 부탁해요');
   await click('여행 일정 등록');
   await expectText('어디로 떠나세요?');
   await click('뒤로');
   await expectText('요즘 떠나는 곳');
   await click('등록', 'tab');
-  await expectText('이거 부탁하기');
+  await expectText('사고 싶은 상품을 부탁해요');
   await click('구매 요청 등록');
   await expectText('어떤 물건을 부탁할까요?');
   await click('뒤로');
@@ -168,7 +176,7 @@ try {
     assert.ok(document.querySelector(`[aria-label="${label} 대표 풍경 사진"]`), label + ' photo');
   }
   assert.ok(document.querySelector('[aria-label*="서울 · 성수 팝업 거리"]'), 'Seongsu uses its own place cover');
-  assert.ok(document.querySelector('[aria-label="미국 · 뉴욕 스카이라인 대표 풍경 사진"]'), 'Worldwide places include photo attribution');
+  assert.ok(document.querySelector('[aria-label^="미국 · 뉴욕"][aria-label$="대표 풍경 사진"]'), 'Worldwide places include a city-specific photo');
   assert.ok(document.querySelectorAll('[aria-label^="사진 출처:"]').length >= 23, 'Every visible place includes photo attribution');
   const credit = document.querySelector('[aria-label^="사진 출처:"]');
   await click(credit.getAttribute('aria-label'));
@@ -194,9 +202,11 @@ try {
   await expectText('둘러보기');
   console.log('PASS: photo information → original source → close → place navigation');
   await click('뒤로');
-  await expectText('링크나 사진만');
+  await expectText('요즘 떠나는 곳');
   assert.equal(dom.window.location.hash, '#home', 'Back without history must sync the URL');
   console.log('PASS: city-specific photos → previous button → synchronized home URL');
+  await click('도시와 장소 검색');
+  await expectText('상품 찾기');
   await click('사진으로 찾기');
   await click('치이카와 샘플로 인식 체험');
   await expectText('실제 상품·재고 확인 결과는 아니에요.');
@@ -210,8 +220,8 @@ try {
   );
   assert.equal(recognizedName.value, '치이카와 도쿄역 한정 키링');
   await click('뒤로');
-  await expectText('요즘 떠나는 곳');
-  await click('링크로 찾기');
+  await expectText('상품 찾기');
+  await click('링크 붙여넣기');
   await click('예시 링크로 빠르게 채우기');
   await expectText('예시 정보예요.');
   await click('수령 방법 정하기');
@@ -220,7 +230,7 @@ try {
   await expectText('월');
   await click('희망 수령일 달력 열기');
   await click('직접 전달 · 무료');
-  await wait(() => document.querySelector('iframe[title="직거래 위치 지도"]') || document.body.textContent.includes('지도 연결을 준비하고 있어요'), 'meetup map or honest unavailable state');
+  await wait(() => document.querySelector('iframe[title="직거래 위치 지도"]') || document.querySelector('[aria-label="카카오 직거래 위치 지도"]') || document.body.textContent.includes('지도 연결을 준비하고 있어요'), 'meetup map or honest unavailable state');
   const mapFrame = document.querySelector('iframe[title="직거래 위치 지도"]');
   const interactiveMap = mapFrame?.srcdoc?.match(/"channel":"([^"]+)"/);
   if (interactiveMap) {
@@ -236,13 +246,21 @@ try {
     }));
     await click('이 위치에서 만날게요');
   } else {
-    assert.equal(mapFrame, null, 'A missing API key must not render a pretend map iframe');
-    await expectText('지도 연결을 준비하고 있어요');
+    assert.equal(mapFrame, null, 'Current Kakao map must not render a legacy Google iframe');
+    const kakaoScript = document.querySelector('script[src*="dapi.kakao.com"]');
+    if (kakaoScript) {
+      // jsdom cannot run the external SDK. Exercise its real failure fallback;
+      // map search/save interactions are covered separately by browser-audit.py.
+      kakaoScript.dispatchEvent(new dom.window.Event('error'));
+      await expectText('지도를 불러오지 못했어요');
+      const confirmLocation = find('이 위치에서 만날게요');
+      assert.ok(!confirmLocation || confirmLocation.getAttribute('aria-disabled') === 'true', 'A failed map cannot confirm a location');
+    } else await expectText('지도 연결을 준비하고 있어요');
     await click('어디에서 만날까요? 닫기');
     await click('국내 택배 · ₩3,500');
   }
   finishAnimations();
-  await expectText('국내 전달비');
+  await expectText('전달비');
   await expectText('여행자 보상');
   await fill(await wait(() => document.querySelector('input[aria-label="여행자 보상 (원)"]'), 'buyer reward'), '5000');
   await expectText('예상 결제금액');
@@ -250,7 +268,7 @@ try {
   await expectText('예시 상품을 채웠어요');
   await click('수령 방법 정하기');
   await wait(() => {
-    const label = [...document.querySelectorAll('*')].find((e) => e.textContent === '국내 전달비');
+    const label = [...document.querySelectorAll('*')].find((e) => e.textContent === '전달비');
     return label?.parentElement?.textContent.includes(interactiveMap ? '₩0' : '₩3,500');
   }, 'preserved selected delivery fee');
   if (interactiveMap) await expectText('직거래 위치가 저장됐어요');

@@ -704,10 +704,27 @@ test('pre-purchase cancellation refunds the mock ledger completely', async () =>
 test('international shipping is rejected for new requests and direct acceptance', async () => {
   const invalidRequest = await fundedRequest(requestBody({ transport: 'INTERNATIONAL_SHIPPING' }));
   assert.equal(invalidRequest.status, 400);
-  assert.match(invalidRequest.data.message, /국내 택배 또는 직거래/);
+  assert.match(invalidRequest.data.message, /국내 택배, 편의점 택배 또는 직거래/);
   const request = await fundedRequest(requestBody());
   const claim = await call(`/requests/${request.data.id}/claim`, offerBody({ transport: 'INTERNATIONAL_SHIPPING' }), 'u-min');
   assert.equal(claim.status, 400);
+});
+test('convenience parcel retains its own estimate through request, offer and selection', async () => {
+  const funded = await fundedRequest(requestBody({ transport: 'CONVENIENCE_PARCEL' }));
+  assert.equal(funded.status, 201);
+  const snapshot = (await call('/snapshot')).data;
+  const request = snapshot.requests.find((item) => item.id === funded.data.id);
+  const funding = snapshot.requestFundings.find((item) => item.requestId === funded.data.id);
+  assert.equal(request.transport, 'CONVENIENCE_PARCEL');
+  assert.equal(funding.shippingFee, 3000);
+  const offer = await call(`/requests/${request.id}/offers`, offerBody({ transport: 'CONVENIENCE_PARCEL' }), 'u-min');
+  assert.equal(offer.status, 201);
+  const selected = await call(`/offers/${offer.data.id}/accept`, { expectedRevision: 2 });
+  assert.equal(selected.status, 201);
+  assert.equal(selected.data.transport, 'CONVENIENCE_PARCEL');
+  const overseas = await fundedRequest(requestBody({ transport: 'CONVENIENCE_PARCEL', deliveryCountry: 'JP', deliveryCity: '도쿄' }));
+  assert.equal(overseas.status, 400);
+  assert.match(overseas.data.message, /한국 수령/);
 });
 test('file repository survives a new instance and failed mutations roll back', async () => {
   const store = app.get(Store);

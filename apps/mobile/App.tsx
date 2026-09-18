@@ -22,6 +22,9 @@ import { LoadingSkeleton, PageTransition } from './src/components/motion';
 import { Logo } from './src/components/visuals';
 import { CreateActions, CreateScreen, GuideScreen, Home, LoginScreen, Onboarding, PlaceScreen, SearchScreen } from './src/screens/Home';
 import { RequestForm } from './src/screens/Forms';
+import { SignupScreen } from './src/screens/Signup';
+import { NearbyProvider } from './src/nearby/NearbyProvider';
+import { NearbyScreen, NearbyTestScreen, NotificationSettingsScreen } from './src/screens/Nearby';
 import { TripForm } from './src/screens/TripForm';
 import { FlightProofScreen } from './src/screens/FlightProof';
 import { TripRouteScreen } from './src/screens/TripRoute';
@@ -57,6 +60,10 @@ import {
 const screens: Record<Screen, React.ComponentType> = {
   home: Home,
   login: LoginScreen,
+  signup: SignupScreen,
+  nearby: NearbyScreen,
+  'nearby-test': NearbyTestScreen,
+  'notification-settings': NotificationSettingsScreen,
   search: SearchScreen,
   create: CreateScreen,
   trades: TradesScreen,
@@ -276,7 +283,7 @@ function Shell() {
           <View style={{ flex: 1, minWidth: 0, backgroundColor: c.canvas }}>
             {a.loading ? (
               <LoadingSkeleton variant={['profile', 'offers'].includes(a.route.name) ? 'traveler' : ['transaction', 'payment', 'trades'].includes(a.route.name) ? 'transaction' : ['request', 'request-form'].includes(a.route.name) ? 'request' : 'place'} />
-            ) : !a.data && a.error ? (
+            ) : !a.data && a.error && !['login', 'signup'].includes(a.route.name) ? (
               <Stack style={{ flex: 1, justifyContent: 'center', padding: 28 }}>
                 <View style={{ width: 64, height: 64, backgroundColor: c.primarySoft, borderRadius: 20, justifyContent: 'center', alignItems: 'center' }}><WifiOff size={28} color={c.primaryStrong} /></View>
                 <Txt size={26} weight="800">연결을 다시 확인해주세요.</Txt>
@@ -285,7 +292,7 @@ function Shell() {
                 <Button label="로그인부터 다시 시작" kind="ghost" onPress={() => a.logout()} />
               </Stack>
             ) : !a.data ? (
-              a.route.name === 'login' ? <LoginScreen /> : entryGuideComplete ? <Onboarding /> : <GuideScreen onComplete={() => setEntryGuideComplete(true)} />
+              a.route.name === 'login' ? <LoginScreen /> : a.route.name === 'signup' ? <SignupScreen /> : entryGuideComplete ? <Onboarding /> : <GuideScreen onComplete={() => setEntryGuideComplete(true)} />
             ) : a.data.me.profileCompleted === false ? (
               <ProfileSetupScreen />
             ) : (
@@ -350,7 +357,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <AppProvider>
-        <Shell />
+        <NearbyProvider><Shell /></NearbyProvider>
       </AppProvider>
     </SafeAreaProvider>
   );
