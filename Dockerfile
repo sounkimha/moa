@@ -12,6 +12,7 @@ RUN npm ci
 COPY . .
 
 ARG EXPO_PUBLIC_GOOGLE_MAPS_WEB_API_KEY
+ARG EXPO_PUBLIC_KAKAO_MAPS_JS_KEY
 
 RUN npm run build -w @moa/domain \
   && npm run build -w @moa/api \

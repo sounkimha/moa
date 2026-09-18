@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { MapPin, Search } from 'lucide-react-native';
 import { MeetupPoint } from '@moa/domain';
 import { api } from '../lib/api';
-import { GOOGLE_WEB_MAPS_KEY } from '../lib/maps-config';
+import { KAKAO_MAPS_JS_KEY } from '../lib/maps-config';
 import { colors as c } from '../theme/tokens';
 import { Button, Card, Field, Notice, Row, Stack, Txt } from './ui';
 import MeetupMap from './MeetupMap';
@@ -19,7 +19,7 @@ export function MeetupPicker({ value, onChange, history, legacyName, country = '
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [searchAvailable, setSearchAvailable] = useState<boolean | undefined>();
-  const mapCanPick = Boolean(Platform.OS === 'web' ? GOOGLE_WEB_MAPS_KEY : process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY?.trim());
+  const mapCanPick = Boolean(KAKAO_MAPS_JS_KEY);
   const [candidate, setCandidate] = useState<MeetupPoint | undefined>(value);
   const [center, setCenter] = useState({ latitude: value?.latitude ?? (country === 'JP' ? 35.6812 : 37.5665), longitude: value?.longitude ?? (country === 'JP' ? 139.7671 : 126.978), zoom: value ? 18 : 12 });
   const run = useRef(0);

@@ -8,14 +8,14 @@ import { Button, Row, Stack, Txt } from './ui';
 export type RouteMapLoadState = 'loading' | 'ready' | 'error';
 export const ROUTE_MAP_TIMEOUT = 12000;
 
-export function RouteMapStatus({ status, onRetry, onOpen }: { status: RouteMapLoadState; onRetry: () => void; onOpen: () => void }) {
+export function RouteMapStatus({ status, onRetry, onOpen, provider = 'Google' }: { status: RouteMapLoadState; onRetry: () => void; onOpen: () => void; provider?: 'Google' | 'Kakao' }) {
   if (status === 'ready') return null;
   return <View accessibilityRole={status === 'error' ? 'alert' : 'progressbar'} style={{ position: 'absolute', inset: 0, backgroundColor: c.canvas, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 12 }}>
     {status === 'loading' ? <><ActivityIndicator color={c.green} /><Txt size={14} color={c.secondary}>지도를 불러오고 있어요</Txt></> : <>
       <MapPin size={28} color={c.muted} /><Txt size={16} weight="600">지도를 불러오지 못했어요</Txt>
-      <Txt size={13} color={c.secondary} style={{ textAlign: 'center' }}>다시 시도하거나 Google 지도에서 확인해보세요.</Txt>
+      <Txt size={13} color={c.secondary} style={{ textAlign: 'center' }}>{`다시 시도하거나 ${provider} 지도에서 확인해주세요.`}</Txt>
       <Button small kind="secondary" label="지도 다시 불러오기" onPress={onRetry} />
-      <Button small kind="ghost" label="Google 지도에서 열기" onPress={onOpen} />
+      <Button small kind="ghost" label={`${provider} 지도에서 열기`} onPress={onOpen} />
     </>}
   </View>;
 }
@@ -24,8 +24,8 @@ export function RouteMapEmpty() {
   return <View style={{ height: 240, padding: 24, borderRadius: 20, backgroundColor: c.canvas, alignItems: 'center', justifyContent: 'center', gap: 10 }}><MapPin size={28} color={c.muted} /><Txt weight="600">표시할 장소가 없어요</Txt><Txt size={13} color={c.secondary}>다른 도시나 검색어로 찾아보세요.</Txt></View>;
 }
 
-export function MeetupMapUnavailable({ onOpen }: { onOpen: () => void }) {
-  return <Stack gap={12} style={{ padding: 20, backgroundColor: c.ultraSoft }}><Row><MapPin size={22} color={c.primaryStrong} /><Txt size={16} weight="700">지도 연결을 준비하고 있어요</Txt></Row><Txt size={13} color={c.secondary}>지금은 장소 검색 결과나 이전 만남 장소를 선택해주세요. 위치는 외부 지도에서 확인할 수 있어요.</Txt><Button small kind="secondary" label="Google 지도에서 열기" icon={ArrowUpRight} onPress={onOpen} /></Stack>;
+export function MeetupMapUnavailable({ onOpen, provider = 'Google' }: { onOpen: () => void; provider?: 'Google' | 'Kakao' }) {
+  return <Stack gap={12} style={{ padding: 20, backgroundColor: c.ultraSoft }}><Row><MapPin size={22} color={c.primaryStrong} /><Txt size={16} weight="700">{provider} 지도를 연결하고 있어요</Txt></Row><Txt size={13} color={c.secondary}>지금은 장소 검색 결과나 이전 만남 장소를 선택해주세요. 위치는 외부 지도에서 확인할 수 있어요.</Txt><Button small kind="secondary" label={`${provider} 지도에서 열기`} icon={ArrowUpRight} onPress={onOpen} /></Stack>;
 }
 
 /** No cross-origin iframe masquerading as a working map when the SDK isn't configured. */
