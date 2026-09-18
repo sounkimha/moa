@@ -78,6 +78,13 @@ const CATEGORY_PATHS: Array<{ name: string; description: string; values: Categor
   { name: '라이프스타일', description: '패션 잡화와 지역 한정 상품', values: ['FASHION', 'LOCAL'] },
   { name: '행사·공연', description: '팝업과 콘서트 현장 상품', values: ['POPUP', 'CONCERT'] },
 ];
+export const TRAVELER_REWARD_PERCENTAGES = [5, 10, 20] as const;
+
+/** Reward percentages apply only to the converted product subtotal, never delivery. */
+export function travelerRewardFromPercentage(productPrice: number, percentage: number) {
+  if (!Number.isSafeInteger(productPrice) || productPrice <= 0 || !Number.isFinite(percentage) || percentage < 0) return 0;
+  return Math.round(productPrice * percentage / 100);
+}
 
 const future = (n: number) => {
   const date = new Date(); date.setDate(date.getDate() + n);
@@ -291,6 +298,10 @@ function RequestFormContent() {
   const reward = Number(requestedReward) || 0;
   const previewReward = Number.isSafeInteger(reward) && reward >= 0 && reward <= MAX_DEMO_REWARD ? reward : 0;
   const q = quote(pricingInput, previewReward, mode, fx.rate || undefined);
+  const rewardPresets = TRAVELER_REWARD_PERCENTAGES.map((percentage) => ({
+    percentage,
+    amount: travelerRewardFromPercentage(q.productPrice, percentage),
+  }));
   const parcelQuote = quote(pricingInput, previewReward, 'DOMESTIC_PARCEL', fx.rate || undefined);
   const convenienceParcelQuote = quote(pricingInput, previewReward, 'CONVENIENCE_PARCEL', fx.rate || undefined);
   const meetupQuote = quote(pricingInput, previewReward, 'MEETUP', fx.rate || undefined);
@@ -1029,7 +1040,32 @@ function RequestFormContent() {
           {mode === 'CONVENIENCE_PARCEL' && <Notice>주소 수령형 편의점 택배예요. 접수 편의점과 실제 배송비는 매칭 뒤 여행자가 등록한 운송장에서 확인해주세요.</Notice>}
           <Divider />
           <DateField label="희망 수령일" value={desired} onChange={setDesired} min={future(0)} />
-          <Stack gap={10}><Txt size={19} weight="700">고마운 마음, 얼마를 전할까요?</Txt><Field label="여행자 보상 (원)" value={requestedReward} onChange={(value) => { setRequestedReward(value.replace(/[^0-9]/g, '').slice(0, 7)); setError(''); }} keyboard="numeric" placeholder="직접 금액을 정해주세요" hint="보상은 부탁하는 사람이 자유롭게 정해요." /></Stack>
+          <Stack gap={12}>
+            <Stack gap={4}>
+              <Txt size={19} weight="700">여행자 보상, 얼마나 드릴까요?</Txt>
+              <Txt size={13} color={c.secondary}>상품가 {money(q.productPrice)} 기준으로 빠르게 골라보세요.</Txt>
+            </Stack>
+            <Row style={{ alignItems: 'stretch', gap: 8 }}>
+              {rewardPresets.map(({ percentage, amount }) => {
+                const selected = requestedReward !== '' && Number(requestedReward) === amount;
+                const unavailable = amount <= 0;
+                return <Pressable
+                  key={percentage}
+                  accessibilityRole="button"
+                  accessibilityLabel={`상품가의 ${percentage}% 보상 선택`}
+                  accessibilityState={{ selected, disabled: unavailable }}
+                  aria-selected={selected}
+                  disabled={unavailable}
+                  onPress={() => { setRequestedReward(String(amount)); setError(''); }}
+                  style={({ pressed }) => ({ flex: 1, minWidth: 0, minHeight: 68, paddingVertical: 10, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center', gap: 3, borderRadius: 14, borderWidth: 1, borderColor: selected ? c.primary : c.border, backgroundColor: selected ? c.primarySoft : c.paper, opacity: unavailable ? 0.45 : pressed ? 0.72 : 1 })}
+                >
+                  <Txt size={16} weight="800" color={selected ? c.primaryStrong : c.ink}>{percentage}%</Txt>
+                  <Txt size={11} weight="600" color={selected ? c.primaryStrong : c.secondary} lines={1}>{amount ? money(amount) : '상품가 입력 후'}</Txt>
+                </Pressable>;
+              })}
+            </Row>
+            <Field label="여행자 보상 (원)" value={requestedReward} onChange={(value) => { setRequestedReward(value.replace(/[^0-9]/g, '').slice(0, 7)); setError(''); }} keyboard="numeric" placeholder="직접 금액을 정해주세요" hint="배송비는 제외한 상품가 기준 추천이에요. 직접 금액으로 바꿔도 돼요." />
+          </Stack>
           <Card><Stack gap={20}><Row><ShieldCheck size={20} color={c.primary} /><Txt size={18} weight="700">예상 결제금액</Txt></Row><MoneyBreakdown price={q} localAmount={Number(price) * quantity} localCurrency={pricingInput.currency} localPriceEstimated={localPriceEstimated} rewardPending={requestedReward === ''} />{fx.loading && <Txt size={12} color={c.secondary}>최신 환율을 확인하고 있어요.</Txt>}{fx.failed && <Button small kind="ghost" label="환율 다시 확인" onPress={() => void fx.refresh()} />}<Txt size={12} color={c.secondary}>먼저 결제하고 지원한 여행자를 선택해요. 상품을 받은 뒤 정산돼요. 실제 적용 금액은 결제 전에 다시 확인해요.</Txt></Stack></Card>
           <Sheet visible={editingMeetup} title="어디에서 만날까요?" onClose={cancelDeliveryEditor}>
             {editingMeetup && <MeetupPicker key={deliveryCountry} country={deliveryCountry} value={meetupPoint} legacyName={meetupLocation} history={completedMeetups} onChange={(point) => {

@@ -114,6 +114,17 @@ test('request and trip form state regressions', async (t) => {
       assert.equal(app.submitted.deliveryAddress1, '서울 중구');
       assert.equal(app.submitted.deliveryPhone, '01012345678');
     });
+    await t.test('traveler reward percentage presets calculate from the KRW product subtotal and keep direct entry available', async () => {
+      await mount(RequestForm, draft());
+      for (const percentage of [5, 10, 20]) assert.ok([...host.querySelectorAll('button')].find((item) => item.getAttribute('aria-label') === `상품가의 ${percentage}% 보상 선택`), `${percentage}% preset`);
+      await click('상품가의 10% 보상 선택');
+      const { quote } = require('@moa/domain');
+      const expected = Math.round(quote({ localPrice: 2420, quantity: 1, currency: 'JPY' }, 0, 'DOMESTIC_PARCEL').productPrice * 0.1);
+      assert.equal(app.requestDraft.requestedReward, String(expected));
+      assert.match(host.textContent, new RegExp(`₩${expected.toLocaleString('ko-KR')}`));
+      await input('여행자 보상 (원)', '7777');
+      assert.equal(app.requestDraft.requestedReward, '7777');
+    });
     await t.test('canceling an edit restores the existing confirmed meetup, committing replaces it', async () => {
       await mount(RequestForm, draft('MEETUP'));
       await click('직거래 위치 변경'); await click('지도 이동');
