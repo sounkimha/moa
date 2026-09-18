@@ -2,16 +2,70 @@ import * as ImagePicker from 'expo-image-picker';
 import { Platform } from 'react-native';
 
 const acceptedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
+const imageExtensions = /\.(?:jpe?g|png|webp|heic|heif)$/i;
+
+function extensionMime(name: string) {
+  if (/\.png$/i.test(name)) return 'image/png';
+  if (/\.webp$/i.test(name)) return 'image/webp';
+  if (/\.heic$/i.test(name)) return 'image/heic';
+  if (/\.heif$/i.test(name)) return 'image/heif';
+  return 'image/jpeg';
+}
+
+function compressWebImage(file: File, value: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const image = document.createElement('img');
+    image.onload = () => {
+      const maxSide = 1600;
+      const scale = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+      const context = canvas.getContext('2d');
+      if (!context) {
+        reject(new Error('사진을 변환하지 못했어요. 다른 사진으로 다시 시도해주세요.'));
+        return;
+      }
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      let output = canvas.toDataURL('image/jpeg', 0.78);
+      // Keep the JSON request below the API's 2.8 MB image limit even for
+      // detailed camera photos. Reduce dimensions before lowering quality so
+      // text on a product package remains readable.
+      for (let attempt = 0; output.length > 2_700_000 && attempt < 3; attempt += 1) {
+        canvas.width = Math.max(1, Math.round(canvas.width * 0.8));
+        canvas.height = Math.max(1, Math.round(canvas.height * 0.8));
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        output = canvas.toDataURL('image/jpeg', 0.68);
+      }
+      if (output.length > 2_800_000) {
+        reject(new Error('사진 용량이 너무 커요. 더 작은 사진으로 다시 시도해주세요.'));
+        return;
+      }
+      resolve(output);
+    };
+    image.onerror = () => reject(new Error(
+      /image\/(?:heic|heif)/i.test(file.type) || /\.(?:heic|heif)$/i.test(file.name)
+        ? 'HEIC 사진을 읽지 못했어요. iPhone 사진 설정에서 호환성 높은 포맷(JPG)으로 바꾼 뒤 다시 시도해주세요.'
+        : '사진을 읽지 못했어요. JPG·PNG·WebP 사진으로 다시 시도해주세요.',
+    ));
+    image.src = value;
+  });
+}
 
 function readWebImage(): Promise<string | undefined> {
   return new Promise((resolve, reject) => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = acceptedMimeTypes.join(',');
+    // Mobile browsers may report an empty MIME type or image/heic for photos
+    // selected from the camera roll. Let the picker show image files and
+    // validate by MIME/extension after selection instead of dropping them.
+    input.accept = 'image/*,.jpg,.jpeg,.png,.webp,.heic,.heif';
     input.onchange = () => {
       const file = input.files?.[0];
       if (!file) { resolve(undefined); return; }
-      if (!acceptedMimeTypes.includes(file.type)) {
+      const mime = (file.type || extensionMime(file.name)).toLowerCase().split(';')[0];
+      const isImage = file.type ? mime.startsWith('image/') : imageExtensions.test(file.name);
+      if (!isImage) {
         reject(new Error('JPG·PNG·WebP 이미지를 선택해주세요.'));
         return;
       }
@@ -20,21 +74,14 @@ function readWebImage(): Promise<string | undefined> {
       reader.onload = () => {
         const value = typeof reader.result === 'string' ? reader.result : '';
         if (!value) { reject(new Error('이미지를 읽지 못했어요. 다른 파일을 선택해주세요.')); return; }
-        // Keep the request body below the API limit on iPhone Safari, where the
-        // browser file picker does not apply Expo's native quality setting.
-        if (file.size <= 1_800_000) { resolve(value); return; }
-        const image = document.createElement('img');
-        image.onload = () => {
-          const maxSide = 1600;
-          const scale = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight));
-          const canvas = document.createElement('canvas');
-          canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
-          canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
-          canvas.getContext('2d')?.drawImage(image, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL('image/jpeg', 0.78));
-        };
-        image.onerror = () => reject(new Error('사진을 변환하지 못했어요. JPG·PNG·WebP 사진으로 다시 시도해주세요.'));
-        image.src = value;
+        // Keep small, supported files untouched. Convert large files and
+        // browser-specific formats (including HEIC when the browser decodes
+        // it) to a server-compatible JPEG data URL.
+        if (acceptedMimeTypes.includes(mime) && file.size <= 1_800_000 && /^data:image\/(?:png|jpeg|webp);base64,/i.test(value)) {
+          resolve(value);
+          return;
+        }
+        compressWebImage(file, value).then(resolve, reject);
       };
       reader.readAsDataURL(file);
     };
