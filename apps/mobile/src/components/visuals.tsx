@@ -37,7 +37,7 @@ import { PhotoCredit } from './PhotoCredit';
 // image cache as soon as the visual component module is loaded so the guide does
 // not briefly show an empty/loading tile on a cold app start.
 const CHIIKAWA_SOURCE = require('../../assets/chiikawa-featured.jpg');
-if (Platform.OS === 'web') {
+if (Platform.OS === 'web' && typeof Image.resolveAssetSource === 'function' && typeof Image.prefetch === 'function') {
   const uri = Image.resolveAssetSource(CHIIKAWA_SOURCE)?.uri;
   if (uri) void Image.prefetch(uri).catch(() => undefined);
 }
