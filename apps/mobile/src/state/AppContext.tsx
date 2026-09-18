@@ -227,6 +227,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       throw e;
     }
   };
+  const refreshAfterAuth = async () => {
+    try { return await refresh(); }
+    catch (e) {
+      if (e instanceof ApiError && (e.status === 0 || e.status === 408)) {
+        await new Promise((resolve) => setTimeout(resolve, 450));
+        return refresh();
+      }
+      throw e;
+    }
+  };
   useEffect(() => {
     const generation = session.current;
     let mounted = true;
@@ -236,7 +246,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (!mounted || generation !== session.current) return;
         if (t) {
           setToken(t);
-          await refresh();
+          await refreshAfterAuth();
         }
       } catch (e) {
         if (mounted) setError((e as Error).message);
@@ -332,7 +342,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setToken(result.token);
       const saved = await storage.set(result.token, persistence);
       if (attempt !== authAttempt.current || generation !== session.current) return false;
-      await refresh();
+      await refreshAfterAuth();
       if (attempt !== authAttempt.current || generation !== session.current || !actor.current) return false;
       if (!saved) notify('로그인했어요. 저장 공간을 사용할 수 없어 새로고침하면 다시 로그인해야 해요.');
       return true;
@@ -362,7 +372,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setToken(result.token);
       const saved = await storage.set(result.token, persistence);
       if (attempt !== authAttempt.current || generation !== session.current) return false;
-      await refresh();
+      await refreshAfterAuth();
       if (attempt !== authAttempt.current || generation !== session.current || !actor.current) return false;
       if (!saved) notify('로그인했어요. 저장 공간을 사용할 수 없어 새로고침하면 다시 로그인해야 해요.');
       return true;
@@ -399,7 +409,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setToken(exchanged.token);
       const saved = await storage.set(exchanged.token, persistence);
       if (attempt !== authAttempt.current || generation !== session.current) return false;
-      await refresh();
+      await refreshAfterAuth();
       if (attempt !== authAttempt.current || generation !== session.current || !actor.current) return false;
       if (!saved) notify('로그인했어요. 저장 공간을 사용할 수 없어 새로고침하면 다시 로그인해야 해요.');
       notify('소셜 계정으로 로그인했어요.');

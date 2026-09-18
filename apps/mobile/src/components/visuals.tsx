@@ -41,6 +41,17 @@ if (Platform.OS === 'web' && typeof Image.resolveAssetSource === 'function' && t
   const uri = Image.resolveAssetSource(CHIIKAWA_SOURCE)?.uri;
   if (uri) void Image.prefetch(uri).catch(() => undefined);
 }
+if (Platform.OS === 'web' && typeof document !== 'undefined' && typeof Image.resolveAssetSource === 'function') {
+  const uri = Image.resolveAssetSource(CHIIKAWA_SOURCE)?.uri;
+  if (uri && !document.head.querySelector('link[data-moa-chiikawa-preload]')) {
+    const preload = document.createElement('link');
+    preload.rel = 'preload';
+    preload.as = 'image';
+    preload.href = uri;
+    preload.setAttribute('data-moa-chiikawa-preload', 'true');
+    document.head.appendChild(preload);
+  }
+}
 export function Logo({ size = 38 }: { size?: number }) {
   return (
     <Image
