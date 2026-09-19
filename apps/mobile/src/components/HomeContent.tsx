@@ -46,27 +46,24 @@ export function TravelerPreview({ user, trip, places, distance, onPress, variant
     accessibilityLabel={`${user.nickname}님의 여행 보기`}
     accessibilityHint={`${trip.departureCity}에서 ${trip.destinationCity}로, ${shortDate(trip.startDate)}부터 ${shortDate(trip.endDate)}까지. ${visitLabel}. 여행 일정을 열어요.`}
     onPress={onPress}
-    style={({ pressed }) => ({ padding: 16, paddingVertical: 20, backgroundColor: pressed ? c.ultraSoft : c.paper })}
+    style={({ pressed }) => ({ padding: 16, paddingVertical: 16, backgroundColor: pressed ? c.ultraSoft : c.paper })}
   >
     <Row style={{ alignItems: 'flex-start', gap: 12 }}>
-      <View style={{ flexShrink: 0 }}><Avatar user={user} size={50} /></View>
-      <Stack gap={12} style={{ flex: 1, minWidth: 0 }}>
-        <Stack gap={3}>
-          <Txt size={18} weight="700">{user.nickname}</Txt>
+      <View style={{ flexShrink: 0 }}><Avatar user={user} size={48} /></View>
+      <Stack gap={8} style={{ flex: 1, minWidth: 0 }}>
+        <Row style={{ flexWrap: 'wrap', gap: 6 }}>
+          <Txt size={17} weight="700" style={{ flexShrink: 1 }}>{user.nickname}</Txt>
           {canAcceptTrip(trip)
             ? <FlightVerificationMark trip={trip} />
             : <Txt size={12} color={c.secondary} style={{ flexShrink: 1 }}>{TRIP_VERIFICATION_LABEL[trip.verificationStatus]}</Txt>}
-        </Stack>
-        <TravelRouteLine accented departure={trip.departureCity} destination={trip.destinationCity} />
-        <Stack gap={4}>
-          <Txt size={14} weight="500">{shortDate(trip.startDate)} – {shortDate(trip.endDate)}</Txt>
-          <Txt size={14} color={c.secondary}>{visitLabel}</Txt>
-        </Stack>
-        <Row style={{ justifyContent: 'space-between', gap: 8 }}>
-          <Txt size={13} color={c.secondary} style={{ flex: 1 }}>{distance !== undefined && Number.isFinite(distance) && distance >= 0 ? `내 위치에서 ${distance.toFixed(1)}km` : '거리 확인 전'}</Txt>
-          <ChevronRight size={18} color={c.muted} />
         </Row>
+        <TravelRouteLine accented departure={trip.departureCity} destination={trip.destinationCity} />
+        <Stack gap={3}>
+          <Txt size={13} weight="500" lines={1}>{shortDate(trip.startDate)} – {shortDate(trip.endDate)} · {visitLabel}</Txt>
+          <Txt size={12} color={c.secondary}>{distance !== undefined && Number.isFinite(distance) && distance >= 0 ? `내 위치 ${distance.toFixed(1)}km` : '거리 확인 전'}</Txt>
+        </Stack>
       </Stack>
+      <View style={{ paddingTop: 4 }}><ChevronRight size={18} color={c.muted} /></View>
     </Row>
   </Pressable>;
   return <Pressable accessibilityRole="button" accessibilityLabel={`${user.nickname}님의 여행 보기`} onPress={onPress}

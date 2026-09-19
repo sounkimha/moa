@@ -46,13 +46,13 @@ const text = (html) => html.replace(/<[^>]+>/g, '');
 
 test('nearby travelers prioritize name, route, dates and actual stops above distance', () => {
   const html = render(), value = text(html);
-  const labels = ['민트로드', '항공권 인증', '서울', '도쿄', '9.22', '시부야 · 마루노우치 방문 예정', '내 위치에서 0.2km'];
+  const labels = ['민트로드', '항공권 인증', '서울', '도쿄', '9.22', '시부야 · 마루노우치 방문 예정', '내 위치 0.2km'];
   const positions = labels.map((label) => value.indexOf(label));
   assert.ok(positions.every((position) => position >= 0), value);
   assert.deepEqual(positions, [...positions].sort((a, b) => a - b));
-  assert.match(html, /data-avatar-size="50"/);
-  assert.match(html, /data-size="18" data-weight="700"[^>]*>민트로드/);
-  assert.match(html, /data-size="13"[^>]*>내 위치에서 0.2km/);
+  assert.match(html, /data-avatar-size="48"/);
+  assert.match(html, /data-size="17" data-weight="700"[^>]*>민트로드/);
+  assert.match(html, /data-size="12"[^>]*>내 위치 0.2km/);
   assert.doesNotMatch(value, /0.2km 예시|위치 예시/);
 });
 
@@ -89,7 +89,7 @@ test('unknown distance never becomes NaN, Infinity or a misleading distance', ()
     assert.match(value, /거리 확인 전/);
     assert.doesNotMatch(value, /내 위치에서|NaN|Infinity/);
   }
-  assert.match(text(render({ distance: 0 })), /내 위치에서 0.0km/);
+  assert.match(text(render({ distance: 0 })), /내 위치 0.0km/);
 });
 
 test('both nearby and existing search rows preserve their supplied navigation handler', () => {
