@@ -359,7 +359,7 @@ export class CatalogService {
     });
   }
   async metadata(url: string) {
-    const cacheKey = `metadata:ko-v4:${process.env.OPENAI_API_KEY ? (process.env.OPENAI_TRANSLATION_MODEL || process.env.OPENAI_VISION_MODEL || 'gpt-4.1-mini') : 'no-ai'}:${url}`;
+    const cacheKey = `metadata:ko-v5:${process.env.OPENAI_API_KEY ? (process.env.OPENAI_TRANSLATION_MODEL || process.env.OPENAI_VISION_MODEL || 'gpt-5') : 'no-ai'}:${url}`;
     const cached = await this.cache.get<unknown>(cacheKey);
     if (cached) return cached;
     const u = new URL(url);
@@ -642,7 +642,7 @@ export class CatalogService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: process.env.OPENAI_VISION_MODEL || 'gpt-4.1-mini',
+          model: process.env.OPENAI_VISION_MODEL || 'gpt-5',
           store: false,
           text: {
             format: {
@@ -729,7 +729,7 @@ export class CatalogService {
           method: 'POST',
           headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            model: process.env.OPENAI_VISION_MODEL || 'gpt-4.1-mini',
+            model: process.env.OPENAI_VISION_MODEL || 'gpt-5',
             store: false,
             text: { format: { type: 'json_schema', name: 'product_location_inference', strict: true, schema: locationInferenceJsonSchema } },
             input: [{

@@ -8,7 +8,7 @@
 - 선택 전 취소는 모의 결제 전액 환불입니다. 희망 기한이 지난 부탁은 지원·선택할 수 없으며, 구매자가 상세에서 취소·환불할 수 있습니다. 자동 기한 환불 배치는 아직 없습니다.
 - 기존 미결제 매칭은 결제를 꾸며내지 않고 기존 결제 경로를 유지합니다. 미결제 공개 부탁은 원본 백업 후 비공개 결제 대기로 전환합니다. PostgreSQL은 `npm run db:migrate`로 `004_request_prepayment.sql`까지 적용해야 합니다.
 - 채팅 추천은 거래 단계·역할·최근 질문에 맞춘 기본 초안을 제공합니다. 서버 `OPENAI_API_KEY`가 있으면 사용자가 동의한 경우만 최근 최대 12개 대화와 상품·단계를 OpenAI로 보내 AI 초안을 받습니다. 키가 없거나 실패하면 기본 추천임을 표시합니다. 추천을 눌러도 자동 전송하지 않습니다.
-- AI는 서버의 `OPENAI_CHAT_MODEL`(기본 `gpt-4.1-mini`)과 [Responses의 구조화된 출력](https://developers.openai.com/api/docs/guides/structured-outputs)을 사용합니다. 키는 프런트나 Git에 넣지 않습니다. 등록된 주소·연락처 등은 제거하지만 자유 대화의 개인정보를 모두 보장해 제거하는 DLP는 아닙니다.
+- AI는 서버의 `OPENAI_CHAT_MODEL`(기본 `gpt-5`)과 [Responses의 구조화된 출력](https://developers.openai.com/api/docs/guides/structured-outputs)을 사용합니다. 키는 프런트나 Git에 넣지 않습니다. 등록된 주소·연락처 등은 제거하지만 자유 대화의 개인정보를 모두 보장해 제거하는 DLP는 아닙니다.
 
 **이미 그곳에 가는 사람과, 그곳의 상품이 필요한 사람을 연결하는 구매 매칭 플랫폼.**
 
@@ -276,7 +276,7 @@ npx expo export --platform ios --platform android --output-dir dist-native
 - **상품 링크가 자동으로 안 채워짐**: 상품 주소 전체를 붙여넣었는지 확인하세요. 삭제된 페이지·비공개 몰·로봇 접근을 차단하는 몰은 즉시 안내하고 사진 인식/직접 입력을 제공합니다.
 - **링크의 외국어 정보**: 상품명·판매처·구매 위치와 페이지에서 확인된 색상/크기 텍스트를 한국어로 자동 번역합니다. 상품 가격·통화·이미지·URL은 번역 모델이 수정할 수 없습니다. 원문은 별도로 보관하며 요청 등록/상세 화면의 ‘가져온 원문 보기’에서 확인합니다. 자동 번역에는 서버 `OPENAI_API_KEY`가 필요합니다(`OPENAI_TRANSLATION_MODEL` 선택 설정). 키가 없거나 번역 실패 시 원문과 명확한 안내를 표시하며, 실패 결과는 성공 캐시로 저장하지 않습니다. 키를 채팅에 공유하지 마세요. 판매처에서 추출한 텍스트만 AI로 전송하며 사용자 배송지 등은 보내지 않습니다. [OpenAI 구조화 출력 문서](https://developers.openai.com/api/docs/guides/structured-outputs)를 따라 번역 응답 형식을 제한했습니다. 모의 응답 테스트는 실제 다국어 번역 품질 평가를 대체하지 않습니다.
 - **`Cannot POST /api/recognize`**: 이전 API 서버에 연결된 상태입니다. 실행 중인 개발 서버를 종료한 뒤 프로젝트 루트에서 `npm run dev`를 한 번만 실행하고 앱을 새로고침하세요. 이제 사용 중인 포트가 있으면 새 실행을 중단하며, 종료할 때 API·Metro 자식 프로세스도 함께 정리합니다. `/health`의 `apiVersion: recognition-v2` 및 `capabilities`로 인식 기능을 확인할 수 있습니다.
-- **샘플은 되지만 업로드 사진 분석이 안 됨**: 샘플은 고정된 상품 데이터로 자동 입력 흐름을 확인하는 기능입니다. 실제 사진 분석은 `apps/api/.env`에 서버 전용 `OPENAI_API_KEY`가 필요합니다. 키를 채팅이나 모바일 환경변수에 넣지 마세요. 기본 모델은 [이미지 입력과 구조화 출력을 지원하는 GPT-4.1 mini](https://developers.openai.com/api/docs/models/gpt-4.1-mini)이며 `OPENAI_VISION_MODEL`로 설정할 수 있습니다. 키 추가 후 서버를 재시작하세요. 현재 인식 데이터는 검색용 예시이며 별도 모델 학습을 수행한 것이 아닙니다.
+- **샘플은 되지만 업로드 사진 분석이 안 됨**: 샘플은 고정된 상품 데이터로 자동 입력 흐름을 확인하는 기능입니다. 실제 사진 분석은 `apps/api/.env`에 서버 전용 `OPENAI_API_KEY`가 필요합니다. 키를 채팅이나 모바일 환경변수에 넣지 마세요. 기본 모델은 [이미지 입력과 구조화 출력을 지원하는 GPT-5](https://developers.openai.com/api/docs/models/gpt-5)이며 `OPENAI_VISION_MODEL`로 설정할 수 있습니다. 키 추가 후 서버를 재시작하세요. 현재 인식 데이터는 검색용 예시이며 별도 모델 학습을 수행한 것이 아닙니다.
 - **이미지가 안 올라감**: JPG/PNG/WebP, 이미지당 2MB 이하로 준비합니다. HEIC는 지원하지 않습니다.
 - **초기 데이터로 돌아가고 싶음**: API를 종료한 뒤 `npm run reset`을 실행하면 파일을 삭제하지 않고 타임스탬프가 붙은 backup으로 옮깁니다. 다시 API를 시작하세요. PostgreSQL DB는 변경하지 않습니다.
 
