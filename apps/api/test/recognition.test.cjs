@@ -115,6 +115,33 @@ test('vision response handling preserves uncertain products rather than inventin
   }
 });
 
+test('an AI-only local-price guess never becomes a payment estimate', async () => {
+  const originalFetch = global.fetch, oldKey = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = 'test-key-not-a-real-secret';
+  try {
+    const signals = {
+      extractedText: ['A BATHING APE'], character: '', productName: '도쿄 BAPE 티셔츠', productType: '티셔츠',
+      category: 'FASHION', art: 'tshirt', storeName: '시부야 PARCO', purchaseLocation: '도쿄 · 시부야',
+      priceAmount: null, priceEstimateAmount: 70000, priceEstimateConfidence: 0.35, currency: 'JPY',
+      colors: ['화이트'], brandName: 'BAPE',
+      availability: { countryCode: 'JP', countryName: '일본', city: '도쿄', district: '시부야', isLocationLimited: false, limitedType: null, limitedLabel: '' },
+      stores: [{ name: '시부야 PARCO', countryCode: 'JP', city: '도쿄', district: '시부야' }],
+      confidence: { product: 0.55, location: 0.9, store: 0.6 },
+    };
+    global.fetch = async () => Response.json({ output: [{ content: [{ type: 'output_text', text: JSON.stringify(signals) }] }] });
+    const result = await catalog().recognize(png);
+    assert.equal(result.source, 'OPENAI_VISION');
+    assert.equal(result.product, null);
+    assert.equal(result.suggestion.localPrice, null);
+    assert.equal(result.suggestion.priceEstimated, false);
+    assert.match(result.notice, /실제 가격표/);
+  } finally {
+    global.fetch = originalFetch;
+    if (oldKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = oldKey;
+  }
+});
+
 test('Chiikawa link preview requests JPY instead of silently treating localized KRW as yen', async () => {
   const originalFetch = global.fetch, originalLookup = dns.lookup;
   dns.lookup = async () => [{ address: '93.184.216.34', family: 4 }];

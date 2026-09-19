@@ -135,6 +135,9 @@ function RequestFormContent() {
     a.requestDraft?.entryPlaceId === a.route.placeId ? a.requestDraft : null;
   const preset = draft ? undefined : sourceRequest;
   const defaultAddress = (d.addresses || []).find((item) => item.userId === d.me.id && item.isDefault);
+  // Legacy drafts may contain an old AI-only price. Do not let a speculative
+  // amount survive as a payment estimate; the buyer must confirm it manually.
+  const restoredEstimatedPrice = Boolean(preset?.localPriceEstimated || draft?.localPriceEstimated);
   const [step, setStep] = useState(draft?.step || 1),
     [originalText, setOriginalText] = useState<ProductOriginalText | undefined>(preset?.originalText || draft?.originalText),
     [method, setMethod] = useState<'link' | 'photo'>(
@@ -143,8 +146,8 @@ function RequestFormContent() {
     [name, setName] = useState(preset?.productName || draft?.name || ''),
     [image, setImage] = useState(preset?.productImage || draft?.image || ''),
     [art, setArt] = useState<Art>(preset?.art || draft?.art || 'keyring'),
-    [price, setPrice] = useState(preset ? String(preset.localPrice) : draft?.price || ''),
-    [localPriceEstimated, setLocalPriceEstimated] = useState(Boolean(preset?.localPriceEstimated || draft?.localPriceEstimated)),
+    [price, setPrice] = useState(restoredEstimatedPrice ? '' : preset ? String(preset.localPrice) : draft?.price || ''),
+    [localPriceEstimated, setLocalPriceEstimated] = useState(restoredEstimatedPrice),
     [requestedReward, setRequestedReward] = useState(preset?.requestedReward !== undefined ? String(preset.requestedReward) : draft?.requestedReward || ''),
     [quantity, setQuantity] = useState(Math.max(1, Math.min(10, preset?.quantity || draft?.quantity || 1))),
     [desired, setDesired] = useState(
@@ -171,7 +174,7 @@ function RequestFormContent() {
     [linkStatus, setLinkStatus] = useState<'idle' | 'checking' | 'done' | 'error'>('idle'),
     [aiFilled, setAiFilled] = useState(Boolean(preset) || Boolean(draft?.aiFilled)),
     [sampleFilled, setSampleFilled] = useState(Boolean(draft?.sampleFilled)),
-    [editingDetails, setEditingDetails] = useState(draft?.editingDetails || false),
+    [editingDetails, setEditingDetails] = useState(Boolean(draft?.editingDetails || restoredEstimatedPrice)),
     [editingAddress, setEditingAddress] = useState(false),
     [editingRegion, setEditingRegion] = useState(false),
     [editingMeetup, setEditingMeetup] = useState(false),
@@ -456,11 +459,14 @@ function RequestFormContent() {
       if (typeof suggestion.productName === 'string') setName(suggestion.productName);
       setCategory(Object.hasOwn(CATEGORIES, suggestion.category) ? suggestion.category : 'CHARACTER');
       setArt(['keyring', 'plush', 'pouch', 'tshirt', 'pin', 'bag'].includes(suggestion.art) ? suggestion.art : 'keyring');
-      if (Number.isFinite(suggestion.localPrice) && suggestion.localPrice! > 0) {
+      const hasUnverifiedPrice = Boolean(suggestion.priceEstimated);
+      if (Number.isFinite(suggestion.localPrice) && suggestion.localPrice! > 0 && !hasUnverifiedPrice) {
         setPrice(String(suggestion.localPrice));
-        setLocalPriceEstimated(Boolean(suggestion.priceEstimated));
-      } else {
         setLocalPriceEstimated(false);
+      } else {
+        // Never carry an AI-only price guess into a later payment estimate.
+        setPrice('');
+        setLocalPriceEstimated(hasUnverifiedPrice);
       }
       if (typeof suggestion.storeName === 'string' && !mismatch) setStoreName(suggestion.storeName);
       if (suggestion.stockStatus) setInventoryStatus(suggestion.stockStatus);
@@ -468,14 +474,15 @@ function RequestFormContent() {
     }
     const filled = Boolean(typeof result.product?.name === 'string' ? result.product.name : typeof result.suggestion?.productName === 'string' ? result.suggestion.productName : '');
     setAiFilled(filled);
-    const hasPrice = (result.product?.localPrice || result.suggestion?.localPrice || 0) > 0;
+    const hasPrice = (result.product?.localPrice || 0) > 0 ||
+      (!result.suggestion?.priceEstimated && (result.suggestion?.localPrice || 0) > 0);
     if (currencyMismatch && !result.suggestion?.priceEstimated) {
       setPrice('');
       setError('판매 페이지의 가격 통화가 구매 장소와 달라요. 현지 판매 가격을 확인해주세요.');
     }
     if (detectedPlaceId && !detectedPlace) setError('구매 장소를 확인하지 못했어요. 실제 판매처를 선택해주세요.');
     if (mismatch) setLocationMismatchOpen(true);
-    setEditingDetails(!filled || !hasPrice || currencyMismatch || mismatch || (!detectedPlace && Boolean(detectedPlaceId)));
+    setEditingDetails(!filled || !hasPrice || Boolean(result.suggestion?.priceEstimated) || currencyMismatch || mismatch || (!detectedPlace && Boolean(detectedPlaceId)));
   };
   const useRecognizedLocation = () => {
     const next = recognizedLocation;
@@ -760,7 +767,7 @@ function RequestFormContent() {
               <Txt size={13} color={c.secondary}>
                 {d.recognition?.image === false
                   ? '사진은 저장해둘게요. AI 연결 후 상품명·종류·판매처를 자동으로 채울 수 있어요.'
-                  : '상품명·종류·판매처를 채워드리고, 가격표가 없으면 현지 예상가를 제안해요.'}
+                  : '상품명·종류·판매처를 채워드려요. 가격표가 보이지 않으면 현지 가격을 직접 확인할 수 있게 안내해요.'}
               </Txt>
               <Txt size={12} color={c.muted}>
                 자동 인식을 위해 선택한 사진이 전송돼요.
@@ -879,7 +886,7 @@ function RequestFormContent() {
               <Txt size={11} color={c.muted}>환율에 따라 결제 전 금액이 달라질 수 있어요.</Txt>
             </View>
           )}
-          {localPriceEstimated && <Txt size={12} color={c.primaryDeep}>AI 예상 현지가예요. 실제 판매가를 확인하고 필요하면 수정해주세요.</Txt>}
+          {localPriceEstimated && <Notice tone="info">AI가 가격표를 확인한 금액이 아니어서 비워뒀어요. 판매 페이지나 가격표를 확인한 뒤 현지가를 직접 입력해주세요.</Notice>}
           {!price && aiFilled && <Txt size={12} color={c.secondary}>사진에서 가격을 확인하지 못했어요. 현지 가격을 직접 입력해주세요.</Txt>}
           <Field
             label="매장·판매처"
