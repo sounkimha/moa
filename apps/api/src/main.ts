@@ -88,8 +88,10 @@ export async function bootstrap() {
     const webDirectory = join(process.cwd(), 'apps', 'mobile', 'dist');
     const adminDirectory = join(process.cwd(), 'apps', 'admin', 'dist');
     const index = join(webDirectory, 'index.html');
+    const webManifest = join(webDirectory, 'manifest.webmanifest');
     const adminIndex = join(adminDirectory, 'index.html');
     if (!existsSync(index)) throw new Error('Web preview build is missing. Run the mobile web export first.');
+    if (!existsSync(webManifest)) throw new Error('PWA manifest is missing. Run the mobile web export first.');
     if (!existsSync(adminIndex)) throw new Error('Admin web build is missing. Run the admin build first.');
     const server = app.getHttpAdapter().getInstance();
     const indexHtml = readFileSync(index, 'utf8');
@@ -103,6 +105,10 @@ export async function bootstrap() {
       res.type('html').send(adminIndexHtml.replace('</head>', `${nonceMeta}</head>`));
     };
     server.get('/index.html', serveIndex);
+    // Explicitly preserve the web-manifest MIME type through the API host.
+    server.get('/manifest.webmanifest', (_req: Request, res: Response) =>
+      res.type('application/manifest+json').sendFile(webManifest),
+    );
     server.use(express.static(webDirectory, { index: false, fallthrough: true }));
     server.get('/admin', serveAdminIndex);
     server.use('/admin', express.static(adminDirectory, { index: false, fallthrough: true }));

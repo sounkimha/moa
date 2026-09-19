@@ -84,7 +84,17 @@ export function Onboarding() {
     Promise.all([supportsBiometric(), hasBiometricLogin()]).then(([supported, saved]) => setBiometricReady(supported && saved));
   }, []);
   return (
-    <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 24, paddingTop: 48, paddingBottom: 32, gap: 28, justifyContent: 'center' }}>
+    <ScrollView
+      contentContainerStyle={{
+        flexGrow: 1,
+        paddingHorizontal: 24,
+        // Keep the entry rhythm consistent with the guide screen: start below the
+        // safe area instead of vertically centering the entire sign-in flow.
+        paddingTop: 48,
+        paddingBottom: 32,
+        gap: 28,
+      }}
+    >
       <Logo size={46} />
       <Stack gap={10}><Txt size={30} weight="800">여행에 취향을 싣다.</Txt><Txt size={15} color={c.secondary}>갖고 싶은 마음과 떠나는 여행이 만나요.</Txt></Stack>
       <Stack gap={12}>

@@ -1,0 +1,31 @@
+{
+  "name": "MOA",
+  "short_name": "MOA",
+  "description": "여행에 취향을 싣다.",
+  "lang": "ko",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F7FAFF",
+  "theme_color": "#0877F9",
+  "icons": [
+    {
+      "src": "/icons/moa-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/moa-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/moa-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
