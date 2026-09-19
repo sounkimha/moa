@@ -82,7 +82,7 @@ with tempfile.TemporaryDirectory(prefix='moa-isolated-ui-') as tmp:
                     page.evaluate('(token)=>sessionStorage.setItem("moa-token",token)', token)
                     def go(route): page.goto(app_url+'/#'+route); page.reload()
                     go('home')
-                    expect(button(page,'도시와 장소 검색')).to_be_visible()
+                    expect(button(page,'상품 매장 지역 검색')).to_be_visible()
                     check_layout(page, 'home-'+str(width), output)
                     go('request-form?placeId=p-station')
                     button(page,'예시 링크로 빠르게 채우기').click()

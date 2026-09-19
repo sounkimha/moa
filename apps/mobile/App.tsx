@@ -17,7 +17,7 @@ import {
 } from 'lucide-react-native';
 import { AppProvider, Screen, useApp } from './src/state/AppContext';
 import { colors as c } from './src/theme/tokens';
-import { Badge, Button, Row, Stack, Txt } from './src/components/ui';
+import { Badge, Button, Row, Sheet, Stack, Txt } from './src/components/ui';
 import { LoadingSkeleton, PageTransition } from './src/components/motion';
 import { Logo } from './src/components/visuals';
 import { CreateScreen, GuideScreen, Home, LoginScreen, Onboarding, PlaceScreen, SearchScreen } from './src/screens/Home';
@@ -101,7 +101,7 @@ const screens: Record<Screen, React.ComponentType> = {
 };
 const tabs: [Screen, string, typeof HomeIcon][] = [
   ['home', '홈', HomeIcon],
-  ['search', '찾아보기', Compass],
+  ['search', '찾기', Compass],
   ['create', '등록', Plus],
   ['trades', '거래', ShoppingBag],
   ['my', 'MY', User],
@@ -130,6 +130,7 @@ function Shell() {
     { width, height } = useWindowDimensions();
   const [entryGuideComplete, setEntryGuideComplete] = React.useState(false);
   const [retrying, setRetrying] = React.useState(false);
+  const [createOpen, setCreateOpen] = React.useState(false);
   const desktop = width >= 1060;
   const Current = screens[a.route.name] || Home;
   useEffect(() => {
@@ -159,7 +160,7 @@ function Shell() {
             accessibilityRole="tab"
             accessibilityLabel={label}
             accessibilityState={{ selected }}
-            onPress={() => name === 'create' ? a.nav(a.role === 'buyer' ? 'request-form' : 'trip-form') : a.tab(name)}
+            onPress={() => name === 'create' ? setCreateOpen(true) : a.tab(name)}
             style={({ pressed }) =>
               vertical
                 ? {
@@ -199,7 +200,7 @@ function Shell() {
               weight={selected ? '700' : '500'}
               color={selected ? c.green : c.secondary}
             >
-              {vertical && name === 'create' ? '새로 등록하기' : name === 'search' ? '둘러보기' : label}
+              {vertical && name === 'create' ? '새로 등록하기' : label}
             </Txt>
           </Pressable>
         );
@@ -319,6 +320,14 @@ function Shell() {
                     <Current />
                   </Boundary>
                 </PageTransition>
+                <Sheet visible={createOpen} title="무엇을 하고 싶으세요?" subtitle="여행과 부탁은 같은 계정에서 언제든 시작할 수 있어요." onClose={() => setCreateOpen(false)}>
+                  <Pressable accessibilityRole="button" accessibilityLabel="물건 부탁하기" onPress={() => { setCreateOpen(false); a.nav('request-form'); }} style={({ pressed }) => ({ minHeight: 88, padding: 16, gap: 5, borderRadius: 18, borderWidth: 1, borderColor: c.primaryTint, backgroundColor: pressed ? c.primarySoft : c.paper })}>
+                    <Row><View style={{ width: 42, height: 42, borderRadius: 14, backgroundColor: c.primarySoft, alignItems: 'center', justifyContent: 'center' }}><ShoppingBag size={21} color={c.primaryStrong} /></View><Stack gap={2} style={{ flex: 1 }}><Txt size={17} weight="700">물건 부탁하기</Txt><Txt size={13} color={c.secondary}>여행 가는 사람에게 원하는 물건을 부탁해요</Txt></Stack><ArrowUpRight size={19} color={c.primaryStrong} /></Row>
+                  </Pressable>
+                  <Pressable accessibilityRole="button" accessibilityLabel="여행 등록하기" onPress={() => { setCreateOpen(false); a.nav('trip-form'); }} style={({ pressed }) => ({ minHeight: 88, padding: 16, gap: 5, borderRadius: 18, borderWidth: 1, borderColor: c.border, backgroundColor: pressed ? c.primarySoft : c.paper })}>
+                    <Row><View style={{ width: 42, height: 42, borderRadius: 14, backgroundColor: c.primarySoft, alignItems: 'center', justifyContent: 'center' }}><Plane size={21} color={c.primaryStrong} /></View><Stack gap={2} style={{ flex: 1 }}><Txt size={17} weight="700">여행 등록하기</Txt><Txt size={13} color={c.secondary}>가는 길에 처리할 부탁과 보상을 찾아드려요</Txt></Stack><ArrowUpRight size={19} color={c.primaryStrong} /></Row>
+                  </Pressable>
+                </Sheet>
                 {!desktop && navigation()}
               </>
             )}

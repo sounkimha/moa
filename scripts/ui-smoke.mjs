@@ -133,13 +133,15 @@ try {
   assert.ok(!document.body.textContent.includes('찾는 물건이 있나요?'), 'Product shortcuts belong in unified search, not a large home card');
   console.log('PASS: app entry → 3-step MOA guide → sign-in');
   await click('등록', 'tab');
+  await expectText('무엇을 하고 싶으세요?');
+  await click('물건 부탁하기');
   await expectText('어떤 물건을 부탁할까요?');
   await click('뒤로');
   await expectText('요즘 떠나는 곳');
   await click('홈', 'tab');
   await expectText('요즘 떠나는 곳');
-  console.log('PASS: buyer role → direct request entry');
-  await click('찾아보기', 'tab');
+  console.log('PASS: buyer role → request entry sheet');
+  await click('찾기', 'tab');
   await expectText('둘러보기');
   for (const label of [
     '도쿄 · 시부야 교차로',
@@ -197,8 +199,8 @@ try {
   await expectText('요즘 떠나는 곳');
   assert.equal(dom.window.location.hash, '#home', 'Back without history must sync the URL');
   console.log('PASS: city-specific photos → previous button → synchronized home URL');
-  await click('도시와 장소 검색');
-  await expectText('상품 찾기');
+  await click('상품 매장 지역 검색');
+  await expectText('어디를 찾고 있나요?');
   await click('사진으로 찾기');
   await click('치이카와 샘플로 인식 체험');
   await expectText('실제 상품·재고 확인 결과는 아니에요.');
@@ -212,7 +214,7 @@ try {
   );
   assert.equal(recognizedName.value, '치이카와 도쿄역 한정 키링');
   await click('뒤로');
-  await expectText('상품 찾기');
+  await expectText('어디를 찾고 있나요?');
   await click('링크 붙여넣기');
   await click('예시 링크로 빠르게 채우기');
   await expectText('예시 정보예요.');
@@ -276,12 +278,12 @@ try {
   await click('MY', 'tab');
   await click('이용 모드 설정');
   await click('여행하기 모드로 전환');
-  await expectText('한 곳에서 한 번에');
+  await expectText('내 동선에서 가까운 부탁');
   // The location bundle is a pressable containing the place name and reward.
   const bundleCard = await wait(
     () =>
       [...document.querySelectorAll('[role="button"]')].find(
-        (e) => e.textContent.includes('시부야 PARCO') && e.textContent.includes('부탁 4건'),
+        (e) => e.textContent.includes('시부야 PARCO') && e.textContent.includes('요청 4건'),
       ),
     'Shibuya bundle card',
   );

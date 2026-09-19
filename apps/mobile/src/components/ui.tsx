@@ -26,8 +26,10 @@ import {
   Info,
   MapPin,
   Package,
+  Plane,
   LucideIcon,
   Search,
+  ShoppingBag,
   X,
 } from 'lucide-react-native';
 import { colors as c, radius, space, typography } from '../theme/tokens';
@@ -115,6 +117,36 @@ export function SectionTabs({ items, value, onChange }: { items: string[]; value
     {items.map((item) => <Pressable key={item} accessibilityRole="tab" accessibilityLabel={item} accessibilityState={{ selected: value === item }} aria-selected={value === item} onPress={() => onChange(item)} style={({ pressed }) => ({ flex: 1, minWidth: 0, minHeight: 44, paddingHorizontal: 8, paddingVertical: 9, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: value === item ? c.paper : 'transparent', opacity: pressed ? 0.7 : 1 })}>
       <Txt size={14} weight={value === item ? '700' : '500'} color={value === item ? c.ink : c.secondary} style={{ textAlign: 'center' }}>{item}</Txt>
     </Pressable>)}
+  </View>;
+}
+
+/** The same role switch appears at the top of entry surfaces instead of duplicating two CTA cards. */
+export function ModeSwitcher({ value, onChange }: { value: 'buyer' | 'traveler'; onChange: (value: 'buyer' | 'traveler') => void }) {
+  const options = [
+    { value: 'buyer' as const, label: '사고 싶어요', detail: '여행자에게 부탁', icon: ShoppingBag },
+    { value: 'traveler' as const, label: '가져올게요', detail: '가는 길에 부탁 받기', icon: Plane },
+  ];
+  return <View accessibilityRole="tablist" style={{ flexDirection: 'row', gap: 8, padding: 4, borderRadius: 16, backgroundColor: c.accentSoft }}>
+    {options.map(({ value: option, label, detail, icon: Icon }) => {
+      const selected = option === value;
+      return <Pressable
+        key={option}
+        accessibilityRole="tab"
+        accessibilityLabel={label}
+        accessibilityState={{ selected }}
+        aria-selected={selected}
+        onPress={() => onChange(option)}
+        style={({ pressed }) => ({ flex: 1, minWidth: 0, minHeight: 56, paddingHorizontal: 12, borderRadius: 12, justifyContent: 'center', backgroundColor: selected ? c.paper : 'transparent', opacity: pressed ? 0.72 : 1 })}
+      >
+        <Row style={{ justifyContent: 'center', gap: 7 }}>
+          <Icon size={18} color={selected ? c.primaryStrong : c.secondary} />
+          <View style={{ minWidth: 0 }}>
+            <Txt size={14} weight={selected ? '700' : '600'} color={selected ? c.ink : c.secondary} lines={1}>{label}</Txt>
+            <Txt size={11} color={c.secondary} lines={1}>{detail}</Txt>
+          </View>
+        </Row>
+      </Pressable>;
+    })}
   </View>;
 }
 
