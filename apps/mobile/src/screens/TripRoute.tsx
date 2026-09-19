@@ -6,6 +6,7 @@ import { useApp } from '../state/AppContext';
 import { TravelerScheduleSheet } from '../components/travel-route';
 import { Badge, Button, Empty, Page, Row, Sheet, Stack, Txt } from '../components/ui';
 import { Avatar } from '../components/visuals';
+import { FlightVerificationMark } from '../components/TripVerificationBadge';
 import { colors as c } from '../theme/tokens';
 
 export function TripRouteScreen() {
@@ -28,7 +29,7 @@ export function TripRouteScreen() {
     <Page title="이 사람의 일정 보기" footer={canRequest ? <Button icon={ShoppingBag} label={`${traveler.nickname}님에게 부탁하기`} onPress={() => setRequestOpen(true)} /> : undefined}>
       <Stack gap={16}>
         <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <Stack gap={8} style={{ flex: 1, minWidth: 0 }}><Txt size={12} color={c.primaryStrong} weight="700">MY TRAVEL PLAN</Txt><Txt size={28} weight="800">{traveler.nickname}님의 여행</Txt><Row style={{ gap: 6 }}><CalendarDays size={16} color={c.secondary} /><Txt size={15} color={c.secondary}>{shortDate(trip.startDate)} — {shortDate(trip.endDate)}</Txt></Row></Stack>
+          <Stack gap={8} style={{ flex: 1, minWidth: 0 }}><Txt size={12} color={c.primaryStrong} weight="700">MY TRAVEL PLAN</Txt><Txt size={28} weight="800">{traveler.nickname}님의 여행</Txt><FlightVerificationMark trip={trip} /><Row style={{ gap: 6 }}><CalendarDays size={16} color={c.secondary} /><Txt size={15} color={c.secondary}>{shortDate(trip.startDate)} — {shortDate(trip.endDate)}</Txt></Row></Stack>
           <Pressable accessibilityRole="button" accessibilityLabel={`${traveler.nickname} 프로필`} onPress={() => a.nav('profile', { id: traveler.id })}><Avatar user={traveler} size={54} /></Pressable>
         </Row>
         <Row style={{ flexWrap: 'wrap', gap: 8 }}><Badge>{TRIP_VERIFICATION_LABEL[trip.verificationStatus]}</Badge><Txt size={12} color={c.secondary}>공개한 여행 계획</Txt></Row>

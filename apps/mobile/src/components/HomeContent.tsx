@@ -1,10 +1,11 @@
 import React from 'react';
 import { Pressable, View } from 'react-native';
-import { Check, ChevronRight, Plane } from 'lucide-react-native';
-import { Place, shortDate, Trip, TRIP_VERIFICATION_LABEL, User } from '@moa/domain';
+import { ChevronRight, Plane } from 'lucide-react-native';
+import { canAcceptTrip, Place, shortDate, Trip, TRIP_VERIFICATION_LABEL, User } from '@moa/domain';
 import { colors as c } from '../theme/tokens';
 import { Row, Stack, Txt } from './ui';
 import { Avatar } from './visuals';
+import { FlightVerificationMark } from './TripVerificationBadge';
 
 /** A quiet, non-animated route shared by the home hero and traveler previews. */
 export function TravelRouteLine({ departure, destination, light = false, accented = false }: {
@@ -52,10 +53,9 @@ export function TravelerPreview({ user, trip, places, distance, onPress, variant
       <Stack gap={12} style={{ flex: 1, minWidth: 0 }}>
         <Stack gap={3}>
           <Txt size={18} weight="700">{user.nickname}</Txt>
-          <Row style={{ gap: 4 }}>
-            <Txt size={12} color={c.secondary} style={{ flexShrink: 1 }}>{trip.verificationStatus === 'DEMO_VERIFIED' ? '여행 일정 인증' : TRIP_VERIFICATION_LABEL[trip.verificationStatus]}</Txt>
-            {trip.verificationStatus === 'DEMO_VERIFIED' && <Check size={13} color={c.secondary} />}
-          </Row>
+          {canAcceptTrip(trip)
+            ? <FlightVerificationMark trip={trip} />
+            : <Txt size={12} color={c.secondary} style={{ flexShrink: 1 }}>{TRIP_VERIFICATION_LABEL[trip.verificationStatus]}</Txt>}
         </Stack>
         <TravelRouteLine accented departure={trip.departureCity} destination={trip.destinationCity} />
         <Stack gap={4}>
@@ -74,7 +74,7 @@ export function TravelerPreview({ user, trip, places, distance, onPress, variant
     <Row style={{ alignItems: 'flex-start', gap: 12 }}>
       <Avatar user={user} size={42} />
       <Stack gap={10} style={{ flex: 1, minWidth: 0 }}>
-        <Row style={{ justifyContent: 'space-between' }}><Txt size={17} weight="600" style={{ flex: 1 }}>{user.nickname}</Txt><ChevronRight size={18} color={c.muted} /></Row>
+        <Row style={{ justifyContent: 'space-between', gap: 8 }}><Row style={{ flex: 1, minWidth: 0, flexWrap: 'wrap', gap: 6 }}><Txt size={17} weight="600" style={{ flexShrink: 1 }}>{user.nickname}</Txt><FlightVerificationMark trip={trip} /></Row><ChevronRight size={18} color={c.muted} /></Row>
         <TravelRouteLine departure={trip.departureCity} destination={trip.destinationCity} />
         <Stack gap={3}>
           <Txt size={14} color={c.secondary}>{shortDate(trip.startDate)} – {shortDate(trip.endDate)}</Txt>
