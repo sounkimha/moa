@@ -442,23 +442,29 @@ test('buyer-prepaid rewards survive selection and file reload', async () => {
   assert.equal(await reloaded.read((db) => db.offers.find((o) => o.id === offer.data.id).reward), 150005);
   assert.equal(await reloaded.read((db) => db.payments.find((p) => p.transactionId === t.id).amount), 199001);
 });
-test('purchase proof accepts either a product photo or receipt while preserving the missing attachment', async () => {
+test('purchase proof requires both the purchased-product photo and receipt', async () => {
   let t = await createMatch();
-  t = await act(t, 'PURCHASE', 'u-min', {
+  assert.equal((await act(t, 'PURCHASE', 'u-min', {
     productImage: '', receiptImage: png, storeName: '예시 매장', purchasedAt: future(5),
+    localAmount: 2420, locationNote: '도쿄역 매장',
+  })).status, 409);
+
+  t = await createMatch();
+  assert.equal((await act(t, 'PURCHASE', 'u-min', {
+    productImage: png, receiptImage: '', storeName: '예시 매장', purchasedAt: future(5),
+    localAmount: 2420, locationNote: '도쿄역 매장',
+  })).status, 409);
+
+  t = await createMatch();
+  t = await act(t, 'PURCHASE', 'u-min', {
+    productImage: png, receiptImage: png, storeName: '예시 매장', purchasedAt: future(5),
     localAmount: 2420, locationNote: '도쿄역 매장',
   });
   assert.equal(t.status, 'PURCHASED');
   const receipt = await app.get(Store).read((db) => db.receipts.find((item) => item.transactionId === t.id));
   assert.equal(receipt.outcome, 'PURCHASED');
-  assert.equal(receipt.productImage, '');
+  assert.equal(receipt.productImage, png);
   assert.equal(receipt.receiptImage, png);
-
-  let missing = await createMatch();
-  assert.equal((await act(missing, 'PURCHASE', 'u-min', {
-    productImage: '', receiptImage: '', storeName: '예시 매장', purchasedAt: future(5),
-    localAmount: 2420, locationNote: '도쿄역 매장',
-  })).status, 409);
 });
 test('out-of-stock evidence cancels the trade, refunds escrow and keeps a retryable visit record', async () => {
   let t = await createMatch();

@@ -581,6 +581,7 @@ export function ReceiptScreen() {
     offer = d.offers.find((o) => o.id === t?.offerId),
     trip = d.trips.find((item) => item.id === offer?.tripId);
   const [outcome, setOutcome] = useState<'PURCHASED' | 'OUT_OF_STOCK'>('PURCHASED'),
+    [purchaseStep, setPurchaseStep] = useState<1 | 2>(1),
     [productImage, setProductImage] = useState(''),
     [receiptImage, setReceiptImage] = useState(''),
     [stockEvidence, setStockEvidence] = useState(''),
@@ -626,15 +627,17 @@ export function ReceiptScreen() {
     );
     if (result) a.nav('transaction', { id: t.id });
   };
-  const upload = (which: 'product' | 'receipt' | 'stock', label: string, value: string) => (
+  const upload = (which: 'product' | 'receipt' | 'stock', label: string, value: string, fullWidth = false) => (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${label} ${value ? '다시 선택' : '올리기'}`}
       onPress={() => pick(which)}
       style={({ pressed }) => ({
-        flex: 1,
+        flex: fullWidth ? undefined : 1,
+        alignSelf: fullWidth ? 'stretch' : undefined,
+        width: fullWidth || which === 'stock' ? '100%' : undefined,
         minWidth: which === 'stock' ? '100%' : 130,
-        height: which === 'stock' ? 170 : 150,
+        height: fullWidth ? 220 : which === 'stock' ? 170 : 150,
         borderRadius: 18,
         borderWidth: value ? 0 : 1,
         borderStyle: 'dashed',
@@ -667,16 +670,16 @@ export function ReceiptScreen() {
   const amountValid = /^\d+(?:\.\d{1,2})?$/.test(amount) && Number.isFinite(Number(amount)) && Number(amount) > 0 && Math.round(Number(amount) * 100) === Math.round(expectedAmount * 100);
   const dateValid = date >= trip.startDate && date <= trip.endDate;
   const detailsValid = storeName.trim().length >= 2 && storeName.trim().length <= 100 && dateValid && location.trim().length >= 2 && location.trim().length <= 150;
-  const valid = detailsValid && (outcome === 'PURCHASED' ? Boolean(productImage || receiptImage) && amountValid : Boolean(stockEvidence && reason) && note.trim().length <= 500);
+  const valid = detailsValid && (outcome === 'PURCHASED' ? Boolean(productImage && receiptImage) && amountValid : Boolean(stockEvidence && reason) && note.trim().length <= 500);
   return (
     <Page
-      title="매장 방문 결과"
+      title={outcome === 'PURCHASED' ? purchaseStep === 1 ? '상품 구매 인증' : '영수증 등록' : '매장 방문 결과'}
       footer={
         <Button
-          label={outcome === 'PURCHASED' ? '구매 인증 보내기' : '구매 불가 알리고 환불하기'}
-          disabled={!valid}
+          label={outcome === 'PURCHASED' ? purchaseStep === 1 ? '다음: 영수증 등록' : '구매 인증 보내기' : '구매 불가 알리고 환불하기'}
+          disabled={outcome === 'PURCHASED' && purchaseStep === 1 ? !productImage : !valid}
           loading={a.busy}
-          onPress={submit}
+          onPress={outcome === 'PURCHASED' && purchaseStep === 1 ? () => setPurchaseStep(2) : submit}
         />
       }
     >
@@ -699,7 +702,10 @@ export function ReceiptScreen() {
               accessibilityLabel={title as string}
               aria-checked={selected}
               accessibilityState={{ selected, checked: selected }}
-              onPress={() => setOutcome(value as typeof outcome)}
+              onPress={() => {
+                setOutcome(value as typeof outcome);
+                if (value === 'PURCHASED') setPurchaseStep(1);
+              }}
               style={{ flex: 1, minHeight: 112, padding: 15, gap: 7, borderRadius: 18, borderWidth: 1.5, borderColor: selected ? c.green : c.border, backgroundColor: selected ? c.mint : c.paper }}
             >
               <ResultIcon size={22} color={selected ? c.green : c.muted} />
@@ -710,21 +716,52 @@ export function ReceiptScreen() {
         })}
       </Row>
       {outcome === 'PURCHASED' ? (
-        <Card>
-          <Stack gap={12}>
-            <Stack gap={3}>
-              <Txt size={18} weight="700">구매 증빙</Txt>
-              <Txt size={13} color={c.secondary}>상품 사진 또는 영수증 중 하나만 올려도 돼요. 둘 다 있으면 함께 남겨주세요.</Txt>
+        <Stack gap={16}>
+          <Row style={{ gap: 8, alignItems: 'center' }}>
+            <Txt size={13} weight="700" color={c.primaryDeep}>1 상품 사진</Txt>
+            <ArrowRight size={14} color={c.muted} />
+            <Txt size={13} weight={purchaseStep === 2 ? '700' : '500'} color={purchaseStep === 2 ? c.primaryDeep : c.secondary}>2 영수증</Txt>
+          </Row>
+          {purchaseStep === 1 ? (
+            <Card>
+              <Stack gap={14}>
+                <Stack gap={4}>
+                  <Txt size={19} weight="700">구매한 상품을 찍어주세요</Txt>
+                  <Txt size={13} color={c.secondary}>상품 전체와 옵션·수량이 보이게 찍으면 구매자가 확인하기 쉬워요.</Txt>
+                </Stack>
+                {upload('product', '상품 사진 올리기', productImage, true)}
+                <Txt size={12} color={productImage ? c.green : c.secondary}>{productImage ? '상품 사진을 확인했어요. 다음에서 영수증을 올려주세요.' : '상품 사진을 먼저 올려주세요.'}</Txt>
+                <Button small kind="ghost" label="체험용 상품 사진 채우기" onPress={() => setProductImage(demoImages.product)} />
+              </Stack>
+            </Card>
+          ) : (
+            <Stack gap={16}>
+              <Card>
+                <Stack gap={14}>
+                  <Stack gap={4}>
+                    <Txt size={19} weight="700">영수증을 올려주세요</Txt>
+                    <Txt size={13} color={c.secondary}>구매 금액과 매장명이 보이게 찍어주세요. 카드번호 등 민감한 정보는 가려도 돼요.</Txt>
+                  </Stack>
+                  {upload('receipt', '영수증 사진 올리기', receiptImage, true)}
+                  <Txt size={12} color={receiptImage ? c.green : c.secondary}>{receiptImage ? '영수증을 확인했어요.' : '영수증 사진을 올려주세요.'}</Txt>
+                  <Row style={{ justifyContent: 'space-between', gap: 8 }}>
+                    <Button small kind="ghost" label="상품 사진 수정" onPress={() => setPurchaseStep(1)} />
+                    <Button small kind="ghost" label="체험용 영수증 채우기" onPress={() => setReceiptImage(demoImages.receipt)} />
+                  </Row>
+                </Stack>
+              </Card>
+              <Card>
+                <Stack gap={14}>
+                  <Field label="구매 매장" value={storeName} onChange={setStoreName} required />
+                  <DateField label="구매일" value={date} onChange={setDate} min={trip.startDate} max={trip.endDate} />
+                  <Field label={`실제 현지 결제금액 (${r.currency})`} value={amount} onChange={(value) => setAmount(value.replace(/[^0-9.]/g, ''))} keyboard="numeric" required error={!amountValid ? `합의된 전체 상품가격 ${expectedAmount.toLocaleString('ko-KR')} ${r.currency}과 달라요. 채팅으로 먼저 확인해주세요.` : undefined} />
+                  <Field label="매장 위치 메모" value={location} onChange={setLocation} required hint="지금은 직접 입력한 위치예요. GPS 확인은 하지 않아요." />
+                </Stack>
+              </Card>
             </Stack>
-            <Row style={{ alignItems: 'flex-start', flexWrap: 'wrap' }}>
-              {upload('product', '상품 사진', productImage)}
-              {upload('receipt', '영수증', receiptImage)}
-            </Row>
-            <Txt size={12} color={productImage || receiptImage ? c.green : c.secondary}>
-              {productImage || receiptImage ? '필수 증빙이 첨부됐어요.' : '사진 1장 이상이 필요해요.'}
-            </Txt>
-          </Stack>
-        </Card>
+          )}
+          <Notice>구매 인증은 상품 사진과 영수증을 모두 받은 뒤 구매자에게 전달돼요. 실제 증빙 사진만 올려주세요.</Notice>
+        </Stack>
       ) : (
         <Stack gap={16}>
           <Notice tone="warning">결제금 전액이 구매자에게 환불되고 이 거래는 종료돼요. 방문 기록은 양쪽 거래 내역에 남아요.</Notice>
@@ -752,27 +789,14 @@ export function ReceiptScreen() {
               {upload('stock', '방문 증빙 사진', stockEvidence)}
             </Stack>
           </Card>
+          <Button small kind="secondary" label="체험용 방문 증빙 채우기" onPress={() => setStockEvidence(demoImages.product)} />
+          <Notice>샘플에는 DEMO 표기가 있어요. 실제 구매나 방문 증빙을 뜻하지 않으며 사진 진위 판독 기능은 아직 연결되지 않았어요.</Notice>
+          <Field label="방문 매장" value={storeName} onChange={setStoreName} required />
+          <DateField label="방문 확인일" value={date} onChange={setDate} min={trip.startDate} max={trip.endDate} />
+          <Field label="매장 위치 메모" value={location} onChange={setLocation} required hint="지금은 직접 입력한 위치예요. GPS 확인은 하지 않아요." />
           <Field label="구매 불가 메모" value={note} onChange={setNote} multiline placeholder="직원이 재입고 일정을 모른다고 안내했어요." hint="선택 사항 · 구매자에게 그대로 보여요." />
         </Stack>
       )}
-      <Button
-        small
-        kind="secondary"
-        label={outcome === 'PURCHASED' ? '체험용 샘플 사진 채우기' : '체험용 방문 증빙 채우기'}
-        onPress={() => {
-          if (outcome === 'PURCHASED') {
-            setProductImage(demoImages.product);
-            setReceiptImage(demoImages.receipt);
-          } else setStockEvidence(demoImages.product);
-        }}
-      />
-      <Notice>샘플에는 DEMO 표기가 있어요. 실제 구매나 방문 증빙을 뜻하지 않으며 사진 진위 판독 기능은 아직 연결되지 않았어요.</Notice>
-      <Field label={outcome === 'PURCHASED' ? '구매 매장' : '방문 매장'} value={storeName} onChange={setStoreName} required />
-      <DateField label={outcome === 'PURCHASED' ? '구매일' : '방문 확인일'} value={date} onChange={setDate} min={trip.startDate} max={trip.endDate} />
-      {outcome === 'PURCHASED' && (
-        <Field label={`실제 현지 결제금액 (${r.currency})`} value={amount} onChange={(value) => setAmount(value.replace(/[^0-9.]/g, ''))} keyboard="numeric" required error={!amountValid ? `합의된 전체 상품가격 ${expectedAmount.toLocaleString('ko-KR')} ${r.currency}과 달라요. 채팅으로 먼저 확인해주세요.` : undefined} />
-      )}
-      <Field label="매장 위치 메모" value={location} onChange={setLocation} required hint="지금은 직접 입력한 위치예요. GPS 확인은 하지 않아요." />
     </Page>
   );
 }

@@ -59,6 +59,22 @@ test('deep links cannot show actionable purchase or receive forms for the wrong 
   assert.match(render(trading.PaymentScreen), /구매자가 결제할 차례예요/);
 });
 
+test('traveler purchase proof starts with the product photo before showing receipt upload', () => {
+  const db = fixture();
+  const transaction = db.transactions[0];
+  const offer = db.offers[0];
+  transaction.status = 'PAYMENT_HELD';
+  transaction.travelerId = offer.travelerId;
+  transaction.offerId = offer.id;
+  transaction.requestId = db.requests[0].id;
+  context.data.me = db.users.find((user) => user.id === offer.travelerId);
+  context.role = 'traveler';
+  const markup = render(trading.ReceiptScreen);
+  assert.match(markup, /구매한 상품을 찍어주세요/);
+  assert.match(markup, /다음: 영수증 등록/);
+  assert.doesNotMatch(markup, /영수증 사진 올리기/);
+});
+
 test('missing request place and missing traveler offer data keep the matching screens usable', () => {
   const db = fixture(); context.route.id = 'r-1'; db.places = [];
   assert.match(render(matching.RequestScreen), /구매 장소를 불러오지 못했어요/);

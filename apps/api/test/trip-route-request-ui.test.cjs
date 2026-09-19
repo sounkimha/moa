@@ -33,6 +33,7 @@ test('a buyer can begin a request from a traveler itinerary with one of that iti
     if (name === 'lucide-react-native') return new Proxy({}, { get: () => () => null });
     if (name.endsWith('/AppContext')) return { useApp: () => app };
     if (name.endsWith('/travel-route')) return { TravelerScheduleSheet: shell };
+    if (name.endsWith('/TripVerificationBadge')) return { FlightVerificationMark: shell };
     if (name.endsWith('/ui')) return ui;
     if (name.endsWith('/visuals')) return { Avatar: shell };
     if (name.endsWith('/tokens')) return { colors: { primaryStrong: '#2563EB', primarySoft: '#EAF3FF', secondary: '#697386', border: '#E7ECF3', paper: '#FFFFFF' } };

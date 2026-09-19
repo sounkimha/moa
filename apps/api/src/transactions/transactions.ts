@@ -269,10 +269,8 @@ export class TransactionsService {
           case 'PURCHASE': {
             traveler();
             at('PAYMENT_HELD');
-            check(
-              Boolean(data.productImage || data.receiptImage),
-              '상품 사진 또는 영수증 중 하나 이상을 첨부해주세요.',
-            );
+            check(Boolean(data.productImage), '구매한 상품 사진을 첨부해주세요.');
+            check(Boolean(data.receiptImage), '결제 영수증 사진을 첨부해주세요.');
             const offer = get(db.offers, t.offerId);
             const trip = get(db.trips, offer.tripId);
             check(
@@ -297,7 +295,7 @@ export class TransactionsService {
               locationNote: data.locationNote,
             });
             t.status = 'PURCHASED';
-            note = '상품 구매를 마쳤어요. 상품 또는 영수증 증빙을 확인해주세요.';
+            note = '상품 구매를 마쳤어요. 상품 사진과 영수증을 확인해주세요.';
             break;
           }
           case 'OUT_OF_STOCK': {

@@ -26,6 +26,11 @@ const content = load('components/HomeContent.tsx', (name) => {
   } };
   if (name === 'lucide-react-native') return new Proxy({}, { get: (_, icon) => ({ color }) => React.createElement('i', { 'data-icon': icon, 'data-color': color }) });
   if (name === '../theme/tokens') return { colors };
+  if (name === './TripVerificationBadge') return {
+    FlightVerificationMark: ({ trip }) => trip?.verificationStatus === 'DEMO_VERIFIED'
+      ? React.createElement('span', null, React.createElement('i', { 'data-icon': 'Plane' }), '항공권 확인 완료')
+      : null,
+  };
   if (name === './ui') return { Row: shell, Stack: shell, Txt: ({ children, size, weight, color }) => React.createElement('span', { 'data-size': size, 'data-weight': weight, 'data-color': color }, children) };
   if (name === './visuals') return { Avatar: ({ size, user }) => React.createElement('div', { 'data-avatar-size': size }, user.initials) };
   return require(name);
@@ -41,7 +46,7 @@ const text = (html) => html.replace(/<[^>]+>/g, '');
 
 test('nearby travelers prioritize name, route, dates and actual stops above distance', () => {
   const html = render(), value = text(html);
-  const labels = ['민트로드', '여행 일정 인증', '서울', '도쿄', '9.22', '시부야 · 마루노우치 방문 예정', '내 위치에서 0.2km'];
+  const labels = ['민트로드', '항공권 확인 완료', '서울', '도쿄', '9.22', '시부야 · 마루노우치 방문 예정', '내 위치에서 0.2km'];
   const positions = labels.map((label) => value.indexOf(label));
   assert.ok(positions.every((position) => position >= 0), value);
   assert.deepEqual(positions, [...positions].sort((a, b) => a - b));
@@ -62,11 +67,10 @@ test('the nearby route has real dot/line/icon Views with secondary departure and
 });
 
 test('only verified demo trips display a check; pending or unverified trips keep their actual status', () => {
-  assert.match(render(), /data-icon="Check"/);
+  assert.match(text(render()), /항공권 확인 완료/);
   for (const status of ['UNVERIFIED', 'PENDING_REVIEW', 'NEEDS_REVIEW']) {
     const html = render({ trip: { ...base.trip, verificationStatus: status } });
-    assert.doesNotMatch(html, /data-icon="Check"/);
-    assert.doesNotMatch(text(html), /여행 일정 인증/);
+    assert.doesNotMatch(text(html), /항공권 확인 완료/);
   }
 });
 

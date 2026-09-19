@@ -359,13 +359,16 @@ try {
   };
   await switchTransactionAccount('민트로드');
   await click('상품 구매 인증하기');
-  await expectText('매장 방문 결과');
+  await expectText('상품 구매 인증');
   await click('구매하지 못했어요', 'radio');
   await expectText('결제금 전액이 구매자에게 환불');
   await expectText('환불 전 구매자와 상의하기');
   await expectText('구매 불가 알리고 환불하기');
   await click('구매했어요', 'radio');
-  await click('체험용 샘플 사진 채우기');
+  await click('체험용 상품 사진 채우기');
+  await click('다음: 영수증 등록');
+  await expectText('영수증을 올려주세요');
+  await click('체험용 영수증 채우기');
   await click('구매 인증 보내기');
   await expectText('구매를 마쳤어요');
   await click('전달 준비 시작하기');
