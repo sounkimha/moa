@@ -58,16 +58,16 @@ test('eligible demo trip gets a distinct flight confirmation mark', () => {
   const { trip } = fixture();
   const html = render(badge.TripVerificationBadge, { trip, travelerName: '민트로드' });
   assert.match(html, /data-icon="BadgeCheck"/);
-  assert.match(html, /항공권 확인 완료/);
-  assert.match(html, /aria-label="민트로드 · 항공권 확인 완료 안내"/);
+  assert.match(html, /항공권 인증/);
+  assert.match(html, /aria-label="민트로드 · 항공권 인증 안내"/);
 });
 
 test('compact traveler mark shows the flight icon only for the associated active trip', () => {
   const { trip } = fixture();
   const verified = render(badge.FlightVerificationMark, { trip });
   assert.match(verified, /data-icon="Plane"/);
-  assert.match(verified, /항공권 확인 완료/);
-  assert.doesNotMatch(render(badge.FlightVerificationMark, { trip: { ...trip, verificationStatus: 'PENDING_REVIEW' } }), /항공권 확인 완료/);
+  assert.match(verified, /항공권 인증/);
+  assert.doesNotMatch(render(badge.FlightVerificationMark, { trip: { ...trip, verificationStatus: 'PENDING_REVIEW' } }), /항공권 인증/);
 });
 
 test('OCR matches, pending review and recheck never earn a completed verification mark', () => {
@@ -77,14 +77,14 @@ test('OCR matches, pending review and recheck never earn a completed verificatio
   ]) {
     const html = render(badge.TripVerificationBadge, { trip: { ...trip, verificationStatus, flightProof: { itineraryMatches: true } } });
     assert.match(html, new RegExp(label));
-    assert.doesNotMatch(html, /BadgeCheck|항공권 확인 완료/);
+    assert.doesNotMatch(html, /BadgeCheck|항공권 인증/);
   }
 });
 
 test('missing, expired, unknown and non-fixture trips never get a positive mark', () => {
   const { trip } = fixture();
   for (const candidate of [undefined, { ...trip, endDate: '2000-01-01' }, { ...trip, verificationStatus: 'UNKNOWN' }, { ...trip, id: 'another-trip' }]) {
-    assert.doesNotMatch(render(badge.TripVerificationBadge, { trip: candidate }), /BadgeCheck|항공권 확인 완료/);
+    assert.doesNotMatch(render(badge.TripVerificationBadge, { trip: candidate }), /BadgeCheck|항공권 인증/);
   }
 });
 

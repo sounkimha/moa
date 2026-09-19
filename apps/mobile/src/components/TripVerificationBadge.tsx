@@ -10,7 +10,7 @@ function badgeContent(trip?: Trip) {
   // final verification, and the public snapshot intentionally omits flightProof.
   if (canAcceptTrip(trip)) return {
     verified: true, pending: false,
-    label: '항공권 확인 완료',
+    label: '항공권 인증',
     title: '왕복 항공권 확인 완료',
     description: '이 여행 일정의 왕복 항공권 인증을 보여주는 체험용 마크예요. 실제 항공사 발권이나 탑승 여부를 확인한 인증은 아니에요.',
   };
@@ -53,7 +53,7 @@ export function FlightVerificationMark({ trip }: { trip?: Trip }) {
     style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 24, paddingHorizontal: 7, borderRadius: 8, backgroundColor: c.primarySoft, flexShrink: 1 }}
   >
     <View style={{ width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: c.primaryStrong }}><Plane size={10} color={c.onPrimary} /></View>
-    <Txt size={11} weight="700" color={c.primaryStrong} lines={1}>항공권 확인 완료</Txt>
+    <Txt size={11} weight="700" color={c.primaryStrong} lines={1}>항공권 인증</Txt>
   </View>;
 }
 
