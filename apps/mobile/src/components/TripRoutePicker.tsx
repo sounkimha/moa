@@ -86,35 +86,47 @@ export function TripRoutePicker({ country, areas, onChange }: {
 
 export function TripStopPicker({ country, areas, catalog, placeIds, customStops, onChange }: {
   country: Country; areas: string[]; catalog: Place[]; placeIds: string[]; customStops: string[];
-  onChange: (placeIds: string[], customStops: string[]) => void;
+  onChange: (placeIds: string[], customStops: string[], areas?: string[]) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [draftPlaces, setDraftPlaces] = useState(placeIds);
   const [draftStops, setDraftStops] = useState(customStops);
-  const options = TRIP_AREAS[country].filter((area) => areas.includes(area.name));
+  const [draftAreas, setDraftAreas] = useState(areas);
+  const options = TRIP_AREAS[country].filter((area) => draftAreas.includes(area.name));
   const selectedNames = [...catalog.filter((place) => placeIds.includes(place.id)).map((place) => place.name), ...customStops.map((stop) => stop.split(' · ').slice(1).join(' · '))];
   const needle = query.trim().toLocaleLowerCase('ko-KR');
+  // Searching must work before a traveler has chosen a city. A matching place
+  // adds its city/island to the draft so the saved stop remains part of the trip.
+  const searchableAreas = needle ? TRIP_AREAS[country] : options;
+  const addArea = (name: string) => setDraftAreas((current) => current.includes(name) || current.length >= 8 ? current : [...current, name]);
   let resultCount = 0;
   return <>
-    <Pressable accessibilityRole="button" accessibilityLabel="방문 예정지 선택" aria-expanded={open} onPress={() => { setDraftPlaces(placeIds); setDraftStops(customStops); setQuery(''); setOpen(true); }}
+    <Pressable accessibilityRole="button" accessibilityLabel="방문 예정지 선택" aria-expanded={open} onPress={() => { setDraftPlaces(placeIds); setDraftStops(customStops); setDraftAreas(areas); setQuery(''); setOpen(true); }}
       style={({ pressed }) => ({ minHeight: 90, padding: 18, borderWidth: 1, borderStyle: selectedNames.length ? 'solid' : 'dashed', borderColor: selectedNames.length ? c.primaryTint : c.border, borderRadius: 18, backgroundColor: selectedNames.length ? c.primarySoft : c.paper, flexDirection: 'row', alignItems: 'center', gap: 14, opacity: pressed ? 0.65 : 1 })}>
       <MapPin size={23} color={c.primary} /><View style={{ flex: 1, gap: 5 }}><Txt size={15} weight="700" lines={2}>{selectedNames.length ? `${selectedNames.slice(0, 2).join(' · ')}${selectedNames.length > 2 ? ` 외 ${selectedNames.length - 2}곳` : ''}` : '매장·동네 찾아보기'}</Txt><Txt size={12} color={c.secondary}>{selectedNames.length ? `${selectedNames.length}곳 · 이 근처 부탁을 모아드려요` : '정해진 곳만 골라도 좋아요'}</Txt></View><Plus size={20} color={c.green} />
     </Pressable>
     <Sheet visible={open} title="어디에 들르세요?" subtitle="실제로 방문할 곳만 선택해주세요." onClose={() => setOpen(false)}
-      footer={<Button label={draftPlaces.length + draftStops.length ? `${draftPlaces.length + draftStops.length}곳을 일정에 저장` : '방문지는 나중에 정할게요'} onPress={() => { onChange(draftPlaces, draftStops); setOpen(false); }} />}>
+      footer={<Button label={draftPlaces.length + draftStops.length ? `${draftPlaces.length + draftStops.length}곳을 일정에 저장` : '방문지는 나중에 정할게요'} onPress={() => { onChange(draftPlaces, draftStops, draftAreas); setOpen(false); }} />}>
       <SearchField label="방문 예정지 검색" value={query} onChange={setQuery} placeholder="매장이나 동네를 검색해보세요" />
-      {options.map((area) => {
-        const known = catalog.filter((place) => place.country === country && place.city === area.name && `${area.name} ${place.name}`.toLocaleLowerCase('ko-KR').includes(needle));
+      {!!needle && !areas.length && <Txt size={12} color={c.secondary}>검색 결과를 고르면 해당 도시나 섬도 여행 일정에 함께 추가돼요.</Txt>}
+      {searchableAreas.map((area) => {
+        const known = catalog.filter((place) => place.country === country && place.city === area.name && `${area.name} ${place.city} ${place.region} ${place.name} ${place.englishName} ${place.tags.join(' ')}`.toLocaleLowerCase('ko-KR').includes(needle));
         const stops = area.stops.filter((stop) => `${area.name} ${stop}`.toLocaleLowerCase('ko-KR').includes(needle) && !known.some((place) => place.name === stop));
         resultCount += known.length + stops.length;
         if (!known.length && !stops.length) return null;
         const row = (key: string, name: string, subtitle: string, selected: boolean, isCatalog: boolean) => {
-          const disabled = !selected && (isCatalog ? draftPlaces.length >= 12 : draftStops.length >= 8);
+          const requiresArea = !draftAreas.includes(area.name);
+          const capacityFull = isCatalog ? draftPlaces.length >= 12 : draftStops.length >= 8;
+          const disabled = !selected && (capacityFull || (requiresArea && draftAreas.length >= 8));
           const place = isCatalog ? catalog.find((candidate) => candidate.id === key) : undefined;
           const photo = place && getPlacePhoto(place);
           return <Pressable key={key} accessibilityRole="checkbox" accessibilityLabel={`${name} 방문`} accessibilityState={{ checked: selected, disabled }} aria-checked={selected} aria-disabled={disabled} disabled={disabled}
-            onPress={() => isCatalog ? setDraftPlaces(selected ? draftPlaces.filter((id) => id !== key) : [...draftPlaces, key]) : setDraftStops(selected ? draftStops.filter((stop) => stop !== key) : [...draftStops, key])}
+            onPress={() => {
+              if (isCatalog) setDraftPlaces(selected ? draftPlaces.filter((id) => id !== key) : [...draftPlaces, key]);
+              else setDraftStops(selected ? draftStops.filter((stop) => stop !== key) : [...draftStops, key]);
+              if (!selected) addArea(area.name);
+            }}
             style={{ paddingVertical: 16, flexDirection: 'row', alignItems: 'center', gap: 14, opacity: disabled ? 0.4 : 1 }}>
             {photo ? <Image source={photo.source} style={{ width: 52, height: 52, borderRadius: 12 }} resizeMode="cover" /> : <View style={{ width: 52, height: 52, borderRadius: 12, backgroundColor: c.primarySoft, alignItems: 'center', justifyContent: 'center' }}><MapPin size={19} color={selected ? c.green : c.muted} /></View>}<View style={{ flex: 1, gap: 4 }}><Txt size={15} weight="600">{name}</Txt><Txt size={12} color={c.secondary}>{subtitle}</Txt></View>
             <View style={{ width: 23, height: 23, borderRadius: 8, borderWidth: selected ? 0 : 1.5, borderColor: c.border, backgroundColor: selected ? c.green : 'transparent', alignItems: 'center', justifyContent: 'center' }}>{selected && <Check size={16} color="white" />}</View>
@@ -125,7 +137,7 @@ export function TripStopPicker({ country, areas, catalog, placeIds, customStops,
           {stops.map((stop) => { const key = `${area.name} · ${stop}`; return row(key, stop, `${area.name} · ${stop}`, draftStops.includes(key), false); })}
         </View>;
       })}
-      {!resultCount && <View style={{ gap: 6, paddingVertical: 32 }}><Txt weight="600">{areas.length ? '검색 결과가 없어요' : '도시나 섬을 먼저 골라주세요'}</Txt><Txt size={13} color={c.secondary}>{areas.length ? '가까운 동네 이름으로 다시 찾아보세요.' : '세부 여행지를 고르면 방문할 곳을 찾을 수 있어요.'}</Txt></View>}
+      {!resultCount && <View style={{ gap: 6, paddingVertical: 32 }}><Txt weight="600">{needle || areas.length ? '검색 결과가 없어요' : '도시나 섬을 먼저 고르거나 검색해보세요'}</Txt><Txt size={13} color={c.secondary}>{needle || areas.length ? '매장, 동네 또는 가까운 도시 이름으로 다시 찾아보세요.' : '검색으로 모든 도시와 섬의 방문지를 바로 찾을 수 있어요.'}</Txt></View>}
     </Sheet>
   </>;
 }

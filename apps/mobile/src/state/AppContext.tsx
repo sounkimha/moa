@@ -416,7 +416,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (attempt !== authAttempt.current || generation !== session.current) return false;
       await refreshAfterAuth();
       if (attempt !== authAttempt.current || generation !== session.current || !actor.current) return false;
-      if (result.defaultRole) setRole(result.defaultRole);
+      // Roles belong to one MOA account and are chosen before sign-in. Demo
+      // account metadata must not silently undo that choice after login.
       if (!saved) notify(persistence.biometric
         ? '로그인했지만 생체 인증 설정을 완료하지 못했어요. 다음에는 비밀번호로 로그인해주세요.'
         : '로그인했어요. 저장 공간을 사용할 수 없어 새로고침하면 다시 로그인해야 해요.');

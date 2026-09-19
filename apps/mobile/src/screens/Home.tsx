@@ -563,13 +563,18 @@ export function PlaceScreen() {
   </Page>;
 }
 export function CreateScreen() {
-  return <Page title="무엇을 할까요?" back={false}><CreateActions /></Page>;
+  const a = useApp();
+  return <Page title={a.role === 'buyer' ? '부탁 등록' : '여행 등록'} back={false}><CreateActions /></Page>;
 }
 export function CreateActions({ onChoose }: { onChoose?: () => void }) {
   const a = useApp();
+  const action = a.role === 'buyer'
+    ? { title: '부탁 등록', body: '사고 싶은 상품을 부탁해요', label: '구매 요청 등록', screen: 'request-form' as const, icon: ShoppingBag, bg: c.primarySoft }
+    : { title: '여행 등록', body: '가는 김에 부탁을 받아요', label: '여행 일정 등록', screen: 'trip-form' as const, icon: Plane, bg: c.ultraSoft };
+  const Icon = action.icon;
   return <Stack gap={12}>
-    {([{ title: '부탁 등록', body: '사고 싶은 상품을 부탁해요', label: '구매 요청 등록', screen: 'request-form', icon: ShoppingBag, bg: c.primarySoft }, { title: '여행 등록', body: '가는 김에 부탁을 받아요', label: '여행 일정 등록', screen: 'trip-form', icon: Plane, bg: c.ultraSoft }] as const).map(({ title, body, label, screen, icon: Icon, bg }) => <Pressable key={screen} accessibilityRole="button" accessibilityLabel={label} onPress={() => { onChoose?.(); a.nav(screen); }} style={({ pressed }) => ({ minHeight: 98, padding: 18, borderRadius: 18, backgroundColor: bg, opacity: pressed ? 0.8 : 1 })}>
-      <Row style={{ alignItems: 'flex-start' }}><View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.paper, justifyContent: 'center', alignItems: 'center' }}><Icon size={24} color={c.primaryStrong} /></View><Stack gap={6} style={{ flex: 1 }}><Txt size={19} weight="700">{title}</Txt><Txt size={13} color={c.secondary}>{body}</Txt></Stack><ChevronRight size={18} color={c.primaryStrong} /></Row>
-    </Pressable>)}
+    <Pressable accessibilityRole="button" accessibilityLabel={action.label} onPress={() => { onChoose?.(); a.nav(action.screen); }} style={({ pressed }) => ({ minHeight: 98, padding: 18, borderRadius: 18, backgroundColor: action.bg, opacity: pressed ? 0.8 : 1 })}>
+      <Row style={{ alignItems: 'flex-start' }}><View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.paper, justifyContent: 'center', alignItems: 'center' }}><Icon size={24} color={c.primaryStrong} /></View><Stack gap={6} style={{ flex: 1 }}><Txt size={19} weight="700">{action.title}</Txt><Txt size={13} color={c.secondary}>{action.body}</Txt></Stack><ChevronRight size={18} color={c.primaryStrong} /></Row>
+    </Pressable>
   </Stack>;
 }

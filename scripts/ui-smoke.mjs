@@ -133,20 +133,12 @@ try {
   assert.ok(!document.body.textContent.includes('찾는 물건이 있나요?'), 'Product shortcuts belong in unified search, not a large home card');
   console.log('PASS: app entry → 3-step MOA guide → sign-in');
   await click('등록', 'tab');
-  await expectText('사고 싶은 상품을 부탁해요');
-  await click('여행 일정 등록');
-  await expectText('어디로 떠나세요?');
-  await click('뒤로');
-  await expectText('요즘 떠나는 곳');
-  await click('등록', 'tab');
-  await expectText('사고 싶은 상품을 부탁해요');
-  await click('구매 요청 등록');
   await expectText('어떤 물건을 부탁할까요?');
   await click('뒤로');
   await expectText('요즘 떠나는 곳');
   await click('홈', 'tab');
   await expectText('요즘 떠나는 곳');
-  console.log('PASS: + chooser → trip entry → request entry');
+  console.log('PASS: buyer role → direct request entry');
   await click('찾아보기', 'tab');
   await expectText('둘러보기');
   for (const label of [

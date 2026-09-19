@@ -1246,7 +1246,7 @@ function TripFormContent() {
         <DateRangePicker start={start} end={end} min={future(0)} onChange={(nextStart, nextEnd) => { setStart(nextStart); setEnd(nextEnd); setError(''); }} />
       </View>
       <View style={{ gap: 8 }}><Row style={{ justifyContent: 'space-between' }}><Txt size={19} weight="700">들를 곳도 정해졌나요?</Txt><Txt size={12} color={c.muted}>선택</Txt></Row>
-        <TripStopPicker country={country} areas={areas} catalog={d.places} placeIds={places} customStops={customStops} onChange={(ids, stops) => { setPlaces(ids); setCustomStops(stops); }} />
+        <TripStopPicker country={country} areas={areas} catalog={d.places} placeIds={places} customStops={customStops} onChange={(ids, stops, nextAreas) => { setPlaces(ids); setCustomStops(stops); if (nextAreas) setAreas(nextAreas); }} />
       </View>
       <Divider />
       <Row style={{ justifyContent: 'space-between', gap: 12 }}><View style={{ flex: 1, gap: 5 }}><Txt size={16} weight="700">가져올 수 있는 수량</Txt><Txt size={12} color={c.secondary}>짐과 일정에 맞게 정해주세요.</Txt></View><Row style={{ gap: 8 }}><IconButton icon={Minus} label="여행 상품 수량 줄이기" onPress={() => setCapacity(String(Math.max(1, Number(capacity) - 1)))} /><Txt size={23} weight="800">{capacity}</Txt><IconButton icon={Plus} label="여행 상품 수량 늘리기" onPress={() => setCapacity(String(Math.min(20, Number(capacity) + 1)))} /></Row></Row>

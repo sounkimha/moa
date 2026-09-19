@@ -17,10 +17,10 @@ import {
 } from 'lucide-react-native';
 import { AppProvider, Screen, useApp } from './src/state/AppContext';
 import { colors as c } from './src/theme/tokens';
-import { Badge, Button, Row, Sheet, Stack, Txt } from './src/components/ui';
+import { Badge, Button, Row, Stack, Txt } from './src/components/ui';
 import { LoadingSkeleton, PageTransition } from './src/components/motion';
 import { Logo } from './src/components/visuals';
-import { CreateActions, CreateScreen, GuideScreen, Home, LoginScreen, Onboarding, PlaceScreen, SearchScreen } from './src/screens/Home';
+import { CreateScreen, GuideScreen, Home, LoginScreen, Onboarding, PlaceScreen, SearchScreen } from './src/screens/Home';
 import { RequestForm } from './src/screens/Forms';
 import { SignupScreen } from './src/screens/Signup';
 import { NearbyProvider } from './src/nearby/NearbyProvider';
@@ -129,7 +129,6 @@ function Shell() {
   const a = useApp(),
     { width, height } = useWindowDimensions();
   const [entryGuideComplete, setEntryGuideComplete] = React.useState(false);
-  const [creationOpen, setCreationOpen] = React.useState(false);
   const [retrying, setRetrying] = React.useState(false);
   const desktop = width >= 1060;
   const Current = screens[a.route.name] || Home;
@@ -160,7 +159,7 @@ function Shell() {
             accessibilityRole="tab"
             accessibilityLabel={label}
             accessibilityState={{ selected }}
-            onPress={() => name === 'create' ? setCreationOpen(true) : a.tab(name)}
+            onPress={() => name === 'create' ? a.nav(a.role === 'buyer' ? 'request-form' : 'trip-form') : a.tab(name)}
             style={({ pressed }) =>
               vertical
                 ? {
@@ -321,7 +320,6 @@ function Shell() {
                   </Boundary>
                 </PageTransition>
                 {!desktop && navigation()}
-                <Sheet visible={creationOpen} title="무엇을 할까요?" onClose={() => setCreationOpen(false)}><CreateActions onChoose={() => setCreationOpen(false)} /></Sheet>
               </>
             )}
             {!!a.toast && (
