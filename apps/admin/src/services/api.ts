@@ -14,7 +14,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const adminApi = {
   me: () => request<{ admin: AdminIdentity; mode: string }>('/me'),
-  login: (email: string, password: string, code: string) => request<{ admin: AdminIdentity; mode: string }>('/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, password, code }) }),
+  login: (username: string, password: string) => request<{ admin: AdminIdentity; mode: string }>('/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ username, password }) }),
   logout: () => request<{ ok: boolean }>('/logout', { method: 'POST' }),
   dashboard: () => request<DashboardData>('/dashboard'),
   transactions: (params: URLSearchParams) => request<TransactionList>(`/transactions?${params.toString()}`),

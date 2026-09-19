@@ -3,19 +3,12 @@ const assert = require('node:assert/strict');
 const { mkdtemp, rm } = require('node:fs/promises');
 const { tmpdir } = require('node:os');
 const path = require('node:path');
-const { randomBytes, scryptSync, createHmac } = require('node:crypto');
+const { randomBytes, scryptSync } = require('node:crypto');
 const { Store } = require('../dist/infrastructure/store');
 const { quote } = require('@moa/domain');
 
 let app, url, temp, todayPaymentAmount;
 const password = 'Only-for-admin-tests-2026!';
-const secret = randomBytes(20).toString('hex');
-function code() {
-  const counter = Buffer.alloc(8);
-  counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30000)));
-  const digest = createHmac('sha1', Buffer.from(secret, 'hex')).update(counter).digest();
-  return String((digest.readUInt32BE(digest[digest.length - 1] & 15) & 0x7fffffff) % 1000000).padStart(6, '0');
-}
 async function call(route, { method = 'GET', body, cookie, origin, bearer } = {}) {
   const response = await fetch(url + '/api/admin' + route, {
     method,
@@ -26,7 +19,7 @@ async function call(route, { method = 'GET', body, cookie, origin, bearer } = {}
 }
 async function login(role) {
   process.env.ADMIN_ROLE = role;
-  const response = await call('/login', { method: 'POST', origin: url, body: { email: 'admin@moa.test', password, code: code() } });
+  const response = await call('/login', { method: 'POST', origin: url, body: { username: 'admin-test', password } });
   assert.equal(response.status, 201);
   assert.ok(response.cookie?.startsWith('moa_admin='));
   return response.cookie;
@@ -36,8 +29,7 @@ before(async () => {
   process.env.DATA_FILE = path.join(temp, 'state.json');
   process.env.PORT = '0';
   process.env.QUIET = '1';
-  process.env.ADMIN_EMAIL = 'admin@moa.test';
-  process.env.ADMIN_TOTP_SECRET = secret;
+  process.env.ADMIN_USERNAME = 'admin-test';
   process.env.ADMIN_ROLE = 'CUSTOMER_SUPPORT';
   const salt = randomBytes(16).toString('hex');
   process.env.ADMIN_PASSWORD_SCRYPT = `${salt}:${scryptSync(password, Buffer.from(salt, 'hex'), 64).toString('hex')}`;
@@ -78,25 +70,9 @@ test('user token and missing admin session cannot access admin records', async (
   assert.equal((await call('/transactions/tx-shipping-case')).status, 401);
   assert.equal((await call('/conversations', { bearer: user.token })).status, 401);
 });
-test('login requires same origin and a valid TOTP', async () => {
-  assert.equal((await call('/login', { method: 'POST', body: { email: 'admin@moa.test', password, code: code() } })).status, 403);
-  assert.equal((await call('/login', { method: 'POST', origin: url, body: { email: 'admin@moa.test', password, code: '000000' } })).status, 401);
-});
-test('fixed code is available only in local development mode', async () => {
-  const originalSecret = process.env.ADMIN_TOTP_SECRET;
-  const originalNodeEnv = process.env.NODE_ENV;
-  process.env.ADMIN_DEV_CODE = '123456';
-  delete process.env.ADMIN_TOTP_SECRET;
-  try {
-    assert.equal((await call('/login', { method: 'POST', origin: url, body: { email: 'admin@moa.test', password, code: '123456' } })).status, 201);
-    process.env.NODE_ENV = 'production';
-    assert.equal((await call('/login', { method: 'POST', origin: url, body: { email: 'admin@moa.test', password, code: '123456' } })).status, 503);
-  } finally {
-    process.env.ADMIN_TOTP_SECRET = originalSecret;
-    if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
-    else process.env.NODE_ENV = originalNodeEnv;
-    delete process.env.ADMIN_DEV_CODE;
-  }
+test('login requires same origin and valid ID/password credentials', async () => {
+  assert.equal((await call('/login', { method: 'POST', body: { username: 'admin-test', password } })).status, 403);
+  assert.equal((await call('/login', { method: 'POST', origin: url, body: { username: 'admin-test', password: 'not-the-password' } })).status, 401);
 });
 test('shipping inquiry finds the transaction and its evidence without exposing money to CS', async () => {
   const cookie = await login('CUSTOMER_SUPPORT');

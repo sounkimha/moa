@@ -1,5 +1,5 @@
 export type AdminRole = 'SUPER_ADMIN' | 'OPERATIONS' | 'CUSTOMER_SUPPORT' | 'FINANCE' | 'VIEWER';
-export type AdminIdentity = { email: string; role: AdminRole };
+export type AdminIdentity = { username: string; role: AdminRole };
 export type Issue = 'ALL' | 'PAYMENT_WAIT' | 'PURCHASE_DELAY' | 'RETURN_DELAY' | 'SHIPPING_DELAY' | 'SETTLEMENT_DELAY' | 'DISPUTED';
 export type TransactionRow = {
   id: string; createdAt: string; status: string; statusLabel: string; issue: Issue;

@@ -71,26 +71,24 @@ function useRequest<T>(load: () => Promise<T>, deps: unknown[]) {
 }
 
 function Login({ onLogin }: { onLogin: (admin: AdminIdentity) => void }) {
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const submit = async (event: React.FormEvent) => {
     event.preventDefault(); setBusy(true); setError('');
-    try { onLogin((await adminApi.login(email, password, code)).admin); }
+    try { onLogin((await adminApi.login(username, password)).admin); }
     catch (cause) { setError((cause as Error).message); }
     finally { setBusy(false); }
   };
   return <div className="login-wrap"><div className="login-card">
     <div className="login-brand"><div className="brand-mark">M</div><div><strong>MOA Admin</strong><span>운영 콘솔</span></div></div>
-    <div className="login-heading"><p className="eyebrow">SECURE ACCESS</p><h1>운영자 로그인</h1><p>일반 사용자 계정과 분리된 운영자 계정으로 접속합니다.</p></div>
+    <div className="login-heading"><p className="eyebrow">ADMIN ACCESS</p><h1>관리자 로그인</h1><p>일반 사용자 계정과 분리된 운영자 계정으로 접속합니다.</p></div>
     <form onSubmit={submit} className="login-form">
-      <label>관리자 이메일<input type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
+      <label>관리자 아이디<input autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} required /></label>
       <label>비밀번호<input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
-      <label>인증 앱 6자리 코드<input inputMode="numeric" pattern="[0-9]{6}" maxLength={6} autoComplete="one-time-code" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, ''))} required /></label>
       {error && <div className="inline-error" role="alert"><AlertCircle size={16} />{error}</div>}
-      <button className="button primary" type="submit" disabled={busy}>{busy ? '확인 중…' : '운영 콘솔 열기'}<ArrowRight size={16} /></button>
+      <button className="button primary" type="submit" disabled={busy}>{busy ? '로그인 중…' : '로그인'}<ArrowRight size={16} /></button>
     </form>
     <p className="login-foot">모의 거래 데이터 · 읽기 전용 · 중요 조회와 조치에는 관리자 권한이 적용됩니다.</p>
   </div></div>;
@@ -121,7 +119,7 @@ function Shell({ admin, location, navigate, onLogout, children }: { admin: Admin
       </div>
       <div className="sidebar-bottom"><div className="read-only"><Activity size={15} /><span>읽기 전용 운영 환경</span></div><button className="collapse" onClick={() => setCollapsed(!collapsed)} aria-label={collapsed ? '메뉴 펼치기' : '메뉴 접기'}><Menu size={18} /><span>{collapsed ? '펼치기' : '메뉴 접기'}</span></button></div>
     </aside>
-    <div className="workspace"><header className="topbar"><form className="global-search" onSubmit={onSearch}><Search size={18} /><input aria-label="전체 거래 검색" placeholder="거래번호, 요청번호, 닉네임, 상품명, 운송장 검색" value={globalSearch} onChange={(event) => setGlobalSearch(event.target.value)} /><kbd>↵</kbd></form><div className="top-actions"><span className="readonly-pill">DEMO · READ ONLY</span><button className="icon-button" title="알림 센터는 다음 단계에서 연결됩니다" disabled><Bell size={18} /></button><div className="profile"><div className="avatar">{admin.email.slice(0, 1).toUpperCase()}</div><div><strong>{admin.email}</strong><small>{roleLabel[admin.role]}</small></div><ChevronDown size={14} /></div><button className="icon-button" onClick={onLogout} aria-label="로그아웃" title="로그아웃"><LogOut size={18} /></button></div></header><main className="main">{children}</main></div>
+    <div className="workspace"><header className="topbar"><form className="global-search" onSubmit={onSearch}><Search size={18} /><input aria-label="전체 거래 검색" placeholder="거래번호, 요청번호, 닉네임, 상품명, 운송장 검색" value={globalSearch} onChange={(event) => setGlobalSearch(event.target.value)} /><kbd>↵</kbd></form><div className="top-actions"><span className="readonly-pill">DEMO · READ ONLY</span><button className="icon-button" title="알림 센터는 다음 단계에서 연결됩니다" disabled><Bell size={18} /></button><div className="profile"><div className="avatar">{admin.username.slice(0, 1).toUpperCase()}</div><div><strong>{admin.username}</strong><small>{roleLabel[admin.role]}</small></div><ChevronDown size={14} /></div><button className="icon-button" onClick={onLogout} aria-label="로그아웃" title="로그아웃"><LogOut size={18} /></button></div></header><main className="main">{children}</main></div>
   </div>;
 }
 

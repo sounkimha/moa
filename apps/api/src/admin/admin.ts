@@ -3,17 +3,17 @@ import {
   Post, Query, Req, Res, UnauthorizedException, UseGuards,
   CanActivate, ExecutionContext, ServiceUnavailableException,
 } from '@nestjs/common';
-import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { Database, Payment, Status, STATUS_LABEL, Transaction } from '@moa/domain';
 import { Store } from '../infrastructure/store';
 
 type AdminRole = 'SUPER_ADMIN' | 'OPERATIONS' | 'CUSTOMER_SUPPORT' | 'FINANCE' | 'VIEWER';
-type AdminIdentity = { email: string; role: AdminRole };
+type AdminIdentity = { username: string; role: AdminRole };
 type AdminRequest = Request & { admin: AdminIdentity };
 const roles: AdminRole[] = ['SUPER_ADMIN', 'OPERATIONS', 'CUSTOMER_SUPPORT', 'FINANCE', 'VIEWER'];
-const loginSchema = z.object({ email: z.string().email().max(200), password: z.string().min(1).max(200), code: z.string().regex(/^\d{6}$/) }).strict();
+const loginSchema = z.object({ username: z.string().trim().min(3).max(40).regex(/^[a-zA-Z0-9._-]+$/), password: z.string().min(1).max(200) }).strict();
 const listSchema = z.object({
   q: z.string().trim().max(120).default(''),
   status: z.string().default('ALL'),
@@ -41,18 +41,6 @@ function verifyPassword(password: string, encoded: string) {
   if (!salt || !expected || !/^[a-f0-9]{32}$/i.test(salt) || !/^[a-f0-9]{128}$/i.test(expected)) return false;
   return sameText(scryptSync(password, Buffer.from(salt, 'hex'), 64).toString('hex'), expected);
 }
-function totp(secret: string, period: number) {
-  const counter = Buffer.alloc(8);
-  counter.writeBigUInt64BE(BigInt(period));
-  const digest = createHmac('sha1', Buffer.from(secret, 'hex')).update(counter).digest();
-  const offset = digest[digest.length - 1] & 15;
-  return String((digest.readUInt32BE(offset) & 0x7fffffff) % 1_000_000).padStart(6, '0');
-}
-function verifyTotp(code: string, secret: string) {
-  if (!/^[a-f0-9]{40,}$/i.test(secret) || secret.length % 2) return false;
-  const period = Math.floor(Date.now() / 30000);
-  return [-1, 0, 1].some((offset) => sameText(code, totp(secret, period + offset)));
-}
 function cookieValue(request: Request, name: string) {
   const pair = (request.headers.cookie || '').split(';').map((value) => value.trim()).find((value) => value.startsWith(`${name}=`));
   return pair?.slice(name.length + 1) || '';
@@ -74,8 +62,7 @@ export class AdminSessions {
   private readonly sessions = new Map<string, { identity: AdminIdentity; expires: number }>();
   private readonly attempts = new Map<string, { count: number; until: number }>();
   configured() {
-    return Boolean(process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD_SCRYPT &&
-      (process.env.ADMIN_TOTP_SECRET || (process.env.NODE_ENV !== 'production' && /^\d{6}$/.test(process.env.ADMIN_DEV_CODE || ''))));
+    return Boolean(process.env.ADMIN_USERNAME && process.env.ADMIN_PASSWORD_SCRYPT);
   }
   login(request: Request, body: unknown) {
     if (!this.configured()) throw new ServiceUnavailableException('관리자 계정이 아직 설정되지 않았습니다.');
@@ -85,12 +72,9 @@ export class AdminSessions {
     const now = Date.now();
     const prior = this.attempts.get(ip);
     if (prior && prior.until > now && prior.count >= 5) throw new ForbiddenException('로그인 시도 횟수를 초과했습니다. 15분 뒤 다시 시도해주세요.');
-    const { email, password, code } = parsed.data;
-    const devCodeValid = process.env.NODE_ENV !== 'production' && /^\d{6}$/.test(process.env.ADMIN_DEV_CODE || '') &&
-      sameText(code, process.env.ADMIN_DEV_CODE || '');
-    const ok = sameText(email.toLowerCase(), (process.env.ADMIN_EMAIL || '').toLowerCase()) &&
-      verifyPassword(password, process.env.ADMIN_PASSWORD_SCRYPT || '') &&
-      (devCodeValid || verifyTotp(code, process.env.ADMIN_TOTP_SECRET || ''));
+    const { username, password } = parsed.data;
+    const ok = sameText(username, process.env.ADMIN_USERNAME || '') &&
+      verifyPassword(password, process.env.ADMIN_PASSWORD_SCRYPT || '');
     if (!ok) {
       this.attempts.set(ip, { count: prior && prior.until > now ? prior.count + 1 : 1, until: now + 15 * 60000 });
       throw new UnauthorizedException('관리자 로그인 정보를 확인해주세요.');
@@ -98,7 +82,7 @@ export class AdminSessions {
     this.attempts.delete(ip);
     const role = roles.includes(process.env.ADMIN_ROLE as AdminRole) ? process.env.ADMIN_ROLE as AdminRole : 'VIEWER';
     const token = randomBytes(32).toString('base64url');
-    const identity = { email, role };
+    const identity = { username, role };
     this.sessions.set(token, { identity, expires: now + 8 * 3600000 });
     return { token, identity };
   }
