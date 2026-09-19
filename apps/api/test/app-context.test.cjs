@@ -102,7 +102,7 @@ test('denied session storage still allows an in-memory login and immediate logou
   } finally { await app.close(); }
 });
 
-test('credential login keeps the mode selected before sign-in and preserves login preferences', async () => {
+test('credential login opens the test account in its configured role and preserves login preferences', async () => {
   const calls = [];
   const app = await harness({ intercept: (url, body) => {
     if (url === '/auth/test') { calls.push(body); return { token: 'token-u-haru', defaultRole: 'traveler' }; }
@@ -111,7 +111,7 @@ test('credential login keeps the mode selected before sign-in and preserves logi
     assert.equal(await app.run((a) => a.testLogin('haru', 'DemoPass1!', false, { remember: true, biometric: false })), true);
     assert.deepEqual(calls, [{ username: 'haru', password: 'DemoPass1!', reset: false }]);
     assert.equal(app.current.data.me.id, 'u-haru');
-    assert.equal(app.current.role, 'buyer');
+    assert.equal(app.current.role, 'traveler');
     assert.equal(app.dom.window.localStorage.getItem('moa-token'), 'token-u-haru');
     await app.run((a) => a.logout());
     assert.equal(app.dom.window.localStorage.getItem('moa-token'), null);

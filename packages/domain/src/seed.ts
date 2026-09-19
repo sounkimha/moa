@@ -463,3 +463,91 @@ export function seedDatabase(now = new Date()): Database {
     commands: [],
   };
 }
+
+/**
+ * A deliberately empty starting point for the shared MVP environment.
+ *
+ * Catalog places remain available to search, but all user-generated records
+ * (trips, requests, chats, payments, and trust claims) start clean.  This is
+ * intentionally separate from `seedDatabase`, whose rich fixture is used by
+ * automated product-flow tests.
+ */
+export function cleanTestDatabase(now = new Date()): Database {
+  const fixture = seedDatabase(now);
+  const createdAt = now.toISOString();
+  const accounts: Array<[string, string, string, string, string]> = [
+    ['u-buyer-01', '구매자 01', '구', '#EAF2FF', '원하는 물건을 찾아 부탁해요.'],
+    ['u-buyer-02', '구매자 02', '구', '#FCE8E4', '여행지의 특별한 물건을 찾고 있어요.'],
+    ['u-buyer-03', '구매자 03', '구', '#FFF0F5', '가고 싶은 곳의 부탁을 남겨요.'],
+    ['u-traveler-01', '여행자 01', '여', '#DFEED6', '가는 길에 부탁을 함께 가져와요.'],
+    ['u-traveler-02', '여행자 02', '여', '#E6DFF6', '여행 동선에 맞는 부탁을 찾아요.'],
+    ['u-traveler-03', '여행자 03', '여', '#F7E4BD', '방문하는 곳의 부탁을 꼼꼼히 확인해요.'],
+  ];
+  const users: User[] = accounts.map(([id, nickname, initials, avatarColor, bio]) => ({
+    id,
+    createdAt,
+    nickname,
+    initials,
+    avatarColor,
+    bio,
+    profileCompleted: true,
+    completed: 0,
+    successRate: null,
+    responseMinutes: 0,
+    lastActive: createdAt,
+    verificationLabels: [],
+  }));
+  const paymentMethods = users.map((user) => ({
+    id: `payment-${user.id}-card`,
+    createdAt,
+    userId: user.id,
+    type: 'CARD' as const,
+    provider: 'MOCK_CARD' as const,
+    label: '체험 카드',
+    isDefault: true,
+    status: 'DEMO_ONLY' as const,
+  }));
+  const wallets = users.map((user) => ({
+    id: `wallet-${user.id}`,
+    createdAt,
+    userId: user.id,
+    availableBalance: 0,
+    pendingBalance: 0,
+    withdrawalPending: 0,
+    currency: 'KRW' as const,
+    mode: 'DEMO' as const,
+  }));
+  return {
+    ...fixture,
+    users,
+    authIdentities: [],
+    addresses: [],
+    verifications: [],
+    trips: [],
+    destinations: [],
+    requests: [],
+    offers: [],
+    bundles: [],
+    transactions: [],
+    paymentMethods,
+    payments: [],
+    requestFundings: [],
+    escrows: [],
+    receipts: [],
+    shipments: [],
+    rooms: [],
+    messages: [],
+    reviews: [],
+    notifications: [],
+    payouts: [],
+    wallets,
+    walletTransactions: [],
+    payoutAccounts: [],
+    withdrawals: [],
+    disputes: [],
+    favorites: [],
+    searches: [],
+    events: [],
+    commands: [],
+  };
+}

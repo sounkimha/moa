@@ -3,7 +3,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { Pool, PoolClient } from 'pg';
 import { Database } from '@moa/domain';
-import { seedDatabase } from '@moa/domain/dist/seed';
+import { cleanTestDatabase, seedDatabase } from '@moa/domain/dist/seed';
 import { migrateLegacyDelivery } from './delivery-migration';
 
 function migratePrepayment(db: Database) {
@@ -29,13 +29,16 @@ function addMissingDestinationPlaces(db: Database) {
 }
 function hydrateTrustAndFinance(db: Database) {
   const defaults = seedDatabase();
+  const activeUsers = new Set(db.users.map((user) => user.id));
   let changed = false;
   for (const key of ['authIdentities', 'paymentMethods', 'wallets', 'walletTransactions', 'payoutAccounts'] as const) {
-    for (const row of defaults[key])
+    for (const row of defaults[key]) {
+      if (!activeUsers.has((row as { userId: string }).userId)) continue;
       if (!db[key].some((saved) => saved.id === row.id)) {
         db[key].push(row as never);
         changed = true;
       }
+    }
   }
   for (const account of db.payoutAccounts) {
     if (account.bankName !== '모아은행 · 데모') continue;
@@ -129,7 +132,7 @@ export class Store implements OnModuleDestroy {
         }
       } catch (e) {
         if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
-        this.db = seedDatabase();
+        this.db = process.env.MOA_CLEAN_TEST_SEED === '1' ? cleanTestDatabase() : seedDatabase();
       }
     }
     return this.db!;
@@ -178,6 +181,16 @@ export class Store implements OnModuleDestroy {
     });
     this.tail = job.catch(() => undefined);
     await job;
+  }
+  /**
+   * Destructive MVP-only reset used by the server-side reset command. It keeps
+   * the searchable catalog but removes every user-generated record and recreates
+   * only the six documented test accounts.
+   */
+  async resetCleanTestData() {
+    await this.transaction((db) => {
+      Object.assign(db, cleanTestDatabase());
+    });
   }
   async transaction<T>(fn: (db: Database) => T): Promise<T> {
     if (this.pool) {

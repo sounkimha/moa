@@ -18,19 +18,19 @@ export const registrationSchema = z.object({ username: usernameSchema, password:
 }).strict();
 
 const demoPasswordHash = 'ffcaaabfead29c4d47e2e5c68a91a687a0ea2a93927654eb4b6b786d9ea495bc';
+/** Shared-password MVP accounts. The raw password is never returned by the API. */
+export const testAccounts = [
+  { username: 'buyer01', userId: 'u-buyer-01', role: 'buyer' as const },
+  { username: 'buyer02', userId: 'u-buyer-02', role: 'buyer' as const },
+  { username: 'buyer03', userId: 'u-buyer-03', role: 'buyer' as const },
+  { username: 'traveler01', userId: 'u-traveler-01', role: 'traveler' as const },
+  { username: 'traveler02', userId: 'u-traveler-02', role: 'traveler' as const },
+  { username: 'traveler03', userId: 'u-traveler-03', role: 'traveler' as const },
+] as const;
 export function demoAccounts() {
-  return [
-    { username: (process.env.MOA_TEST_USERNAME || 'wasabi').trim().toLowerCase(), userId: 'u-me', role: 'buyer' as const,
-      passwordHash: process.env.MOA_TEST_PASSWORD_SHA256 || demoPasswordHash },
-    ...[
-      { username: 'mintroad', userId: 'u-min' },
-      { username: 'haru', userId: 'u-haru' },
-      { username: 'joon', userId: 'u-joon' },
-    ].map((account) => ({ ...account, role: 'traveler' as const,
-      passwordHash: process.env.MOA_TRAVELER_TEST_PASSWORD_SHA256 || demoPasswordHash })),
-  ];
+  return testAccounts.map((account) => ({ ...account, passwordHash: demoPasswordHash }));
 }
-export const reservedUsername = (username: string) => username === 'wasabi' || demoAccounts().some((account) => account.username === username);
+export const reservedUsername = (username: string) => demoAccounts().some((account) => account.username === username);
 export function verifyDemoPassword(password: string, hash: string) {
   if (!/^[a-f0-9]{64}$/i.test(hash)) return false;
   return timingSafeEqual(createHash('sha256').update(password).digest(), Buffer.from(hash, 'hex'));

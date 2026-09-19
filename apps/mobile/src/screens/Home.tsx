@@ -117,7 +117,7 @@ function LoginOption({ selected, disabled, label, detail, icon: Icon, onPress }:
 /** Credential login lives on its own screen so the onboarding page stays short and calm. */
 export function LoginScreen() {
   const a = useApp();
-  const [username, setUsername] = useState('wasabi');
+  const [username, setUsername] = useState('buyer01');
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(true);
   const [biometric, setBiometric] = useState(false);

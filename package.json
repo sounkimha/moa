@@ -22,6 +22,7 @@
     "test:ui": "npm run build -w @moa/domain && npm run build -w @moa/api && npm run export -w @moa/mobile && node scripts/ui-smoke.mjs",
     "test:browser": "npm run build && python3 scripts/browser-audit.py",
     "test:redesign": "npm run build && python3 scripts/redesign-audit.py",
+    "test-data:reset": "npm run build -w @moa/domain && npm run build -w @moa/api && node scripts/reset-test-data.mjs",
     "db:migrate": "node scripts/migrate.mjs",
     "reset": "node scripts/reset.mjs"
   },

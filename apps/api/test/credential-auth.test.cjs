@@ -24,21 +24,29 @@ async function isolated(run) {
 const demoPassword = 'h112828!';
 const signup = { username: 'new_traveler', nickname: '새 여행자', password: 'Travel123!' };
 
-test('traveler passwords open the existing accounts and never reset another account or its session', () => isolated(async () => {
+test('six fixed test accounts open clean buyer/traveler identities without resetting another session', () => isolated(async () => {
   const store = new Store(), sessions = new Sessions(), auth = new AuthController(sessions, store);
+  await store.resetCleanTestData();
   const before = await store.read((db) => ({ trips: db.trips, requests: db.requests }));
-  const buyer = await auth.test({ username: 'wasabi', password: demoPassword });
-  for (const [username, id, nickname] of [['mintroad', 'u-min', '민트로드'], ['haru', 'u-haru', '하루'], ['joon', 'u-joon', '준의 여행']]) {
+  const clean = await store.read((db) => ({ users: db.users, places: db.places.length, requests: db.requests.length, trips: db.trips.length, transactions: db.transactions.length, messages: db.messages.length }));
+  assert.equal(clean.users.length, 6);
+  assert.deepEqual(clean.users.map((user) => user.id), ['u-buyer-01', 'u-buyer-02', 'u-buyer-03', 'u-traveler-01', 'u-traveler-02', 'u-traveler-03']);
+  assert.ok(clean.places > 0);
+  assert.deepEqual({ requests: clean.requests, trips: clean.trips, transactions: clean.transactions, messages: clean.messages }, { requests: 0, trips: 0, transactions: 0, messages: 0 });
+  const buyer = await auth.test({ username: 'buyer01', password: demoPassword });
+  assert.equal(buyer.defaultRole, 'buyer');
+  assert.equal(sessions.resolve(buyer.token), 'u-buyer-01');
+  for (const [username, id, nickname] of [['traveler01', 'u-traveler-01', '여행자 01'], ['traveler02', 'u-traveler-02', '여행자 02'], ['traveler03', 'u-traveler-03', '여행자 03']]) {
     const result = await auth.test({ username, password: demoPassword, reset: true });
     assert.equal(result.resetApplied, false);
     assert.equal(result.defaultRole, 'traveler');
     assert.equal(sessions.resolve(result.token), id);
     assert.equal(await store.read((db) => db.users.find((user) => user.id === id).nickname), nickname);
-    assert.equal(sessions.resolve(buyer.token), 'u-me');
+    assert.equal(sessions.resolve(buyer.token), 'u-buyer-01');
   }
   assert.deepEqual(await store.read((db) => ({ trips: db.trips, requests: db.requests })), before);
-  assert.equal(sessions.resolve((await auth.login({ username: ' MINTROAD ', password: demoPassword })).token), 'u-min');
-  for (const username of ['mintroad', 'joon', 'unknown'])
+  assert.equal(sessions.resolve((await auth.login({ username: ' TRAVELER01 ', password: demoPassword })).token), 'u-traveler-01');
+  for (const username of ['traveler01', 'traveler03', 'unknown'])
     await assert.rejects(auth.login({ username, password: 'WrongPass1!' }), (error) => error.getStatus() === 401);
 }));
 
@@ -62,7 +70,7 @@ test('registration persists a salted credential, re-login survives a new Store, 
   const freshSessions = new Sessions(), freshAuth = new AuthController(freshSessions, new Store());
   const returning = await freshAuth.login({ username: ' NEW_TRAVELER ', password: signup.password });
   assert.equal(freshSessions.resolve(returning.token), userId);
-  for (const username of ['NEW_TRAVELER', 'wasabi', 'mintroad', 'haru', 'joon'])
+  for (const username of ['NEW_TRAVELER', 'buyer01', 'buyer02', 'buyer03', 'traveler01', 'traveler02', 'traveler03'])
     await assert.rejects(auth.register({ ...signup, username }), (error) => error.getStatus() === 409);
   for (const input of [{ username: 'ab' }, { username: 'bad id' }, { nickname: '나' }, { password: 'short1!' }, { password: '12345678!' }, { password: 'Abcdefgh!' }, { password: 'Abcdefg1 ' }, { role: 'admin' }])
     await assert.rejects(auth.register({ ...signup, ...input }), (error) => error.getStatus() === 400);
@@ -85,6 +93,7 @@ test('concurrent case-insensitive signup creates exactly one member', () => isol
 test('HTTP signup/login/snapshot/logout connect end to end without exposing credentials', () => isolated(async () => {
   const { bootstrap } = require('../dist/main');
   const app = await bootstrap();
+  await app.get(Store).resetCleanTestData();
   const origin = `http://127.0.0.1:${app.getHttpServer().address().port}/api`;
   const request = async (route, body, token) => {
     const response = await fetch(origin + route, { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
@@ -105,10 +114,10 @@ test('HTTP signup/login/snapshot/logout connect end to end without exposing cred
       assert.equal(login.status, 201);
       assert.equal((await request('/snapshot', undefined, login.body.token)).body.me.id, snapshot.body.me.id);
     }
-    const traveler = await request('/auth/test', { username: 'haru', password: demoPassword });
+    const traveler = await request('/auth/test', { username: 'traveler01', password: demoPassword });
     const trip = await request('/snapshot', undefined, traveler.body.token);
-    assert.equal(trip.body.me.id, 'u-haru');
-    assert.ok(trip.body.trips.some((item) => item.travelerId === 'u-haru'));
+    assert.equal(trip.body.me.id, 'u-traveler-01');
+    assert.equal(trip.body.trips.length, 0);
     assert.equal((await request('/auth/register', signup)).status, 409);
   } finally { await app.close(); }
 }));

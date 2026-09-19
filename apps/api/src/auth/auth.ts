@@ -109,7 +109,7 @@ export class AuthController {
     const { userId, provider, reset } = parse(
       z
         .object({
-          userId: z.enum(['u-me', 'u-min', 'u-haru', 'u-joon', 'u-sora']).default('u-me'),
+          userId: z.enum(['u-me', 'u-min', 'u-haru', 'u-joon', 'u-sora', 'u-buyer-01', 'u-buyer-02', 'u-buyer-03', 'u-traveler-01', 'u-traveler-02', 'u-traveler-03']).default('u-me'),
           provider: z.enum(['DEMO', 'PHONE', 'APPLE', 'GOOGLE', 'KAKAO', 'NAVER']).default('DEMO'),
           reset: z.boolean().default(false),
         })

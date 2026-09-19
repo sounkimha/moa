@@ -416,8 +416,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (attempt !== authAttempt.current || generation !== session.current) return false;
       await refreshAfterAuth();
       if (attempt !== authAttempt.current || generation !== session.current || !actor.current) return false;
-      // Roles belong to one MOA account and are chosen before sign-in. Demo
-      // account metadata must not silently undo that choice after login.
+      // Test accounts open in the role they were created for. The mode switch
+      // remains available afterwards because a MOA account can use both roles.
+      if (result.defaultRole === 'buyer' || result.defaultRole === 'traveler') setRole(result.defaultRole);
       if (!saved) notify(persistence.biometric
         ? '로그인했지만 생체 인증 설정을 완료하지 못했어요. 다음에는 비밀번호로 로그인해주세요.'
         : '로그인했어요. 저장 공간을 사용할 수 없어 새로고침하면 다시 로그인해야 해요.');
@@ -517,7 +518,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const switchActor = async (id: string) => {
     const ok = await login('DEMO', id);
     if (ok) {
-      setRole(id === 'u-me' ? 'buyer' : 'traveler');
+      setRole(id === 'u-me' || id.startsWith('u-buyer-') ? 'buyer' : 'traveler');
       notify('체험 계정을 바꿨어요.');
     }
     return ok;

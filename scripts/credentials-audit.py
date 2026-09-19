@@ -26,7 +26,7 @@ def inspect(page, name, output):
 
 with tempfile.TemporaryDirectory(prefix='moa-credential-state-') as tmp:
     output = Path(tempfile.mkdtemp(prefix='moa-credential-qa-'))
-    env = dict(os.environ, DATA_FILE=tmp+'/accounts.json', PORT='0', QUIET='1')
+    env = dict(os.environ, DATA_FILE=tmp+'/accounts.json', PORT='0', QUIET='1', MOA_CLEAN_TEST_SEED='1')
     for key in ['DATABASE_URL','MOA_TEST_USERNAME','MOA_TEST_PASSWORD_SHA256','MOA_TRAVELER_TEST_PASSWORD_SHA256','MOA_SERVE_WEB']: env.pop(key, None)
     static = ThreadingHTTPServer(('127.0.0.1', 0), partial(QuietStatic, directory=str(ROOT/'apps/mobile/dist')))
     threading.Thread(target=static.serve_forever, daemon=True).start()
@@ -67,7 +67,7 @@ with tempfile.TemporaryDirectory(prefix='moa-credential-state-') as tmp:
                     fill_signup('qa_traveler', confirmation='Different123!')
                     button(page,'가입하고 시작하기').click()
                     expect(page.get_by_text('비밀번호가 일치하지 않아요. 다시 확인해주세요.', exact=True)).to_be_visible()
-                    fill_signup('mintroad')
+                    fill_signup('traveler01')
                     button(page,'가입하고 시작하기').click()
                     expect(page.get_by_test_id('signup-scroll').get_by_text('이미 사용 중인 아이디예요. 다른 아이디를 입력해주세요.', exact=True)).to_be_visible()
                     expect(page.get_by_text('연결을 다시 확인해주세요.', exact=True)).to_have_count(0)
@@ -75,7 +75,7 @@ with tempfile.TemporaryDirectory(prefix='moa-credential-state-') as tmp:
                     button(page,'가입하고 시작하기').click()
                     expect(page.get_by_test_id('home-scroll')).to_be_visible()
                     member = snapshots[-1]
-                    assert member not in ['u-me','u-min','u-haru','u-joon']
+                    assert member not in ['u-buyer-01','u-buyer-02','u-buyer-03','u-traveler-01','u-traveler-02','u-traveler-03']
                     assert page.evaluate('localStorage.getItem("moa-token")') is None
                     inspect(page, 'signup-success', output)
                     def logout():
@@ -89,7 +89,7 @@ with tempfile.TemporaryDirectory(prefix='moa-credential-state-') as tmp:
                     button(page,'로그인하기').click()
                     expect(page.get_by_text('아이디 또는 비밀번호를 확인해주세요.', exact=True).first).to_be_visible()
                     expect(page.get_by_text('연결을 다시 확인해주세요.', exact=True)).to_have_count(0)
-                    for username, password, expected in [('qa_traveler','Travel123!',member),('mintroad','h112828!','u-min'),('haru','h112828!','u-haru'),('joon','h112828!','u-joon')]:
+                    for username, password, expected in [('qa_traveler','Travel123!',member),('buyer01','h112828!','u-buyer-01'),('buyer02','h112828!','u-buyer-02'),('buyer03','h112828!','u-buyer-03'),('traveler01','h112828!','u-traveler-01'),('traveler02','h112828!','u-traveler-02'),('traveler03','h112828!','u-traveler-03')]:
                         page.get_by_label('아이디', exact=True).fill(username)
                         page.get_by_label('비밀번호', exact=True).fill(password)
                         button(page,'로그인하기').click()
