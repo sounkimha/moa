@@ -24,6 +24,11 @@ const listSchema = z.object({
   page: z.coerce.number().int().min(1).max(100000).default(1),
   size: z.coerce.number().int().min(1).max(100).default(20),
 }).strict();
+const conversationListSchema = z.object({
+  q: z.string().trim().max(120).default(''),
+  page: z.coerce.number().int().min(1).max(100000).default(1),
+  size: z.coerce.number().int().min(1).max(100).default(20),
+}).strict();
 const validStatuses = new Set<Status>(['REQUESTED', 'OFFER_RECEIVED', 'MATCHED', 'PAYMENT_HELD', 'PURCHASED', 'TRAVELING', 'SHIPPED', 'DELIVERED', 'CONFIRMED', 'SETTLED', 'CANCELLED', 'DISPUTED']);
 
 function sameText(a: string, b: string) {
@@ -158,6 +163,30 @@ function rowFor(db: Database, transaction: Transaction, role: AdminRole) {
     amounts: moneyAccess(role) ? { productPrice: transaction.productPrice, travelerReward: transaction.travelerReward, platformFee: transaction.platformFee, shippingFee: transaction.shippingFee, totalPrice: transaction.totalPrice } : null,
   };
 }
+function conversationRowFor(db: Database, room: Database['rooms'][number]) {
+  const transaction = db.transactions.find((item) => item.id === room.transactionId);
+  const request = transaction && db.requests.find((item) => item.id === transaction.requestId);
+  const messages = db.messages
+    .filter((item) => item.roomId === room.id)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const lastMessage = messages[0];
+  return {
+    id: room.id,
+    createdAt: room.createdAt,
+    transactionId: room.transactionId,
+    transactionStatus: transaction?.status || 'UNKNOWN',
+    productName: request?.productName || '상품 정보 없음',
+    buyer: user(db, room.buyerId),
+    traveler: user(db, room.travelerId),
+    messageCount: messages.length,
+    lastMessage: lastMessage ? {
+      createdAt: lastMessage.createdAt,
+      sender: user(db, lastMessage.senderId),
+      text: lastMessage.system ? '시스템 안내 메시지' : lastMessage.text,
+      system: lastMessage.system,
+    } : null,
+  };
+}
 
 type SeoulDate = { year: number; month: number; day: number };
 type PeriodPaymentSource = Pick<Payment, 'createdAt' | 'status' | 'amount'>;
@@ -272,6 +301,54 @@ export class AdminController {
       }
       rows.sort((a, b) => filter.sort === 'created_asc' ? a.createdAt.localeCompare(b.createdAt) : filter.sort === 'amount_desc' ? (b.amounts?.totalPrice || 0) - (a.amounts?.totalPrice || 0) : filter.sort === 'amount_asc' ? (a.amounts?.totalPrice || 0) - (b.amounts?.totalPrice || 0) : b.createdAt.localeCompare(a.createdAt));
       return { total: rows.length, page: filter.page, size: filter.size, rows: rows.slice((filter.page - 1) * filter.size, filter.page * filter.size) };
+    });
+  }
+
+  /**
+   * Conversation content is deliberately limited to support-facing roles. It
+   * is read-only and can only be reached after the existing TOTP admin login.
+   * Finance and viewer roles keep their least-privilege access to transaction
+   * records without private chat content.
+   */
+  @UseGuards(AdminGuard) @Get('conversations') conversations(@Req() request: AdminRequest, @Query() raw: Record<string, unknown>) {
+    if (!supportAccess(request.admin.role)) throw new ForbiddenException('대화 내용은 고객 지원 권한에서만 확인할 수 있습니다.');
+    const parsed = conversationListSchema.safeParse(raw);
+    if (!parsed.success) throw new BadRequestException('검색 조건을 확인해주세요.');
+    const filter = parsed.data;
+    return this.store.read((db) => {
+      let rows = db.rooms.map((room) => conversationRowFor(db, room));
+      if (filter.q) {
+        const needle = filter.q.toLocaleLowerCase();
+        // Do not make message bodies globally searchable in the operations
+        // console. Operators can inspect a selected support case instead.
+        rows = rows.filter((row) => [
+          row.id, row.transactionId, row.productName,
+          row.buyer.id, row.buyer.nickname, row.traveler.id, row.traveler.nickname,
+        ].some((value) => value.toLocaleLowerCase().includes(needle)));
+      }
+      rows.sort((a, b) => (b.lastMessage?.createdAt || b.createdAt).localeCompare(a.lastMessage?.createdAt || a.createdAt));
+      return { total: rows.length, page: filter.page, size: filter.size, rows: rows.slice((filter.page - 1) * filter.size, filter.page * filter.size) };
+    });
+  }
+
+  @UseGuards(AdminGuard) @Get('conversations/:id') conversation(@Req() request: AdminRequest, @Param('id') id: string) {
+    if (!supportAccess(request.admin.role)) throw new ForbiddenException('대화 내용은 고객 지원 권한에서만 확인할 수 있습니다.');
+    return this.store.read((db) => {
+      const room = db.rooms.find((item) => item.id === id);
+      if (!room) throw new NotFoundException('대화 세션을 찾을 수 없습니다.');
+      const row = conversationRowFor(db, room);
+      return {
+        ...row,
+        messages: db.messages.filter((item) => item.roomId === room.id)
+          .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+          .map((item) => ({
+            id: item.id,
+            createdAt: item.createdAt,
+            sender: user(db, item.senderId),
+            text: item.text,
+            system: item.system,
+          })),
+      };
     });
   }
 

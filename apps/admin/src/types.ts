@@ -24,6 +24,21 @@ export type DashboardData = {
   recent: TransactionRow[];
 };
 export type TransactionList = { total: number; page: number; size: number; rows: TransactionRow[] };
+export type ConversationRow = {
+  id: string;
+  createdAt: string;
+  transactionId: string;
+  transactionStatus: string;
+  productName: string;
+  buyer: Person;
+  traveler: Person;
+  messageCount: number;
+  lastMessage: null | { createdAt: string; sender: Person; text: string; system: boolean };
+};
+export type ConversationList = { total: number; page: number; size: number; rows: ConversationRow[] };
+export type ConversationDetail = ConversationRow & {
+  messages: { id: string; createdAt: string; sender: Person; text: string; system: boolean }[];
+};
 export type TimelineEntry = { id: string; createdAt: string; type: string; from: string | null; to: string | null; actor: Person; note: string; source: string };
 export type TransactionDetail = TransactionRow & {
   estimatedDeliveryDate: string; buyerFacingStatus: string; travelerFacingStatus: string;

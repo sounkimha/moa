@@ -89,6 +89,107 @@
   padding-top: 12px;
 }
 
+.conversation-notice {
+  border-color: #f0dfbc;
+  background: #fffaf0;
+  color: #795c2d;
+}
+
+.conversation-table td small .status {
+  margin-right: 5px;
+  vertical-align: middle;
+}
+
+.conversation-table td small .clamp {
+  display: inline-block;
+  max-width: 180px;
+  vertical-align: middle;
+}
+
+.conversation-heading .button {
+  flex-shrink: 0;
+}
+
+.conversation-thread {
+  max-width: 920px;
+}
+
+.conversation-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+  min-height: 260px;
+  max-height: min(68vh, 720px);
+  overflow: auto;
+  background: #f8fafc;
+}
+
+.conversation-message {
+  width: min(76%, 620px);
+}
+
+.conversation-message.buyer {
+  align-self: flex-start;
+}
+
+.conversation-message.traveler {
+  align-self: flex-end;
+}
+
+.conversation-message.system {
+  align-self: center;
+  width: min(88%, 650px);
+}
+
+.conversation-message-meta {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 3px 5px;
+  color: #7e8ca0;
+  font-size: 10px;
+}
+
+.conversation-message.traveler .conversation-message-meta {
+  justify-content: flex-end;
+}
+
+.conversation-message-meta strong {
+  color: #405670;
+}
+
+.conversation-message-meta time {
+  color: #9aa6b5;
+}
+
+.conversation-message p {
+  margin: 0;
+  padding: 11px 13px;
+  border: 1px solid #e3e9f0;
+  border-radius: 9px;
+  background: #fff;
+  color: #344b66;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.conversation-message.traveler p {
+  border-color: #cce3ff;
+  background: #eaf4ff;
+}
+
+.conversation-message.system p {
+  padding: 8px 11px;
+  border-style: dashed;
+  background: #f3f5f8;
+  color: #78879a;
+  font-size: 11px;
+  text-align: center;
+}
+
 @media (max-width: 860px) {
   .period-transaction-grid {
     grid-template-columns: 1fr;
@@ -101,5 +202,9 @@
 
   .period-transaction:last-child {
     border-bottom: 0;
+  }
+
+  .conversation-message {
+    width: min(88%, 620px);
   }
 }

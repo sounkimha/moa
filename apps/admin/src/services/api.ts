@@ -1,4 +1,4 @@
-import type { AdminIdentity, DashboardData, TransactionDetail, TransactionList } from '../types';
+import type { AdminIdentity, ConversationDetail, ConversationList, DashboardData, TransactionDetail, TransactionList } from '../types';
 
 export class ApiError extends Error {
   constructor(message: string, public status: number) { super(message); }
@@ -19,4 +19,6 @@ export const adminApi = {
   dashboard: () => request<DashboardData>('/dashboard'),
   transactions: (params: URLSearchParams) => request<TransactionList>(`/transactions?${params.toString()}`),
   transaction: (id: string) => request<TransactionDetail>(`/transactions/${encodeURIComponent(id)}`),
+  conversations: (params: URLSearchParams) => request<ConversationList>(`/conversations?${params.toString()}`),
+  conversation: (id: string) => request<ConversationDetail>(`/conversations/${encodeURIComponent(id)}`),
 };

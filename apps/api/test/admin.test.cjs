@@ -76,6 +76,7 @@ test('user token and missing admin session cannot access admin records', async (
   const user = await fetch(url + '/api/auth/demo', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ userId: 'u-me' }) }).then((response) => response.json());
   assert.equal((await call('/transactions', { bearer: user.token })).status, 401);
   assert.equal((await call('/transactions/tx-shipping-case')).status, 401);
+  assert.equal((await call('/conversations', { bearer: user.token })).status, 401);
 });
 test('login requires same origin and a valid TOTP', async () => {
   assert.equal((await call('/login', { method: 'POST', body: { email: 'admin@moa.test', password, code: code() } })).status, 403);
@@ -118,6 +119,19 @@ test('shipping inquiry finds the transaction and its evidence without exposing m
   assert.equal(detail.data.timeline.at(-1).to, 'SHIPPED');
   assert.equal(detail.data.payout, null);
   assert.equal(detail.data.adminActions.length, 0);
+  const conversations = await call('/conversations?q=tx-shipping-case', { cookie });
+  assert.equal(conversations.status, 200);
+  assert.equal(conversations.data.total, 1);
+  assert.equal(conversations.data.rows[0].id, 'room-shipping-case');
+  assert.equal(conversations.data.rows[0].lastMessage.text, '일주일째 배송이 안 와요.');
+  // Message bodies are visible only after opening the selected support case,
+  // not through a global search endpoint.
+  assert.equal((await call('/conversations?q=%EC%9D%BC%EC%A3%BC%EC%9D%BC%EC%A7%B8', { cookie })).data.total, 0);
+  const conversation = await call('/conversations/room-shipping-case', { cookie });
+  assert.equal(conversation.status, 200);
+  assert.equal(conversation.data.buyer.id, 'u-me');
+  assert.equal(conversation.data.traveler.id, 'u-min');
+  assert.equal(conversation.data.messages[0].text, '일주일째 배송이 안 와요.');
   const dashboard = await call('/dashboard', { cookie });
   assert.equal(dashboard.status, 200);
   assert.equal(dashboard.data.periodTransactions.today.transactionCount, 1);
@@ -130,6 +144,8 @@ test('finance sees amounts but not chat or tracking number', async () => {
   assert.equal(typeof detail.data.amounts.totalPrice, 'number');
   assert.equal(detail.data.chat, null);
   assert.equal(detail.data.shipment.trackingNumber, null);
+  assert.equal((await call('/conversations', { cookie })).status, 403);
+  assert.equal((await call('/conversations/room-shipping-case', { cookie })).status, 403);
   const dashboard = await call('/dashboard', { cookie });
   assert.equal(dashboard.status, 200);
   assert.equal(dashboard.data.alerts.find((a) => a.key === 'SHIPPING_DELAY').count, 1);

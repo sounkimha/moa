@@ -3,10 +3,10 @@ import { createRoot } from 'react-dom/client';
 import {
   Activity, AlertCircle, ArrowLeft, ArrowRight, Bell, ChevronDown,
   ChevronLeft, ChevronRight, CircleHelp, ClipboardList, CreditCard, LayoutDashboard,
-  LogOut, Menu, PackageCheck, Search, ShieldAlert, Truck, Users,
+  LogOut, Menu, MessageCircle, PackageCheck, Search, ShieldAlert, Truck, Users,
 } from 'lucide-react';
 import { adminApi, ApiError } from './services/api';
-import type { AdminIdentity, DashboardData, Issue, TimelineEntry, TransactionDetail, TransactionList, TransactionRow } from './types';
+import type { AdminIdentity, ConversationDetail, ConversationList, ConversationRow, DashboardData, Issue, TimelineEntry, TransactionDetail, TransactionList, TransactionRow } from './types';
 import './style.css';
 import './overrides.css';
 
@@ -99,6 +99,7 @@ function Login({ onLogin }: { onLogin: (admin: AdminIdentity) => void }) {
 function Shell({ admin, location, navigate, onLogout, children }: { admin: AdminIdentity; location: string; navigate: (path: string) => void; onLogout: () => void; children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [globalSearch, setGlobalSearch] = useState('');
+  const canReadConversations = ['SUPER_ADMIN', 'OPERATIONS', 'CUSTOMER_SUPPORT'].includes(admin.role);
   const onSearch = (event: React.FormEvent) => {
     event.preventDefault();
     const params = new URLSearchParams();
@@ -111,6 +112,7 @@ function Shell({ admin, location, navigate, onLogout, children }: { admin: Admin
       <div className="nav-group"><span className="nav-caption">WORKSPACE</span>
         <button className={`nav-item ${location === '/' ? 'active' : ''}`} onClick={() => navigate('/')}><LayoutDashboard size={18} /><span>대시보드</span></button>
         <button className={`nav-item ${location.startsWith('/transactions') ? 'active' : ''}`} onClick={() => navigate('/transactions')}><ClipboardList size={18} /><span>거래 관리</span></button>
+        {canReadConversations && <button className={`nav-item ${location.startsWith('/conversations') ? 'active' : ''}`} onClick={() => navigate('/conversations')}><MessageCircle size={18} /><span>대화 세션</span></button>}
       </div>
       <div className="nav-group future"><span className="nav-caption">NEXT PHASE</span>
         <div className="nav-item disabled"><Users size={18} /><span>회원 · 여행자</span></div>
@@ -190,6 +192,48 @@ function TransactionListPage({ location, navigate, admin }: { location: string; 
   </>;
 }
 
+function ConversationTable({ rows, navigate }: { rows: ConversationRow[]; navigate: (path: string) => void }) {
+  return <div className="table-wrap"><table className="conversation-table"><thead><tr><th>대화 세션 / 최근 활동</th><th>구매자 ↔ 여행자</th><th>연결된 거래</th><th>최근 메시지</th><th className="align-right">메시지</th><th /></tr></thead><tbody>{rows.map((row) => <tr key={row.id} onClick={() => navigate(`/conversations/${encodeURIComponent(row.id)}`)} tabIndex={0} onKeyDown={(event) => { if (event.key === 'Enter') navigate(`/conversations/${encodeURIComponent(row.id)}`); }}><td><strong className="mono">{row.id}</strong><small>{formatDate(row.lastMessage?.createdAt || row.createdAt)}</small></td><td><strong>{row.buyer.nickname}</strong><span className="muted"> ↔ </span>{row.traveler.nickname}<small>{row.buyer.id} · {row.traveler.id}</small></td><td><strong className="mono">{row.transactionId}</strong><small><StatusBadge status={row.transactionStatus} /> <span className="clamp">{row.productName}</span></small></td><td><strong className="clamp">{row.lastMessage ? `${row.lastMessage.sender.nickname}: ${row.lastMessage.text}` : '아직 메시지가 없습니다'}</strong><small>{row.lastMessage?.system ? '시스템 안내' : '대화 미리보기'}</small></td><td className="align-right money-cell">{row.messageCount}개</td><td className="row-arrow"><ArrowRight size={16} /></td></tr>)}</tbody></table>{!rows.length && <State kind="empty" title="대화 세션이 없습니다" message="매칭 후 구매자와 여행자가 대화를 시작하면 이곳에 나타납니다." />}</div>;
+}
+
+function ConversationListPage({ location, navigate }: { location: string; navigate: (path: string) => void }) {
+  const params = new URLSearchParams(location.split('?')[1] || '');
+  const q = params.get('q') || '';
+  const page = Number(params.get('page') || 1);
+  const [draft, setDraft] = useState(q);
+  useEffect(() => setDraft(q), [q]);
+  const update = (key: string, value: string) => {
+    const next = new URLSearchParams(params);
+    if (!value) next.delete(key); else next.set(key, value);
+    if (key !== 'page') next.delete('page');
+    navigate(`/conversations${next.size ? `?${next}` : ''}`);
+  };
+  const requestParams = new URLSearchParams(params);
+  requestParams.set('page', String(Number.isFinite(page) && page > 0 ? page : 1));
+  const { data, error, loading, retry } = useRequest(() => adminApi.conversations(requestParams), [location]);
+  return <><div className="page-heading"><div><p className="eyebrow">SUPPORT CONVERSATIONS</p><h1>대화 세션</h1><p>거래에 연결된 구매자와 여행자의 대화를 지원 목적으로 확인합니다.</p></div><span className="page-count">{data?.total ?? '—'}개 세션</span></div>
+    <div className="notice-banner conversation-notice"><ShieldAlert size={16} /><span>대화는 문의·분쟁 해결에 필요한 경우에만 열람하세요. 메시지 본문은 전체 검색에 포함하지 않으며, 이 화면은 읽기 전용입니다.</span></div>
+    <section className="panel list-panel"><div className="filters"><form className="filter-search" onSubmit={(event) => { event.preventDefault(); update('q', draft.trim()); }}><Search size={17} /><input aria-label="대화 세션 검색" placeholder="세션 · 거래번호 · 닉네임 · 상품명 검색" value={draft} onChange={(event) => setDraft(event.target.value)} /><button type="submit">검색</button></form></div>
+      {loading ? <State kind="loading" title="대화 세션을 불러오는 중" /> : error ? <State kind={error instanceof ApiError && error.status === 403 ? 'permission' : 'error'} title="대화 세션을 불러오지 못했습니다" message={error.message} retry={retry} /> : <ConversationTable rows={(data as ConversationList | undefined)?.rows || []} navigate={navigate} />}
+      {!loading && !error && data && <div className="pagination"><span>{data.total ? `${(data.page - 1) * data.size + 1}–${Math.min(data.page * data.size, data.total)}` : '0'} / {data.total}개</span><div><button disabled={page <= 1} onClick={() => update('page', String(page - 1))} aria-label="이전 페이지"><ChevronLeft size={18} /></button><strong>{page} / {Math.max(1, Math.ceil(data.total / data.size))}</strong><button disabled={page * data.size >= data.total} onClick={() => update('page', String(page + 1))} aria-label="다음 페이지"><ChevronRight size={18} /></button></div></div>}</section>
+  </>;
+}
+
+function ConversationDetailPage({ id, navigate }: { id: string; navigate: (path: string) => void }) {
+  const { data: d, error, loading, retry } = useRequest(() => adminApi.conversation(id), [id]);
+  if (loading) return <State kind="loading" title="대화 내용을 불러오는 중" />;
+  if (error || !d) return <State kind={error instanceof ApiError && error.status === 403 ? 'permission' : 'error'} title="대화 세션을 확인할 수 없습니다" message={error?.message} retry={retry} />;
+  const conversation: ConversationDetail = d;
+  return <><button className="back-link" onClick={() => navigate('/conversations')}><ArrowLeft size={16} />대화 세션으로</button>
+    <div className="detail-heading conversation-heading"><div><p className="eyebrow">CONVERSATION · {conversation.id}</p><h1>{conversation.buyer.nickname} ↔ {conversation.traveler.nickname}</h1><div className="heading-meta"><span className="mono">{conversation.transactionId}</span><StatusBadge status={conversation.transactionStatus} /><span>{conversation.productName}</span></div></div><button className="button secondary" onClick={() => navigate(`/transactions/${encodeURIComponent(conversation.transactionId)}`)}>연결된 거래 보기 <ArrowRight size={15} /></button></div>
+    <div className="notice-banner conversation-notice"><ShieldAlert size={16} /><span>개인 대화는 고객지원·분쟁 대응에 필요한 범위에서만 열람하세요. 이 화면에서는 메시지를 수정하거나 전송할 수 없습니다.</span></div>
+    <section className="panel conversation-thread"><div className="panel-head"><div><p className="eyebrow">READ ONLY</p><h2>대화 내용</h2></div><span className="subtle">총 {conversation.messages.length}개 메시지</span></div>{conversation.messages.length ? <div className="conversation-messages">{conversation.messages.map((message) => {
+      const side = message.system ? 'system' : message.sender.id === conversation.buyer.id ? 'buyer' : 'traveler';
+      return <div className={`conversation-message ${side}`} key={message.id}><div className="conversation-message-meta"><strong>{message.system ? 'MOA 안내' : message.sender.nickname}</strong><time>{formatDate(message.createdAt)}</time></div><p>{message.text}</p></div>;
+    })}</div> : <div className="empty-inline">아직 대화가 시작되지 않았습니다.</div>}</section>
+  </>;
+}
+
 function Info({ label, value, mono = false }: { label: string; value: React.ReactNode; mono?: boolean }) { return <div className="info"><span>{label}</span><strong className={mono ? 'mono' : ''}>{value || '기록 없음'}</strong></div>; }
 function Section({ id, eyebrow, title, children, aside }: { id?: string; eyebrow?: string; title: string; children: React.ReactNode; aside?: React.ReactNode }) {
   return <section className="panel detail-section" id={id}><div className="panel-head"><div>{eyebrow && <p className="eyebrow">{eyebrow}</p>}<h2>{title}</h2></div>{aside}</div>{children}</section>;
@@ -262,12 +306,14 @@ function App() {
   }, []);
   if (auth.loading) return <div className="boot"><div className="brand-mark">M</div><span>운영 콘솔 준비 중…</span></div>;
   if (!auth.admin) return <Login onLogin={(admin) => setAuth({ loading: false, admin })} />;
-  const id = location.split('?')[0].match(/^\/transactions\/([^/]+)$/)?.[1];
+  const path = location.split('?')[0];
+  const transactionId = path.match(/^\/transactions\/([^/]+)$/)?.[1];
+  const conversationId = path.match(/^\/conversations\/([^/]+)$/)?.[1];
   const logout = async () => {
     try { await adminApi.logout(); setAuth({ loading: false, admin: null }); navigate('/'); }
     catch (error) { window.alert(`로그아웃에 실패했습니다. 다시 시도해주세요. ${(error as Error).message}`); }
   };
-  return <Shell admin={auth.admin} location={location} navigate={navigate} onLogout={logout}>{id ? <TransactionDetailPage id={decodeURIComponent(id)} navigate={navigate} /> : location.startsWith('/transactions') ? <TransactionListPage location={location} navigate={navigate} admin={auth.admin} /> : <Dashboard navigate={navigate} />}</Shell>;
+  return <Shell admin={auth.admin} location={location} navigate={navigate} onLogout={logout}>{transactionId ? <TransactionDetailPage id={decodeURIComponent(transactionId)} navigate={navigate} /> : conversationId ? <ConversationDetailPage id={decodeURIComponent(conversationId)} navigate={navigate} /> : location.startsWith('/transactions') ? <TransactionListPage location={location} navigate={navigate} admin={auth.admin} /> : location.startsWith('/conversations') ? <ConversationListPage location={location} navigate={navigate} /> : <Dashboard navigate={navigate} />}</Shell>;
 }
 
 createRoot(document.getElementById('root')!).render(<App />);
