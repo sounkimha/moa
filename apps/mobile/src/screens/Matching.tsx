@@ -39,6 +39,7 @@ import { useApp } from '../state/AppContext';
 import { MeetupSummary } from '../components/MeetupSummary';
 import { ProductOriginal } from '../components/ProductOriginal';
 import { TripVerificationBadge } from '../components/TripVerificationBadge';
+import { JourneyProgress, JourneyTicket } from '../components/MotionJourney';
 import { colors as c } from '../theme/tokens';
 import {
   Badge,
@@ -62,6 +63,7 @@ import { getSampleProductPhoto } from '../lib/sample-product-photos';
 
 export function RequestScreen() {
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [photoInfoOpen, setPhotoInfoOpen] = useState(false);
   const a = useApp(),
     d = a.data!,
     r = d.requests.find((x) => x.id === a.route.id);
@@ -109,57 +111,45 @@ export function RequestScreen() {
         />
       }
     >
-      <View
-        style={{
-          backgroundColor: c.primarySoft,
-          borderRadius: 20,
-          padding: 24,
-          alignItems: 'center',
-          gap: 10,
-        }}
-      >
-        <ProductArt
-          product={r}
-          art={r.art}
-          image={r.productImage}
-          featured={r.productName.includes('치이카와')}
-          size={168}
-        />
-        <Txt size={11} color={c.secondary}>
-          {r.productImage ? '요청자가 등록한 사진' : samplePhoto ? '실제 상품 참고 사진 · 체험용' : '상품 이해를 위한 예시 일러스트'}
-        </Txt>
-        {samplePhoto && <Stack gap={4} style={{ alignItems: 'center' }}>
-          <Txt size={12} color={c.secondary} style={{ textAlign: 'center' }}>{samplePhoto.label}</Txt>
-          <Txt size={11} color={c.secondary} style={{ textAlign: 'center' }}>사진과 옵션이 다를 수 있어요. 판매지역·한정 여부·가격은 예시예요.</Txt>
-          <Button small kind="ghost" label="상품 사진 출처 보기" onPress={() => Linking.openURL(samplePhoto.sourcePage).catch(() => a.notify('사진 출처를 열지 못했어요. 잠시 후 다시 시도해주세요.'))} />
-          <Txt size={11} color={c.secondary}>사진 출처 · {samplePhoto.credit}</Txt>
-        </Stack>}
-      </View>
-      <Stack gap={9}>
+      <Stack gap={16}>
         <Row style={{ justifyContent: 'space-between' }}>
           <Badge>{STATUS_LABEL[r.status]}</Badge>
           <Txt size={12} color={c.secondary}>
             {countryName(r.country)} · {r.city}
           </Txt>
         </Row>
-        <Txt size={27} weight="800">
-          {r.productName}
-        </Txt>
-        <Txt size={28} weight="800" color={c.primaryStrong}>
-          {money(quote({ ...r, quantity: 1 }, 0, r.transport,
-            funding ? { krwPerUnit: funding.fxRate, source: funding.priceSource, asOf: funding.fxAsOf } : undefined).productPrice)}{' '}
-          <Txt size={14} color={c.secondary}>
-            / 1개
-          </Txt>
-        </Txt>
-        <Txt size={13} color={c.secondary}>{localMoney(r.localPrice, r.currency)} · 현지 상품가 기준</Txt>
+        <Row style={{ alignItems: 'flex-start', gap: 16 }}>
+          <ProductArt product={r} art={r.art} image={r.productImage} featured={r.productName.includes('치이카와')} size={96} />
+          <Stack gap={8} style={{ flex: 1, minWidth: 0 }}>
+            <Txt size={22} weight="700">{r.productName}</Txt>
+            <Txt size={13} color={c.secondary}>{r.quantity}개 · {shortDate(r.desiredDate)}까지 받아요</Txt>
+            <Txt size={12} color={c.secondary}>{r.option || '기본 옵션'}</Txt>
+          </Stack>
+        </Row>
+        <Row style={{ gap: 6, flexWrap: 'wrap' }}>
+          <Txt size={11} color={c.muted}>{r.productImage ? '요청자가 등록한 사진' : samplePhoto ? '실제 상품 참고 사진 · 체험용' : '상품 이해를 위한 예시 일러스트'}</Txt>
+          {samplePhoto && <Pressable accessibilityRole="button" accessibilityLabel="상품 참고 사진 정보" accessibilityState={{ expanded: photoInfoOpen }} hitSlop={10} onPress={() => setPhotoInfoOpen(!photoInfoOpen)}><Txt size={11} color={c.secondary} style={{ textDecorationLine: 'underline' }}>사진 정보</Txt></Pressable>}
+        </Row>
+        {samplePhoto && photoInfoOpen && <Stack gap={4}>
+          <Txt size={12} color={c.secondary}>{samplePhoto.label}</Txt>
+          <Txt size={11} color={c.secondary}>사진과 옵션이 다를 수 있어요. 판매지역·한정 여부·가격은 예시예요.</Txt>
+          <Button small kind="ghost" label="상품 사진 출처 보기" onPress={() => Linking.openURL(samplePhoto.sourcePage).catch(() => a.notify('사진 출처를 열지 못했어요. 잠시 후 다시 시도해주세요.'))} />
+          <Txt size={11} color={c.secondary}>사진 출처 · {samplePhoto.credit}</Txt>
+        </Stack>}
       </Stack>
+      <Card style={{ padding: 18, borderColor: c.routeSoft }}>
+        <Row style={{ alignItems: 'flex-start', gap: 16 }}>
+          <Stack gap={5} style={{ flex: 1, minWidth: 0 }}><Txt size={12} color={c.secondary}>여행자 보상</Txt><Txt size={26} weight="800" color={c.primaryStrong}>{r.requestedReward === undefined ? '제안받기' : money(r.requestedReward)}</Txt><Txt size={11} color={c.secondary}>전체 수량 기준</Txt></Stack>
+          <View style={{ width: 1, alignSelf: 'stretch', backgroundColor: c.border }} />
+          <Stack gap={5} style={{ flex: 1, minWidth: 0 }}><Txt size={12} color={c.secondary}>현지 상품가 · 1개</Txt><Txt size={18} weight="600">{localMoney(r.localPrice, r.currency)}</Txt><Txt size={12} color={c.secondary}>{money(quote({ ...r, quantity: 1 }, 0, r.transport, funding ? { krwPerUnit: funding.fxRate, source: funding.priceSource, asOf: funding.fxAsOf } : undefined).productPrice)} 환산</Txt></Stack>
+        </Row>
+      </Card>
       <Pressable accessibilityRole="button" onPress={() => a.nav('place', { id: p.id })}>
-        <Card>
+        <Card style={{ backgroundColor: c.ultraSoft, borderColor: c.routeSoft }}>
           <Row>
             <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.primarySoft, alignItems: 'center', justifyContent: 'center' }}><MapPin size={21} color={c.primaryStrong} /></View>
             <View style={{ flex: 1 }}>
-              <Txt size={11} color={c.secondary}>이곳에서 만나는 상품</Txt>
+              <Txt size={11} color={c.primaryStrong}>PICK UP · 이곳에서 구매해요</Txt>
               <Txt weight="700">{p.name}</Txt>
               <Txt size={12} color={c.secondary}>
                 {p.city} · {p.region}
@@ -167,6 +157,7 @@ export function RequestScreen() {
             </View>
             <ChevronRight size={20} />
           </Row>
+          <Row style={{ marginTop: 16, paddingTop: 12, borderTopWidth: 1, borderTopColor: c.routeSoft, gap: 8 }}><Plane size={15} color={c.primaryStrong} /><Txt size={12} color={c.secondary} style={{ flex: 1 }}>{p.city}에서 {r.deliveryCity}까지 · {TRANSPORT_LABEL[r.transport]}</Txt></Row>
         </Card>
       </Pressable>
       <NearbyRequestContext request={r} />
@@ -260,7 +251,7 @@ export function OffersScreen() {
   };
   return (
     <Page title="누가 가져올까요?">
-      <Txt size={13} color={c.secondary}>결제 완료 · 한 명을 선택하면 매칭과 채팅이 시작돼요.</Txt>
+      <JourneyProgress steps={['부탁 공개', '여행자 선택', '함께 거래']} current={2} />
       <Pressable accessibilityRole="button" accessibilityLabel={`${r.productName} 부탁 상세`} onPress={() => a.nav('request', { id: r.id })} style={({ pressed }) => ({ opacity: pressed ? 0.72 : 1 })}>
         <Row style={{ gap: 12 }}><ProductArt product={r} art={r.art} image={r.productImage} featured={r.productName.includes('치이카와')} size={48} /><Stack gap={3} style={{ flex: 1, minWidth: 0 }}><Txt size={14} weight="600" lines={1}>{r.productName}</Txt><Txt size={12} color={c.secondary}>{r.quantity}개 · {shortDate(r.desiredDate)}까지 받아요</Txt></Stack><ChevronRight size={17} color={c.muted} /></Row>
       </Pressable>
@@ -277,7 +268,7 @@ export function OffersScreen() {
             : o.estimatedPurchaseDate < new Date().toISOString().slice(0, 10) ? '구매 예정일이 지나 새 일정 확인이 필요해요.' : '';
         return (
           <Card key={o.id} style={{ padding: 0, overflow: 'hidden', borderWidth: 1, borderColor: i === 0 ? c.primaryTint : c.border }}>
-            <Stack gap={12} style={{ padding: 16 }}>
+            <Stack gap={10} style={{ padding: 16 }}>
               <Row style={{ alignItems: 'flex-start' }}>
                 <Pressable accessibilityRole="button" accessibilityLabel={`${u.nickname} 프로필 사진`} onPress={() => a.nav('profile', { id: u.id })}>
                   <Avatar user={u} size={52} />
@@ -298,16 +289,15 @@ export function OffersScreen() {
                 </Pressable>
               </Row>
               <Row style={{ gap: 6, alignItems: 'flex-start' }}><ShieldCheck size={15} color={c.primaryStrong} /><Txt size={12} color={c.secondary} style={{ flex: 1 }}>{u.verificationLabels.length ? `${u.verificationLabels.slice(0, 2).join(' · ')} 예시 인증` : '본인 확인 정보 없음'}</Txt></Row>
-              {trip && <View style={{ backgroundColor: c.primarySoft, borderRadius: 14, padding: 12 }}>
-                <Row style={{ gap: 8 }}><Txt size={14} weight="700" style={{ flex: 1 }}>{trip.departureCity}</Txt><View style={{ flex: 1, height: 1, backgroundColor: c.primaryTint }} /><Plane size={17} color={c.primaryStrong} /><View style={{ flex: 1, height: 1, backgroundColor: c.primaryTint }} /><Txt size={17} weight="800" color={c.primaryDeep} style={{ flex: 1.3, textAlign: 'right' }}>{trip.destinationCity}</Txt></Row>
-                <Txt size={12} color={c.secondary} style={{ marginTop: 5 }}>{shortDate(trip.startDate)} — {shortDate(trip.endDate)} · 여행 예정</Txt>
-              </View>}
+              {trip && <Pressable accessibilityRole="button" accessibilityLabel={`${u.nickname}님의 경로와 일정 보기`} onPress={() => a.nav('trip-route', { id: o.tripId, placeId: r.placeId })}>
+                <JourneyTicket compact departure={trip.departureCity} destination={trip.destinationCity} departureDate={shortDate(trip.startDate)} returnDate={shortDate(trip.endDate)} caption="방문 장소와 상세 일정 보기 →" />
+              </Pressable>}
               <Row style={{ justifyContent: 'space-between' }}>
                 <Stack gap={4}>
                   <Txt size={12} color={c.secondary}>
                     예상 구매일
                   </Txt>
-                  <Txt size={22} weight="700">
+                  <Txt size={20} weight="700">
                     {shortDate(o.estimatedPurchaseDate)}
                   </Txt>
                 </Stack>
@@ -315,7 +305,7 @@ export function OffersScreen() {
                   <Txt size={12} color={c.secondary}>
                     여행자 보상
                   </Txt>
-                  <Txt size={26} weight="800" color={c.primaryStrong}>
+                  <Txt size={24} weight="800" color={c.primaryStrong}>
                     {money(o.reward)}
                   </Txt>
                 </Stack>
@@ -326,9 +316,8 @@ export function OffersScreen() {
                 <Txt size={13} color={c.secondary}>
                   보관 중인 결제금
                 </Txt>
-                <Txt size={20} weight="700">{money(funding?.totalPrice ?? quote(r, o.reward, o.transport).totalPrice)}</Txt>
+                <Txt size={15} weight="600">{money(funding?.totalPrice ?? quote(r, o.reward, o.transport).totalPrice)}</Txt>
               </Row>
-              {trip && <Button small kind="secondary" icon={Calendar} label="이 사람의 일정 보기" onPress={() => a.nav('trip-route', { id: o.tripId, placeId: r.placeId })} />}
               <Button
                 label={`${u.nickname}님과 함께하기`}
                 loading={a.busy}
@@ -532,22 +521,18 @@ export function BundleScreen() {
         />
       }
     >
-      <View style={{ borderRadius: 20, overflow: 'hidden', backgroundColor: c.surface }}>
-        <View style={{ height: 166, overflow: 'hidden' }}><PlaceCover place={bundle.place} thumbnail /></View>
-        <Stack gap={10} style={{ padding: 20 }}><Txt size={12} weight="700" color={c.primaryStrong}>{bundle.place.city} · MY ROUTE</Txt><Txt size={25} weight="800">{bundle.place.name}</Txt><Txt size={16} color={c.secondary}>한 번 들러서, {bundle.requests.length}개의 부탁을.</Txt><Row style={{ gap: 6 }}><Clock size={14} color={c.secondary} /><Txt size={12} color={c.secondary}>추가 이동 +{bundle.extraMinutes}분 · 예시 추정</Txt></Row></Stack>
-      </View>
-      <Card style={{ backgroundColor: c.primaryDeep, borderWidth: 0 }}>
-        <Stack gap={12}>
-          <Row style={{ justifyContent: 'space-between' }}>
-            <Txt size={14} color={c.navyText}>선택한 {requests.length}건의 보상금</Txt>
-            <Layers size={22} color={c.primaryTint} />
+      <Stack gap={8}><Row style={{ gap: 6 }}><Layers size={15} color={c.primaryStrong} /><Txt size={12} weight="600" color={c.primaryStrong}>SAME PLACE · 같은 장소의 부탁</Txt></Row><Txt size={26} weight="700">한 곳에서, 한 번에.</Txt><Txt size={14} color={c.secondary}>이미 가는 곳의 부탁을 모아 가져와요.</Txt></Stack>
+      <Card style={{ padding: 0, overflow: 'hidden', borderColor: c.primaryTint }}>
+        <View style={{ height: 136, overflow: 'hidden' }}><PlaceCover place={bundle.place} fill /></View>
+        <Stack gap={16} style={{ padding: 18 }}>
+          <Stack gap={5}><Txt size={12} color={c.secondary}>{bundle.place.city} · {bundle.place.region}</Txt><Txt size={22} weight="700">{bundle.place.name}</Txt></Stack>
+          <Row style={{ gap: 8, flexWrap: 'wrap' }}><Badge>{bundle.requests.length}건 모아보기</Badge><Row style={{ gap: 5 }}><Clock size={14} color={c.secondary} /><Txt size={12} color={c.secondary}>추가 이동 +{bundle.extraMinutes}분 · 예시 추정</Txt></Row></Row>
+          <View style={{ borderTopWidth: 1, borderStyle: 'dashed', borderTopColor: c.primaryTint }} />
+          <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end', gap: 12 }}>
+            <Stack gap={6} style={{ flex: 1, minWidth: 0 }}><Txt size={12} color={c.secondary}>선택한 {requests.length}건 · 총 보상</Txt><Txt size={30} weight="800" color={c.primaryStrong}>{money(grossReward)}</Txt></Stack>
+            <Stack gap={6} style={{ flex: 1, minWidth: 0, alignItems: 'flex-end' }}><Txt size={11} color={c.secondary}>수수료 10% 제외 후</Txt><Txt size={18} weight="700">{money(grossReward - commission)}</Txt></Stack>
           </Row>
-          <Txt size={34} weight="800" color={c.onPrimary}>
-            {money(grossReward)}
-          </Txt>
-          <Txt size={12} color={c.navyText}>{requests.some((request) => request.requestedReward === undefined) ? '보상 미정인 부탁은 다음 화면에서 확인해요.' : '구매자가 정한 보상이에요.'}</Txt>
-          <View style={{ height: 1, backgroundColor: c.navyDivider }} />
-          <Row style={{ justifyContent: 'space-between' }}><Txt size={12} color={c.navyText}>수수료 10% 제외 후</Txt><Txt size={18} weight="700" color={c.onPrimary}>{money(grossReward - commission)}</Txt></Row>
+          {requests.some((request) => request.requestedReward === undefined) && <Txt size={12} color={c.secondary}>보상 미정인 부탁은 다음 화면에서 확인해요.</Txt>}
         </Stack>
       </Card>
       <Row style={{ paddingHorizontal: 4, justifyContent: 'space-between', alignItems: 'flex-start' }}><Stack gap={4}><Txt size={12} color={c.secondary}>가져올 상품</Txt><Txt size={20} weight="700">{items}개 <Txt size={12} color={c.secondary}>/ 여유 {remaining}개</Txt></Txt></Stack><Stack gap={4} style={{ alignItems: 'flex-end' }}><Txt size={12} color={c.secondary}>상품 구매에 필요한 금액</Txt><Txt size={20} weight="700">{money(advance)}</Txt></Stack></Row>
@@ -564,8 +549,8 @@ export function BundleScreen() {
           }
         />
       </Row>
-      <View>
-        {bundle.requests.map((r) => (
+      <View style={{ borderRadius: 18, overflow: 'hidden', borderWidth: 1, borderColor: c.border, backgroundColor: c.surface }}>
+        {bundle.requests.map((r, index) => (
           <Pressable
             key={r.id}
             accessibilityRole="checkbox"
@@ -577,15 +562,7 @@ export function BundleScreen() {
                 selected.includes(r.id) ? selected.filter((x) => x !== r.id) : [...selected, r.id],
               )
             }
-            style={{
-              padding: 16,
-              borderWidth: 1,
-              borderColor: selected.includes(r.id) ? c.green : c.border,
-              backgroundColor: c.paper,
-              borderRadius: 18,
-              opacity: 1,
-              marginBottom: 12,
-            }}
+            style={({ pressed }) => ({ padding: 14, borderTopWidth: index ? 1 : 0, borderColor: c.border, backgroundColor: selected.includes(r.id) ? c.ultraSoft : c.paper, opacity: pressed ? 0.72 : 1 })}
           >
             <Row>
               <ProductArt
@@ -593,10 +570,10 @@ export function BundleScreen() {
                 art={r.art}
                 image={r.productImage}
                 featured={r.productName.includes('치이카와')}
-                size={68}
+                size={54}
               />
-              <Stack gap={5} style={{ flex: 1 }}>
-                <Txt weight="600" size={14}>
+              <Stack gap={5} style={{ flex: 1, minWidth: 0 }}>
+                <Txt weight="600" size={14} lines={2}>
                   {r.productName}
                 </Txt>
                 <Txt size={12} color={c.secondary}>
@@ -781,7 +758,7 @@ export function OfferForm() {
         />
       }
     >
-      <Stack gap={6}><Txt size={12} weight="700" color={c.primaryStrong}>내 동선의 부탁</Txt><Txt size={27} weight="800">{ids.length}건, 가는 길에{`\n`}가져올게요.</Txt><Txt size={14} color={c.secondary}>구매일과 보상을 확인하면 준비 끝이에요.</Txt></Stack>
+      <Stack gap={7}><Row style={{ gap: 6 }}><Plane size={15} color={c.primaryStrong} /><Txt size={12} weight="600" color={c.primaryStrong}>ON MY WAY · 내 동선의 부탁</Txt></Row><Txt size={26} weight="700">가는 김에, {ids.length}건 더.</Txt><Txt size={14} color={c.secondary}>구매일과 보상을 확인하고 구매자에게 알려주세요.</Txt></Stack>
       <Row style={{ flexWrap: 'wrap' }}>
         {trips.map((t) => (
           <Chip
@@ -799,6 +776,7 @@ export function OfferForm() {
           />
         ))}
       </Row>
+      {trip && <JourneyTicket departure={trip.departureCity} destination={trip.destinationCity} departureDate={shortDate(trip.startDate)} returnDate={shortDate(trip.endDate)} caption="선택한 여행 일정 안에서 구매하고 가져와요." />}
       <Stack gap={12}>
         <Txt size={18} weight="700">부탁과 보상 확인</Txt>
         {requests.map((r, index) => r.requestedReward !== undefined ? (

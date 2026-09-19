@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { CalendarDays, ChevronRight, ShieldCheck, ShoppingBag } from 'lucide-react-native';
-import { shortDate, TRIP_VERIFICATION_LABEL } from '@moa/domain';
+import { shortDate, TRIP_VERIFICATION_LABEL, canAcceptTrip } from '@moa/domain';
 import { useApp } from '../state/AppContext';
 import { TravelerScheduleSheet } from '../components/travel-route';
 import { Badge, Button, Empty, Page, Row, Sheet, Stack, Txt } from '../components/ui';
@@ -27,12 +27,13 @@ export function TripRouteScreen() {
   };
   return <>
     <Page title="이 사람의 일정 보기" footer={canRequest ? <Button icon={ShoppingBag} label={`${traveler.nickname}님에게 부탁하기`} onPress={() => setRequestOpen(true)} /> : undefined}>
-      <Stack gap={16}>
+      <Stack gap={14}>
         <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <Stack gap={8} style={{ flex: 1, minWidth: 0 }}><Txt size={12} color={c.primaryStrong} weight="700">MY TRAVEL PLAN</Txt><Txt size={28} weight="800">{traveler.nickname}님의 여행</Txt><FlightVerificationMark trip={trip} /><Row style={{ gap: 6 }}><CalendarDays size={16} color={c.secondary} /><Txt size={15} color={c.secondary}>{shortDate(trip.startDate)} — {shortDate(trip.endDate)}</Txt></Row></Stack>
-          <Pressable accessibilityRole="button" accessibilityLabel={`${traveler.nickname} 프로필`} onPress={() => a.nav('profile', { id: traveler.id })}><Avatar user={traveler} size={54} /></Pressable>
+          <Stack gap={7} style={{ flex: 1, minWidth: 0 }}><Txt size={11} color={c.primaryStrong} weight="600">TRAVEL PLAN · 공개 여행 일정</Txt><Txt size={25} weight="700">{traveler.nickname}님의{`\n`}가는 길을 따라</Txt><Row style={{ flexWrap: 'wrap', gap: 6 }}><FlightVerificationMark trip={trip} />{!canAcceptTrip(trip) && <Badge>{TRIP_VERIFICATION_LABEL[trip.verificationStatus]}</Badge>}</Row></Stack>
+          <Pressable accessibilityRole="button" accessibilityLabel={`${traveler.nickname} 프로필`} onPress={() => a.nav('profile', { id: traveler.id })}><Avatar user={traveler} size={48} /></Pressable>
         </Row>
-        <Row style={{ flexWrap: 'wrap', gap: 8 }}><Badge>{TRIP_VERIFICATION_LABEL[trip.verificationStatus]}</Badge><Txt size={12} color={c.secondary}>공개한 여행 계획</Txt></Row>
+        <Row style={{ gap: 8 }}><CalendarDays size={15} color={c.primaryStrong} /><Txt size={14} weight="500">{shortDate(trip.startDate)} — {shortDate(trip.endDate)}</Txt><View style={{ width: 3, height: 3, borderRadius: 2, backgroundColor: c.muted }} /><Txt size={12} color={c.secondary}>방문 예정 {places.length}곳</Txt></Row>
+        {canRequest && <Txt size={13} color={c.secondary}>들르는 장소를 확인하고, 필요한 물건을 부탁해보세요.</Txt>}
       </Stack>
       <TravelerScheduleSheet trip={trip} destinations={destinations} places={places} highlightedPlaceId={a.route.placeId} requestCounts={requestCounts} onPlacePress={(place) => a.nav('place', { id: place.id })} />
       <Pressable accessibilityRole="button" onPress={() => a.nav('profile', { id: traveler.id })} style={({ pressed }) => ({ borderTopWidth: 1, borderTopColor: c.border, paddingVertical: 16, opacity: pressed ? 0.72 : 1 })}>

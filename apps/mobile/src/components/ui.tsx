@@ -73,9 +73,9 @@ export function Txt({
     </Text>
   );
 }
-export function Row({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
+export function Row({ children, style, accessibilityLabel }: { children: ReactNode; style?: StyleProp<ViewStyle>; accessibilityLabel?: string }) {
   return (
-    <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0 }, style]}>{children}</View>
+    <View accessible={accessibilityLabel ? true : undefined} accessibilityLabel={accessibilityLabel} style={[{ flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0 }, style]}>{children}</View>
   );
 }
 export function Stack({
@@ -100,27 +100,27 @@ export function Sheet({ visible, title, subtitle, onClose, children, footer }: {
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, justifyContent: 'flex-end', paddingTop: insets.top + 12, backgroundColor: '#17203366' }}>
       <Pressable accessibilityRole="button" accessibilityLabel={`${title} 닫기`} onPress={onClose} style={StyleSheet.absoluteFill} />
       <View accessibilityViewIsModal style={{ width: '100%', maxWidth: 680, alignSelf: 'center', minHeight: 0, flexShrink: 1, maxHeight: Math.max(0, height - insets.top - 12), borderTopLeftRadius: radius.sheet, borderTopRightRadius: radius.sheet, paddingBottom: Math.max(insets.bottom, 16), backgroundColor: c.paper, overflow: 'hidden' }}>
-        <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: c.border, marginTop: 10 }} />
-        <Row style={{ paddingHorizontal: 20, paddingVertical: 12 }}>
-          <View style={{ flex: 1, minWidth: 0, gap: 4 }}><Txt size={22} weight="700">{title}</Txt>{subtitle && <Txt size={13} color={c.secondary}>{subtitle}</Txt>}</View>
+        <View style={{ alignSelf: 'center', width: 34, height: 4, borderRadius: 2, backgroundColor: c.primaryTint, marginTop: 10 }} />
+        <Row style={{ paddingHorizontal: space.page, paddingTop: 16, paddingBottom: 20 }}>
+          <View style={{ flex: 1, minWidth: 0, gap: 5 }}><Txt size={22} weight="700">{title}</Txt>{subtitle && <Txt size={13} color={c.secondary}>{subtitle}</Txt>}</View>
           <IconButton icon={X} label="닫기" onPress={onClose} />
         </Row>
         <ScrollView style={{ minHeight: 0, flexShrink: 1 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 12, gap: 16 }}>{children}</ScrollView>
-        {footer && <View style={{ paddingTop: 12, paddingHorizontal: 20 }}>{footer}</View>}
+        {footer && <View style={{ paddingTop: 16, paddingHorizontal: space.page, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border }}>{footer}</View>}
       </View>
     </KeyboardAvoidingView>
   </Modal>;
 }
 
 export function SectionTabs({ items, value, onChange }: { items: string[]; value: string; onChange: (value: string) => void }) {
-  return <View accessibilityRole="tablist" style={{ flexDirection: 'row', backgroundColor: c.lilac, padding: 4, borderRadius: 13, gap: 4 }}>
-    {items.map((item) => <Pressable key={item} accessibilityRole="tab" accessibilityLabel={item} accessibilityState={{ selected: value === item }} aria-selected={value === item} onPress={() => onChange(item)} style={({ pressed }) => ({ flex: 1, minWidth: 0, minHeight: 44, paddingHorizontal: 8, paddingVertical: 9, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: value === item ? c.paper : 'transparent', opacity: pressed ? 0.7 : 1 })}>
-      <Txt size={14} weight={value === item ? '700' : '500'} color={value === item ? c.ink : c.secondary} style={{ textAlign: 'center' }}>{item}</Txt>
+  return <View accessibilityRole="tablist" style={{ flexDirection: 'row', backgroundColor: c.accentSoft, padding: 4, borderRadius: radius.md, gap: 4 }}>
+    {items.map((item) => <Pressable key={item} accessibilityRole="tab" accessibilityLabel={item} accessibilityState={{ selected: value === item }} aria-selected={value === item} onPress={() => onChange(item)} style={({ pressed }) => ({ flex: 1, minWidth: 0, minHeight: 44, paddingHorizontal: 8, paddingVertical: 9, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: value === item ? c.paper : 'transparent', opacity: pressed ? 0.7 : 1 })}>
+      <Txt size={14} weight={value === item ? '700' : '500'} color={value === item ? c.primaryStrong : c.secondary} style={{ textAlign: 'center' }}>{item}</Txt>
     </Pressable>)}
   </View>;
 }
 
-/** The same role switch appears at the top of entry surfaces instead of duplicating two CTA cards. */
+/** Compact role control for forms and secondary entry surfaces. */
 export function ModeSwitcher({ value, onChange }: { value: 'buyer' | 'traveler'; onChange: (value: 'buyer' | 'traveler') => void }) {
   const options = [
     { value: 'buyer' as const, label: '사고 싶어요', detail: '여행자에게 부탁', icon: ShoppingBag },
@@ -153,8 +153,8 @@ export function ModeSwitcher({ value, onChange }: { value: 'buyer' | 'traveler';
 export function SearchField({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string }) {
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<TextInput>(null);
-  return <View style={{ minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: focused ? c.green : c.border, backgroundColor: c.paper }}>
-    <Search size={20} color={c.muted} />
+  return <View style={{ minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 16, borderRadius: radius.input, borderWidth: 1, borderColor: focused ? c.primary : c.border, backgroundColor: c.paper }}>
+    <Search size={20} color={focused ? c.primary : c.secondary} strokeWidth={1.8} />
     <TextInput ref={inputRef} accessibilityLabel={label} value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor={c.muted} autoCapitalize="none" onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} style={[{ flex: 1, minWidth: 0, minHeight: 50, fontSize: 16, color: c.ink }, Platform.OS === 'web' ? { outlineStyle: 'none' } as never : undefined]} />
     {!!value && <IconButton icon={X} label="검색어 지우기" onPress={() => { onChange(''); inputRef.current?.focus(); }} />}
   </View>;
@@ -190,7 +190,7 @@ export function Button({
         ? c.danger
         : kind === 'ghost'
           ? c.secondary
-          : c.ink;
+          : c.primaryDeep;
   return (
     <Pressable
       testID={testID}
@@ -203,7 +203,7 @@ export function Button({
       onPress={onPress}
       style={({ pressed }) => [
         {
-          minHeight: small ? 44 : 54,
+          minHeight: small ? 44 : 52,
           minWidth: 0,
           maxWidth: '100%',
           flexShrink: 1,
@@ -263,10 +263,10 @@ export function IconButton({
         width: 44,
         height: 44,
         flexShrink: 0,
-        borderRadius: 22,
+        borderRadius: 14,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: filled ? c.paper : pressed ? c.mint : 'transparent',
+        backgroundColor: pressed ? c.primarySoft : filled ? c.paper : 'transparent',
       })}
     >
       <Icon size={22} color={color} strokeWidth={1.7} />
@@ -302,7 +302,7 @@ export function Chip({
         gap: 6,
         backgroundColor: selected ? c.mint : c.paper,
         borderWidth: 1,
-        borderColor: selected ? '#B8D4FC' : c.border,
+        borderColor: selected ? c.primaryTint : c.border,
         opacity: pressed ? 0.75 : 1,
       })}
     >
@@ -393,7 +393,7 @@ export function Field({
           borderWidth: 1,
           borderColor: error ? c.danger : focused ? c.green : c.border,
           backgroundColor: c.paper,
-          borderRadius: 14,
+          borderRadius: radius.input,
           paddingHorizontal: 15,
           paddingVertical: 14,
           fontSize: 16,
@@ -488,8 +488,8 @@ export function Section({
   titleSize?: number;
 }) {
   return (
-    <Row style={{ justifyContent: 'space-between', marginBottom: 16, alignItems: 'flex-start' }}>
-      <View style={{ flex: 1 }}>
+    <Row style={{ justifyContent: 'space-between', marginBottom: 16, alignItems: 'center' }}>
+      <View style={{ flex: 1, minWidth: 0 }}>
         <Txt size={titleSize} weight="700">
           {title}
         </Txt>
@@ -522,7 +522,8 @@ export function Card({ children, style }: { children: ReactNode; style?: StylePr
       style={[
         {
           backgroundColor: c.paper,
-          borderWidth: 0,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: c.border,
           borderRadius: radius.lg,
           padding: space.lg,
         },
@@ -549,10 +550,12 @@ export function Empty({
 }) {
   const app = useApp();
   return (
-    <Stack gap={12} style={{ alignItems: 'center', paddingVertical: 36, paddingHorizontal: 20 }}>
-      <View style={{ width: 76, height: 76, borderRadius: 24, backgroundColor: c.primarySoft, alignItems: 'center', justifyContent: 'center', marginBottom: 4, transform: [{ rotate: '-5deg' }] }}>
-        <Package size={32} color={c.primary} strokeWidth={1.5} />
-        <View style={{ position: 'absolute', width: 10, height: 10, backgroundColor: c.sky, borderRadius: 5, top: 4, right: -4 }} />
+    <Stack gap={12} style={{ alignItems: 'center', paddingVertical: 40, paddingHorizontal: space.page }}>
+      <View style={{ width: 112, height: 80, alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
+        <View style={{ position: 'absolute', left: 0, right: 0, top: 40, borderTopWidth: 1, borderStyle: 'dashed', borderColor: c.primaryTint }} />
+        <View style={{ position: 'absolute', left: 0, top: 37, width: 7, height: 7, backgroundColor: c.sky, borderRadius: 4 }} />
+        <View style={{ position: 'absolute', right: 0, top: 37, width: 7, height: 7, backgroundColor: c.primary, borderRadius: 4 }} />
+        <View style={{ width: 68, height: 68, borderRadius: 24, backgroundColor: c.primarySoft, alignItems: 'center', justifyContent: 'center' }}><Package size={28} color={c.primary} strokeWidth={1.5} /></View>
       </View>
       <Txt size={18} weight="700" style={{ textAlign: 'center' }}>
         {title}
@@ -593,13 +596,14 @@ export function Page({
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={{ flex: 1 }}
+      style={{ flex: 1, backgroundColor: c.canvas }}
     >
       <Row
         style={{
-          minHeight: 60,
-          paddingHorizontal: 12,
-          borderBottomWidth: 0,
+          minHeight: 58,
+          paddingHorizontal: back ? 12 : space.page,
+          gap: 8,
+          borderBottomWidth: StyleSheet.hairlineWidth,
           borderColor: c.border,
           backgroundColor: c.paper,
         }}
@@ -620,10 +624,8 @@ export function Page({
           ) : (
             <IconButton icon={ArrowLeft} label="뒤로" onPress={onBack || app.back} />
           )
-        ) : (
-          <View style={{ width: 12 }} />
-        )}
-        <Txt size={22} weight="700" style={{ flex: 1 }} lines={1}>
+        ) : null}
+        <Txt size={20} weight="700" style={{ flex: 1 }} lines={1}>
           {title}
         </Txt>
       </Row>
@@ -643,8 +645,9 @@ export function Page({
       {footer && (
         <View
           style={{
-            padding: 16,
-            borderTopWidth: 1,
+            paddingHorizontal: space.page,
+            paddingVertical: 14,
+            borderTopWidth: StyleSheet.hairlineWidth,
             borderColor: c.border,
             backgroundColor: c.paper,
           }}
@@ -673,15 +676,16 @@ export function ListItem({
       accessibilityRole="button"
       onPress={onPress}
       style={({ pressed }) => ({
-        paddingVertical: 18,
-        borderBottomWidth: 1,
+        minHeight: 64,
+        paddingVertical: 16,
+        borderBottomWidth: StyleSheet.hairlineWidth,
         borderColor: c.border,
         opacity: pressed ? 0.65 : 1,
       })}
     >
       <Row>
-        {Icon && <Icon color={c.green} size={21} />}
-        <View style={{ flex: 1 }}>
+        {Icon && <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: c.primarySoft, alignItems: 'center', justifyContent: 'center' }}><Icon color={c.primaryStrong} size={19} strokeWidth={1.7} /></View>}
+        <View style={{ flex: 1, minWidth: 0 }}>
           <Txt weight="600">{title}</Txt>
           {!!subtitle && (
             <Txt size={12} color={c.secondary}>

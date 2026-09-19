@@ -71,6 +71,7 @@ import {
 } from '../components/ui';
 import { ProductArt, MoneyBreakdown } from '../components/visuals';
 import { PlaneRouteAnimation } from '../components/travel-route';
+import { JourneyProgress } from '../components/MotionJourney';
 import { getPlacePhoto } from '../lib/place-photos';
 
 const CATEGORY_PATHS: Array<{ name: string; description: string; values: Category[] }> = [
@@ -696,20 +697,12 @@ function RequestFormContent() {
         </Stack>
       }
     >
-      <Row style={{ gap: 12 }}>
-        {['상품 확인', '수령·보상'].map((label, index) => <Row key={label} style={{ flex: 1, gap: 8 }}>
-          <View style={{ width: 24, height: 24, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: step >= index + 1 ? c.primary : c.border }}>
-            {step > index + 1 ? <Check size={14} color={c.onPrimary} /> : <Txt size={12} weight="700" color={step >= index + 1 ? c.onPrimary : c.secondary}>{index + 1}</Txt>}
-          </View>
-          <Txt size={13} weight="600" color={step >= index + 1 ? c.primaryDeep : c.muted}>{label}</Txt>
-          {index === 0 && <View style={{ flex: 1, height: 1, backgroundColor: c.border, marginLeft: 4 }} />}
-        </Row>)}
-      </Row>
+      <JourneyProgress steps={['상품 확인', '수령·보상']} current={step} />
       <Stack gap={8}>
-        <Txt size={28} weight="700">
+        <Txt size={26} weight="700">
           {step === 1 ? '어떤 물건을 부탁할까요?' : '어떻게 받을까요?'}
         </Txt>
-        <Txt color={c.secondary}>
+        <Txt size={14} color={c.secondary}>
           {step === 1
             ? d.recognition?.image === false
               ? '상품 링크로 시작해보세요.'
@@ -729,9 +722,8 @@ function RequestFormContent() {
                 recognitionRun.current++; setResolving(false); clearFeedback(); setMethod(item.value);
                 if (item.value === 'photo') void photo();
               }}
-              style={({ pressed }) => ({ flex: 1, minHeight: 88, borderRadius: 18, padding: 16, gap: 12, borderWidth: 1.5, borderColor: method === item.value ? c.primary : c.border, backgroundColor: method === item.value ? c.primarySoft : c.paper, opacity: pressed ? 0.7 : 1 })}>
-              <Row style={{ justifyContent: 'space-between' }}><item.icon size={23} color={method === item.value ? c.primaryStrong : c.secondary} />{method === item.value && <Check size={16} color={c.primaryStrong} />}</Row>
-              <Txt size={15} weight="700" color={method === item.value ? c.primaryDeep : c.secondary}>{item.title}</Txt>
+              style={({ pressed }) => ({ flex: 1, minHeight: 62, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: method === item.value ? c.primary : c.border, backgroundColor: method === item.value ? c.primarySoft : c.paper, opacity: pressed ? 0.7 : 1 })}>
+              <Row style={{ gap: 8, flex: 1 }}><item.icon size={20} color={method === item.value ? c.primaryStrong : c.secondary} /><Txt size={14} weight="600" color={method === item.value ? c.primaryStrong : c.secondary} style={{ flex: 1 }}>{item.title}</Txt>{method === item.value && <Check size={14} color={c.primaryStrong} />}</Row>
             </Pressable>)}
           </Row>
           {method === 'link' ? (
@@ -1237,8 +1229,10 @@ function TripFormContent() {
       }
     >
       {error.length > 0 && <Notice tone="error">{error}</Notice>}
-      <Stack gap={8}><Txt size={12} weight="700" color={c.primaryStrong}>MY NEXT TRIP</Txt><Txt size={28} weight="800">여행지만 알려주세요.</Txt><Txt size={15} color={c.secondary}>가는 길의 부탁을 모아드릴게요.</Txt></Stack>
+      <JourneyProgress steps={['일정 등록', '항공권 확인', '부탁 찾기']} current={1} />
+      <Stack gap={8}><Txt size={26} weight="700">내 여행이 누군가의{`\n`}기다림에 닿도록.</Txt><Txt size={14} color={c.secondary}>여행할 장소와 날짜를 알려주세요.{`\n`}같은 동선의 부탁을 모아드릴게요.</Txt></Stack>
       <PlaneRouteAnimation departure={departure.trim() || '출발지'} destination={areas[0] || countryName(country)} compact />
+      <Row style={{ gap: 8 }}><Txt size={12} weight="700" color={c.primaryStrong}>01</Txt><Txt size={18} weight="700">어디로 가나요?</Txt></Row>
       <View style={{ backgroundColor: c.paper, borderRadius: 20, paddingHorizontal: 20, borderWidth: 1, borderColor: c.border }}>
         <Pressable accessibilityRole="button" accessibilityLabel="출발지 변경" onPress={openOriginEditor} style={({ pressed }) => ({ paddingVertical: 16, minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 14, opacity: pressed ? 0.65 : 1 })}>
           <LocateFixed size={21} color={c.secondary} /><View style={{ flex: 1, gap: 4 }}><Txt size={12} color={c.secondary}>출발 · {originSource === 'gps' ? '현재 위치' : originSource === 'address' ? '기본 배송지' : '직접 선택'}</Txt><Txt size={16} weight="600">{departure ? `${countryName(depCountry)} · ${departure}` : '출발지를 선택해주세요'}</Txt></View><ChevronRight size={19} color={c.muted} />
@@ -1249,10 +1243,9 @@ function TripFormContent() {
           setPlaces(places.filter((id) => d.places.some((place) => place.id === id && place.country === nextCountry && selectedAreas.includes(place.city))));
           setCustomStops(country === nextCountry ? customStops.filter((stop) => selectedAreas.some((area) => stop.startsWith(`${area} · `))) : []);
         }} />
-        <Divider />
-        <DateRangePicker start={start} end={end} min={future(0)} onChange={(nextStart, nextEnd) => { setStart(nextStart); setEnd(nextEnd); setError(''); }} />
       </View>
-      <View style={{ gap: 8 }}><Row style={{ justifyContent: 'space-between' }}><Txt size={19} weight="700">들를 곳도 정해졌나요?</Txt><Txt size={12} color={c.muted}>선택</Txt></Row>
+      <Stack gap={12}><Row style={{ gap: 8 }}><Txt size={12} weight="700" color={c.primaryStrong}>02</Txt><Txt size={18} weight="700">언제 떠나나요?</Txt></Row><View style={{ backgroundColor: c.paper, borderRadius: 18, paddingHorizontal: 18, borderWidth: 1, borderColor: c.border }}><DateRangePicker start={start} end={end} min={future(0)} onChange={(nextStart, nextEnd) => { setStart(nextStart); setEnd(nextEnd); setError(''); }} /></View></Stack>
+      <View style={{ gap: 12 }}><Row style={{ justifyContent: 'space-between' }}><Row style={{ gap: 8 }}><Txt size={12} weight="700" color={c.primaryStrong}>03</Txt><Txt size={18} weight="700">어디에 들르나요?</Txt></Row><Txt size={12} color={c.muted}>선택</Txt></Row>
         <TripStopPicker country={country} areas={areas} catalog={d.places} placeIds={places} customStops={customStops} onChange={(ids, stops, nextAreas) => { setPlaces(ids); setCustomStops(stops); if (nextAreas) setAreas(nextAreas); }} />
       </View>
       <Divider />

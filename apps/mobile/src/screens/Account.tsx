@@ -39,8 +39,8 @@ import {
 import { Avatar, PlaceCard } from '../components/visuals';
 
 function AccountGroup({ title, children }: { title: string; children: ReactNode }) {
-  return <View style={{ gap: space.sm }}>
-    <Txt size={13} weight="600" color={c.secondary} style={{ paddingHorizontal: space.xs }}>{title}</Txt>
+  return <View style={{ gap: space.md }}>
+    <Txt size={16} weight="700" style={{ paddingHorizontal: space.xs }}>{title}</Txt>
     <View style={{ backgroundColor: c.paper, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border, paddingHorizontal: space.lg }}>{children}</View>
   </View>;
 }
@@ -51,7 +51,7 @@ function AccountRow({ title, icon: Icon, detail, onPress, label, selected }: {
   return <Pressable accessibilityRole="button" accessibilityLabel={label || title} onPress={onPress}
     style={({ pressed }) => ({ minHeight: 58, justifyContent: 'center', paddingVertical: 14, opacity: pressed ? 0.6 : 1 })}>
     <Row style={{ gap: 12 }}>
-      <Icon size={20} color={c.secondary} strokeWidth={1.7} />
+      <View style={{ width: 32, height: 32, borderRadius: 11, backgroundColor: c.ultraSoft, alignItems: 'center', justifyContent: 'center' }}><Icon size={18} color={c.primaryStrong} strokeWidth={1.7} /></View>
       <Txt weight="500" style={{ flex: 1, minWidth: 0 }}>{title}</Txt>
       {!!detail && <Txt size={12} color={selected ? c.green : c.muted} lines={1} style={{ flexShrink: 1, maxWidth: '38%' }}>{detail}</Txt>}
       <ChevronRight size={17} color={c.muted} />
@@ -143,31 +143,35 @@ export function MyScreen() {
   const ownTravelerTrades = d.transactions.filter((trade) => trade.travelerId === d.me.id).length;
   const ownTrips = d.trips.filter((trip) => trip.travelerId === d.me.id).length;
   const wallet = d.wallets.find((item) => item.userId === d.me.id);
-  const modeLabel = a.role === 'buyer' ? '부탁하기' : '여행하기';
+  const modeLabel = a.role === 'buyer' ? '사고 싶어요' : '가져올게요';
   const reviews = d.reviews.filter((review) => review.targetId === d.me.id);
   const identityVerified = d.verificationSummary.identity || d.me.verificationLabels.includes('본인 인증');
   return (
     <Page title="마이" back={false}>
-      <Pressable accessibilityRole="button" accessibilityLabel="내 프로필 보기" onPress={() => a.nav('profile', { id: d.me.id })} style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}>
-        <Row style={{ paddingVertical: space.sm, gap: space.lg }}>
-          <Avatar user={d.me} size={64} />
-          <View style={{ flex: 1, minWidth: 0, gap: 5 }}>
-            <Txt size={typography.hero} weight="800" lines={1}>{d.me.nickname}</Txt>
-            <Row style={{ gap: space.xs }}><ShieldCheck size={15} color={identityVerified ? c.primary : c.muted} /><Txt size={13} color={c.secondary}>{identityVerified ? '본인 확인 완료 · 체험' : '본인 인증 필요'}</Txt></Row>
-          </View>
-          <ChevronRight size={20} color={c.muted} />
+      <View style={{ backgroundColor: c.paper, borderWidth: 1, borderColor: c.primaryTint, borderRadius: radius.image, overflow: 'hidden' }}>
+        <Row style={{ paddingHorizontal: space.page, paddingVertical: 13, backgroundColor: c.primarySoft, justifyContent: 'space-between' }}>
+          <Txt size={11} color={c.primaryStrong} weight="700" style={{ letterSpacing: 1.5 }}>MY MOA · TRAVEL PASS</Txt><Plane size={17} color={c.primary} strokeWidth={1.6} />
         </Row>
-      </Pressable>
-      <Row style={{ justifyContent: 'space-between', gap: space.xs, backgroundColor: c.paper, paddingVertical: space.lg, borderRadius: radius.md }}>
-        {[[`${d.me.completed}건`, '완료한 거래'], [`${reviews.length}개`, '받은 후기'], [d.me.successRate === null ? '—' : `${d.me.successRate}%`, '거래 성공률']].map(([value, label]) =>
-          <View key={label} style={{ flex: 1, alignItems: 'center', gap: space.xs }}><Txt size={20} weight="700">{value}</Txt><Txt size={12} color={c.secondary}>{label}</Txt></View>)}
-      </Row>
-      <View style={{ paddingHorizontal: space.lg, backgroundColor: c.primarySoft, borderRadius: radius.md }}>
-        <AccountRow title="이용 모드" icon={a.role === 'buyer' ? ShoppingBag : Plane} detail={modeLabel} selected label="이용 모드 설정" onPress={() => a.nav('settings')} />
+        <Pressable accessibilityRole="button" accessibilityLabel="내 프로필 보기" onPress={() => a.nav('profile', { id: d.me.id })} style={({ pressed }) => ({ padding: space.page, opacity: pressed ? 0.75 : 1 })}>
+          <Row style={{ gap: space.lg }}>
+            <Avatar user={d.me} size={54} />
+            <View style={{ flex: 1, minWidth: 0, gap: 5 }}>
+              <Txt size={24} weight="800" lines={1}>{d.me.nickname}</Txt>
+              <Row style={{ gap: space.xs }}><ShieldCheck size={14} color={identityVerified ? c.primary : c.muted} /><Txt size={12} color={c.secondary}>{identityVerified ? '본인 확인 완료 · 체험' : '본인 인증 필요'}</Txt></Row>
+            </View>
+            <ChevronRight size={19} color={c.muted} />
+          </Row>
+        </Pressable>
+        <Row style={{ marginHorizontal: space.page, paddingTop: space.lg, paddingBottom: space.page, borderTopWidth: 1, borderTopColor: c.border, borderStyle: 'dashed', gap: space.xs }}>
+          {[[`${d.me.completed}건`, '완료한 거래'], [`${reviews.length}개`, '받은 후기'], [d.me.successRate === null ? '—' : `${d.me.successRate}%`, '거래 성공률']].map(([value, label], index) =>
+            <View key={label} style={{ flex: 1, alignItems: 'center', gap: space.xs, borderLeftWidth: index ? 1 : 0, borderLeftColor: c.border }}><Txt size={20} weight="700">{value}</Txt><Txt size={11} color={c.secondary}>{label}</Txt></View>)}
+        </Row>
+        <View style={{ paddingHorizontal: space.lg, borderTopWidth: 1, borderTopColor: c.border, backgroundColor: c.ultraSoft }}>
+          <AccountRow title="지금 이용 모드" icon={a.role === 'buyer' ? ShoppingBag : Plane} detail={modeLabel} selected label="이용 모드 설정" onPress={() => a.nav('settings')} />
+        </View>
       </View>
-      <Pressable accessibilityRole="button" accessibilityLabel="MOA 보관함 보기" onPress={() => a.nav('wallet')} style={({ pressed }) => ({ borderRadius: radius.lg, padding: space.page, backgroundColor: c.primaryDeep, gap: space.lg, opacity: pressed ? 0.85 : 1 })}>
-        <Row style={{ justifyContent: 'space-between' }}><Row><Wallet size={19} color={c.navyText} /><Txt size={14} color={c.onPrimary} weight="600">MOA 보관함</Txt></Row><ChevronRight size={19} color={c.navyText} /></Row>
-        <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end' }}><Stack gap={space.xs}><Txt size={12} color={c.navyText}>사용 가능한 체험 잔액</Txt><Txt size={30} weight="800" color={c.onPrimary}>{money(wallet?.availableBalance ?? 0)}</Txt></Stack><Txt size={12} color={c.navyText}>보관함 보기</Txt></Row>
+      <Pressable accessibilityRole="button" accessibilityLabel="MOA 보관함 보기" onPress={() => a.nav('wallet')} style={({ pressed }) => ({ borderRadius: radius.lg, borderWidth: 1, borderColor: c.border, padding: space.lg, backgroundColor: c.paper, gap: space.md, opacity: pressed ? 0.85 : 1 })}>
+        <Row><View style={{ width: 42, height: 42, borderRadius: 14, backgroundColor: c.primarySoft, alignItems: 'center', justifyContent: 'center' }}><Wallet size={21} color={c.primaryStrong} strokeWidth={1.6} /></View><Stack gap={3} style={{ flex: 1, minWidth: 0 }}><Txt size={13} color={c.secondary}>MOA 보관함 · 체험 잔액</Txt><Txt size={24} weight="800">{money(wallet?.availableBalance ?? 0)}</Txt></Stack><ChevronRight size={19} color={c.muted} /></Row>
       </Pressable>
       <AccountGroup title="나의 활동">
         <AccountRow title={a.role === 'buyer' ? '내 부탁' : '가져오는 거래'} icon={ShoppingBag} detail={`${a.role === 'buyer' ? ownRequests : ownTravelerTrades}건`} onPress={() => a.tab('trades')} />

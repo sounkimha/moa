@@ -6,18 +6,26 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
 const require = createRequire(import.meta.url),
   temp = await mkdtemp(path.join(tmpdir(), 'moa-ui-'));
 process.env.DATA_FILE = path.join(temp, 'state.json');
 process.env.PORT = '0';
 process.env.QUIET = '1';
 const testPassword = 'Home-QA-2026!';
-process.env.MOA_TEST_USERNAME = 'home-qa';
-process.env.MOA_TEST_PASSWORD_SHA256 = createHash('sha256').update(testPassword).digest('hex');
 delete process.env.DATABASE_URL;
+delete process.env.MOA_CLEAN_TEST_SEED;
 const { bootstrap } = require('../apps/api/dist/main.js');
+const { Store } = require('../apps/api/dist/infrastructure/store.js');
+const { hashPassword } = require('../apps/api/dist/auth/credentials.js');
 const app = await bootstrap();
+const passwordHash = await hashPassword(testPassword);
+// Keep this credential inside the isolated fixture; exercise the real password
+// login without depending on a production account or obsolete test env vars.
+await app.get(Store).transaction((db) => {
+  assert.ok(db.users.some((user) => user.id === 'u-me'), 'Seed buyer is available');
+  db.authIdentities.push({ id: 'ui-smoke-password', createdAt: new Date().toISOString(),
+    userId: 'u-me', provider: 'PASSWORD', providerUserId: 'home-qa', status: 'LINKED', passwordHash });
+});
 const apiRoot = (await app.getUrl()).replace('0.0.0.0', '127.0.0.1').replace('[::1]', '127.0.0.1');
 const html = await readFile('apps/mobile/dist/index.html', 'utf8');
 const bundleMatch = html.match(/src="([^\"]+\.js)"/);
@@ -129,17 +137,22 @@ try {
   await fill(document.querySelector('input[placeholder="아이디"]'), 'home-qa');
   await fill(document.querySelector('input[placeholder="비밀번호"]'), testPassword);
   await click('로그인하기');
-  await expectText('요즘 떠나는 곳');
+  await expectText('이번 여행, 어디로 가나요?');
   assert.ok(!document.body.textContent.includes('찾는 물건이 있나요?'), 'Product shortcuts belong in unified search, not a large home card');
+  await click('가져올게요', 'tab');
+  assert.equal(find('가져올게요', 'tab').getAttribute('aria-selected'), 'true', 'Traveler card changes the active mode');
+  await click('사고 싶어요', 'tab');
+  await expectText('이번 여행, 어디로 가나요?');
+  assert.equal(find('사고 싶어요', 'tab').getAttribute('aria-selected'), 'true', 'Buyer card restores destination discovery');
   console.log('PASS: app entry → 3-step MOA guide → sign-in');
   await click('등록', 'tab');
   await expectText('무엇을 하고 싶으세요?');
   await click('물건 부탁하기');
   await expectText('어떤 물건을 부탁할까요?');
   await click('뒤로');
-  await expectText('요즘 떠나는 곳');
+  await expectText('이번 여행, 어디로 가나요?');
   await click('홈', 'tab');
-  await expectText('요즘 떠나는 곳');
+  await expectText('이번 여행, 어디로 가나요?');
   console.log('PASS: buyer role → request entry sheet');
   await click('찾기', 'tab');
   await expectText('둘러보기');
@@ -196,11 +209,11 @@ try {
   await expectText('둘러보기');
   console.log('PASS: photo information → original source → close → place navigation');
   await click('뒤로');
-  await expectText('요즘 떠나는 곳');
+  await expectText('이번 여행, 어디로 가나요?');
   assert.equal(dom.window.location.hash, '#home', 'Back without history must sync the URL');
   console.log('PASS: city-specific photos → previous button → synchronized home URL');
   await click('상품 매장 지역 검색');
-  await expectText('어디를 찾고 있나요?');
+  await expectText('장소를 찾고, 여행과 연결해요.');
   await click('사진으로 찾기');
   await click('치이카와 샘플로 인식 체험');
   await expectText('실제 상품·재고 확인 결과는 아니에요.');
@@ -214,7 +227,7 @@ try {
   );
   assert.equal(recognizedName.value, '치이카와 도쿄역 한정 키링');
   await click('뒤로');
-  await expectText('어디를 찾고 있나요?');
+  await expectText('장소를 찾고, 여행과 연결해요.');
   await click('링크 붙여넣기');
   await click('예시 링크로 빠르게 채우기');
   await expectText('예시 정보예요.');
@@ -278,12 +291,12 @@ try {
   await click('MY', 'tab');
   await click('이용 모드 설정');
   await click('여행하기 모드로 전환');
-  await expectText('내 동선에서 가까운 부탁');
+  await expectText('한 곳에서, 여러 부탁');
   // The location bundle is a pressable containing the place name and reward.
   const bundleCard = await wait(
     () =>
       [...document.querySelectorAll('[role="button"]')].find(
-        (e) => e.textContent.includes('시부야 PARCO') && e.textContent.includes('요청 4건'),
+        (e) => e.getAttribute('aria-label') === '시부야 PARCO 요청 4건 묶어서 보기',
       ),
     'Shibuya bundle card',
   );
@@ -341,8 +354,8 @@ try {
     'seed offers',
   );
   offers.click();
-  await click('이 사람의 일정 보기');
-  await expectText('공개한 여행 계획');
+  await click('민트로드님의 경로와 일정 보기');
+  await expectText('공개 여행 일정');
   await expectText('일정 한눈에 보기');
   await click('뒤로');
   await click('민트로드님과 함께하기');

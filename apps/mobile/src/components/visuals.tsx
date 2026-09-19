@@ -339,7 +339,7 @@ export function PlaceCard({
         minWidth: 0,
         borderRadius: list ? 18 : 20,
         backgroundColor: c.paper,
-        borderWidth: list ? 0 : 1,
+        borderWidth: 1,
         borderColor: c.border,
         overflow: 'hidden',
       }}
@@ -355,7 +355,7 @@ export function PlaceCard({
           opacity: pressed ? 0.78 : 1,
         })}
       >
-        <View style={list ? { width: 94, alignSelf: 'center' } : undefined}>
+        <View style={list ? { width: 96, alignSelf: 'center' } : undefined}>
           <View style={{ overflow: 'hidden', borderRadius: list ? 10 : 0 }}>
             <PlaceCover place={place} thumbnail={list} />
           </View>
@@ -373,7 +373,7 @@ export function PlaceCard({
           {list ? <><Txt size={12} color={c.secondary}>{place.visitors}명 방문 예정 · {countLabel} {count}건</Txt><Txt size={13} color={c.primaryStrong} weight="700">{place.requestCount ? `평균 보상 ${money(place.averageReward)}` : '첫 부탁 남기기'}</Txt></> : <Row style={{ marginTop: 8, paddingTop: 12, borderTopWidth: 1, borderColor: c.border, justifyContent: 'space-between' }}><Row style={{ gap: 6 }}><Users size={16} color={c.primaryStrong} /><Txt size={13} color={c.secondary}><Txt size={15} weight="700">{place.visitors}명</Txt> 방문 예정</Txt></Row><Txt size={13} color={c.secondary}>{countLabel} <Txt size={15} weight="700" color={c.primaryStrong}>{count}건</Txt></Txt></Row>}
         </View>
       </Pressable>
-      {showPhotoCredit && <PhotoCredit place={place} list={list} />}
+      {showPhotoCredit && <View style={{ paddingHorizontal: 12, paddingBottom: 4 }}><PhotoCredit place={place} compact /></View>}
       {onFavorite && (
         <Pressable
           accessibilityRole="button"

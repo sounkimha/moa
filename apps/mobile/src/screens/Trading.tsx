@@ -64,6 +64,26 @@ const optimizedRoute = (places: Place[]) => {
   return ordered;
 };
 
+/** Five readable milestones using the same transaction status order as the detail flow. */
+function TradeJourney({ status }: { status: Transaction['status'] }) {
+  const progress = ['MATCHED', 'PAYMENT_HELD', 'PURCHASED', 'TRAVELING', 'SHIPPED', 'DELIVERED', 'CONFIRMED', 'SETTLED'].indexOf(status);
+  const stages = [{ at: 0, label: '매칭' }, { at: 2, label: '구매' }, { at: 3, label: '이동' }, { at: 4, label: '전달' }, { at: 6, label: '완료' }];
+  if (progress < 0) return null;
+  const active = stages.reduce((current, stage, index) => progress >= stage.at ? index : current, 0);
+  return <Row accessibilityLabel={`거래 진행 단계: ${stages[active].label}`} style={{ gap: 0, paddingVertical: 2 }}>
+    {stages.map((stage, index) => <View key={stage.label} style={{ flex: 1, minWidth: 0, gap: 5, alignItems: 'center' }}>
+      <View style={{ height: 20, width: '100%', alignItems: 'center', justifyContent: 'center' }}>
+        {index > 0 && <View style={{ position: 'absolute', left: 0, width: '50%', height: 1, backgroundColor: index <= active ? c.primary : c.border }} />}
+        {index < stages.length - 1 && <View style={{ position: 'absolute', right: 0, width: '50%', height: 1, backgroundColor: index < active ? c.primary : c.border }} />}
+        <View style={{ width: index === active ? 20 : 12, height: index === active ? 20 : 12, borderRadius: 10, backgroundColor: c.paper, alignItems: 'center', justifyContent: 'center', borderWidth: index === active ? 1 : 0, borderColor: c.primaryTint }}>
+          <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: index <= active ? c.primary : c.border }} />
+        </View>
+      </View>
+      <Txt size={11} color={index === active ? c.primaryStrong : c.secondary} weight={index === active ? '700' : '400'}>{stage.label}</Txt>
+    </View>)}
+  </Row>;
+}
+
 export function TradesScreen() {
   const a = useApp(), d = a.data!, buyer = a.role === 'buyer';
   const [filter, setFilter] = useState('진행 중');
@@ -85,7 +105,7 @@ export function TradesScreen() {
   };
   return (
     <Page title="거래" back={false}>
-      <Row style={{ alignItems: 'flex-end', justifyContent: 'space-between' }}><Stack gap={space.xs}><Txt size={12} color={c.primary} weight="700">{buyer ? '나에게 오는 여정' : '함께 가져오는 여정'}</Txt><Txt size={typography.hero} weight="800">{buyer ? '설레는 기다림' : '가는 길의 약속'}</Txt></Stack><View style={{ alignItems: 'flex-end', paddingBottom: space.xs }}><Txt size={26} weight="800">{myTransactions.filter((item) => !completed(item)).length}<Txt size={14} weight="500" color={c.secondary}> 건</Txt></Txt><Txt size={12} color={c.secondary}>진행 중</Txt></View></Row>
+      <Row style={{ alignItems: 'center', justifyContent: 'space-between' }}><Stack gap={space.sm} style={{ flex: 1, minWidth: 0 }}><Row style={{ gap: 6 }}><View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: c.primary }} /><View style={{ width: 24, height: 1, backgroundColor: c.primaryTint }} /><Plane size={13} color={c.primary} /><Txt size={11} color={c.primaryStrong} weight="700">{buyer ? '나에게 오는 여정' : '함께 가져오는 여정'}</Txt></Row><Txt size={26} weight="800">{buyer ? '설레는 기다림' : '가는 길의 약속'}</Txt></Stack><View style={{ alignItems: 'center', minWidth: 64, padding: space.md, backgroundColor: c.primarySoft, borderRadius: radius.md, gap: 2 }}><Txt size={24} weight="800" color={c.primaryStrong}>{myTransactions.filter((item) => !completed(item)).length}</Txt><Txt size={11} color={c.secondary}>진행 중</Txt></View></Row>
       <SectionTabs items={['진행 중', waitingLabel, '완료']} value={filter} onChange={setFilter} />
       {filter === waitingLabel ? (
         <Stack gap={12}>
@@ -113,15 +133,14 @@ export function TradesScreen() {
             if (!r) return null;
             const partner = d.users.find((u) => u.id === (buyer ? t.travelerId : t.buyerId));
             const room = d.rooms.find((room) => room.transactionId === t.id);
-            const progress = ['MATCHED', 'PAYMENT_HELD', 'PURCHASED', 'TRAVELING', 'SHIPPED', 'DELIVERED', 'CONFIRMED', 'SETTLED'].indexOf(t.status);
             return <Card key={t.id} style={{ padding: 0, overflow: 'hidden' }}>
               <Pressable accessibilityRole="button" accessibilityLabel={r.productName + ' 거래 보기'} onPress={() => a.nav(t.status === 'MATCHED' && buyer ? 'payment' : 'transaction', { id: t.id })} style={{ padding: 18, gap: 16 }}>
-                <Row style={{ justifyContent: 'space-between' }}><Badge color={t.status === 'DISPUTED' ? c.danger : c.primaryStrong} bg={t.status === 'DISPUTED' ? c.dangerBg : c.primarySoft}>{tradeStatusLabel(t, r.country === r.deliveryCountry)}</Badge><Txt size={12} color={c.secondary}>{r.city}</Txt></Row>
-                <Row><ProductArt product={r} art={r.art} image={r.productImage} featured={r.productName.includes('치이카와')} size={64} /><Stack gap={5} style={{ flex: 1 }}><Txt weight="700" lines={2}>{r.productName}</Txt><Txt size={13} color={c.secondary}>{shortDate(t.estimatedDeliveryDate)} 전달 · {TRANSPORT_LABEL[t.transport]}</Txt><Txt weight="700">{buyer ? money(t.totalPrice) : '보상 ' + money(t.travelerReward)}</Txt></Stack></Row>
-                {progress >= 0 && <Row style={{ gap: space.xs }}>{[0, 2, 3, 4, 6].map((step) => <View key={step} style={{ flex: 1, height: 3, borderRadius: 2, backgroundColor: progress >= step ? c.primary : c.border }} />)}</Row>}
-                <Row><Txt size={14} color={t.status === 'DISPUTED' ? c.danger : c.primaryStrong} weight="600" style={{ flex: 1 }}>{actionLabel(t)}</Txt><ChevronRight size={17} color={c.primary} /></Row>
+                <Row style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}><Badge color={t.status === 'DISPUTED' ? c.danger : c.primaryStrong} bg={t.status === 'DISPUTED' ? c.dangerBg : c.primarySoft}>{tradeStatusLabel(t, r.country === r.deliveryCountry)}</Badge><Row style={{ gap: 3 }}><MapPin size={12} color={c.secondary} /><Txt size={12} color={c.secondary}>{r.city}</Txt></Row></Row>
+                <Row style={{ alignItems: 'flex-start', gap: space.md }}><ProductArt product={r} art={r.art} image={r.productImage} featured={r.productName.includes('치이카와')} size={62} /><Stack gap={5} style={{ flex: 1, minWidth: 0 }}><Txt size={16} weight="700" lines={2}>{r.productName}</Txt><Txt size={12} color={c.secondary}>{shortDate(t.estimatedDeliveryDate)} 전달 · {TRANSPORT_LABEL[t.transport]}</Txt><Txt size={18} color={buyer ? c.ink : c.primaryStrong} weight="700">{buyer ? money(t.totalPrice) : '보상 ' + money(t.travelerReward)}</Txt></Stack></Row>
+                <TradeJourney status={t.status} />
+                <Row style={{ paddingTop: space.md, borderTopWidth: 1, borderTopColor: c.border }}><Txt size={13} color={t.status === 'DISPUTED' ? c.danger : c.primaryDeep} weight="600" style={{ flex: 1 }}>{actionLabel(t)}</Txt><ChevronRight size={17} color={c.primary} /></Row>
               </Pressable>
-              {partner && room && <View style={{ borderTopWidth: 1, borderTopColor: c.border, paddingHorizontal: 18, paddingVertical: 10 }}><Row style={{ justifyContent: 'space-between' }}><Row><Avatar user={partner} size={28} /><Txt size={13} color={c.secondary}>{partner.nickname}</Txt></Row><Button small kind="ghost" icon={MessageCircle} label="대화하기" onPress={() => a.nav('chat', { id: t.id })} /></Row></View>}
+              {partner && room && <View style={{ borderTopWidth: 1, borderTopColor: c.border, backgroundColor: c.ultraSoft, paddingHorizontal: 18, paddingVertical: 6 }}><Row style={{ justifyContent: 'space-between' }}><Row style={{ flex: 1 }}><Avatar user={partner} size={26} /><Txt size={12} color={c.secondary} lines={1} style={{ flex: 1 }}>{partner.nickname}</Txt></Row><Button small kind="ghost" icon={MessageCircle} label="대화하기" onPress={() => a.nav('chat', { id: t.id })} /></Row></View>}
             </Card>;
           })}
           {!transactions.length && <Empty title={filter === '완료' ? '아직 완료된 거래가 없어요' : '진행 중인 거래가 없어요'} body={filter === '완료' ? '전달을 마친 부탁이 여기에 모여요.' : buyer ? '등록한 부탁은 내 요청에서 확인해요.' : '지원한 부탁에서 구매자가 나를 선택하면 거래와 대화가 시작돼요.'} action={filter === '완료' ? undefined : buyer ? '내 요청 보기' : '가는 길의 부탁 보기'} onPress={() => buyer ? setFilter(waitingLabel) : a.tab('home')} />}

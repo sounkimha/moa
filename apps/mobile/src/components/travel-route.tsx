@@ -3,7 +3,7 @@ import { AccessibilityInfo, Animated, Easing, Pressable, View } from 'react-nati
 import { ArrowUpRight, CalendarDays, Check, ChevronRight, MapPin, Plane } from 'lucide-react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { Place, Trip, TripDestination, shortDate } from '@moa/domain';
-import { colors as c } from '../theme/tokens';
+import { colors as c, motion, radius } from '../theme/tokens';
 import { Badge, Button, Card, Row, Sheet, Stack, Txt } from './ui';
 import { ItineraryMap } from './ItineraryMap';
 import { PlaceCover } from './visuals';
@@ -38,7 +38,7 @@ export function PlaneRouteAnimation({ departure, destination, active = true, onA
     progress.stopAnimation();
     progress.setValue(reducedMotion || !active ? 1 : 0);
     if (reducedMotion || !active) { arrived.current?.(); return; }
-    const animation = Animated.timing(progress, { toValue: 1, duration: 1500, easing: Easing.inOut(Easing.cubic), useNativeDriver: true });
+    const animation = Animated.timing(progress, { toValue: 1, duration: motion.route, easing: Easing.inOut(Easing.cubic), useNativeDriver: true });
     animation.start(({ finished }) => { if (finished) arrived.current?.(); });
     return () => animation.stop();
   }, [active, departure, destination, reducedMotion, width, progress]);
@@ -49,31 +49,37 @@ export function PlaneRouteAnimation({ departure, destination, active = true, onA
   return (
     <View testID="plane-route" accessible accessibilityLabel={`${departure} → ${destination} 여행 일정`}
       onLayout={(event) => { const next = Math.round(event.nativeEvent.layout.width); if (next > 0) setWidth(next); }}
-      style={{ borderRadius: 20, backgroundColor: c.primaryDeep, overflow: 'hidden' }}>
+      style={{ borderRadius: radius.lg, borderWidth: 1, borderColor: c.primaryTint, backgroundColor: c.primarySoft, overflow: 'hidden' }}>
+      {!!width && <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}><Svg width={width} height={240}>
+        <Path d={`M ${width * 0.32} 0 L ${width * 0.54} 240 M ${width * 0.7} 0 L ${width * 0.48} 240 M 0 84 L ${width} 60 M 0 145 L ${width} 184`} stroke={c.paper} strokeWidth={12} fill="none" opacity={0.6} />
+        <Path d={`M ${width * 0.32} 0 L ${width * 0.54} 240 M ${width * 0.7} 0 L ${width * 0.48} 240 M 0 84 L ${width} 60 M 0 145 L ${width} 184`} stroke={c.primaryTint} strokeWidth={1} fill="none" opacity={0.55} />
+      </Svg></View>}
       <Row style={{ justifyContent: 'space-between', paddingHorizontal: compact ? 16 : 20, paddingTop: compact ? 14 : 20, alignItems: 'flex-start' }}>
-        <Stack gap={4} style={{ flex: 1, minWidth: 0 }}><Txt size={11} color={c.navyText}>FROM · 출발</Txt><Txt size={compact ? 18 : 24} weight="800" color={c.onPrimary} lines={1}>{compact ? departure : cityLabels[departure] || departure}</Txt>{!compact && <Txt size={13} color={c.navyText}>{departure}</Txt>}</Stack>
-        <Stack gap={4} style={{ flex: 1, minWidth: 0, alignItems: 'flex-end' }}><Txt size={11} color={c.navyText}>TO · 도착</Txt><Txt size={compact ? 18 : 24} weight="800" color={c.onPrimary} lines={1}>{compact ? destination : cityLabels[destination] || destination}</Txt>{!compact && <Txt size={13} color={c.navyText}>{destination}</Txt>}</Stack>
+        <Stack gap={3} style={{ flex: 1, minWidth: 0 }}><Txt size={10} weight="600" color={c.secondary} style={{ letterSpacing: 1 }}>FROM · 출발</Txt><Txt size={compact ? 18 : 24} weight="800" color={c.primaryDeep} lines={1}>{compact ? departure : cityLabels[departure] || departure}</Txt>{!compact && <Txt size={12} color={c.secondary}>{departure}</Txt>}</Stack>
+        <Stack gap={3} style={{ flex: 1, minWidth: 0, alignItems: 'flex-end' }}><Txt size={10} weight="600" color={c.secondary} style={{ letterSpacing: 1 }}>TO · 도착</Txt><Txt size={compact ? 18 : 24} weight="800" color={c.primaryStrong} lines={1}>{compact ? destination : cityLabels[destination] || destination}</Txt>{!compact && <Txt size={12} color={c.secondary}>{destination}</Txt>}</Stack>
       </Row>
       <View style={{ height: compact ? 76 : 82, marginTop: compact ? 2 : 8 }}>
         {!!width && <Svg width={width} height={80}>
-          <Path d={path} fill="none" stroke={c.navyBadge} strokeWidth={2} />
-          <Path d={path} fill="none" stroke={c.primaryTint} strokeWidth={1.5} strokeDasharray="4 6" />
-          <Circle cx={36} cy={56} r={5} fill={c.primaryTint} />
-          <Circle cx={width - 36} cy={56} r={8} fill={c.primaryDeep} stroke={c.primaryTint} strokeWidth={2} />
+          <Path d={path} fill="none" stroke={c.primaryTint} strokeWidth={2} />
+          <Path d={path} fill="none" stroke={c.primary} strokeWidth={1.5} strokeDasharray="3 6" />
+          <Circle cx={36} cy={56} r={8} fill={c.paper} />
+          <Circle cx={36} cy={56} r={4} fill={c.primary} />
+          <Circle cx={width - 36} cy={56} r={8} fill={c.paper} stroke={c.primaryTint} strokeWidth={1} />
+          <Circle cx={width - 36} cy={56} r={4} fill={c.primary} />
         </Svg>}
         <Animated.View testID="route-airplane" style={{ position: 'absolute', left: 19, top: 39, opacity: width ? 1 : 0, transform: [
           { translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [0, travel] }) },
           { translateY: progress.interpolate({ inputRange: samples, outputRange: samples.map((t) => -140 * t * (1 - t)) }) },
           { rotate: progress.interpolate({ inputRange: [0, 1], outputRange: ['-22deg', '22deg'] }) },
         ] }}>
-          <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: c.surface, alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: c.paper }}>
             {/* Rotate the wrapper: Lucide forwards icon styles to its SVG paths too. */}
-            <View style={{ width: 20, height: 20, transform: [{ rotate: '45deg' }] }}><Plane size={20} color={c.primaryStrong} /></View>
+            <View style={{ width: 18, height: 18, transform: [{ rotate: '45deg' }] }}><Plane size={18} color={c.paper} strokeWidth={1.7} /></View>
           </View>
         </Animated.View>
       </View>
-      {!compact && <Row style={{ borderTopWidth: 1, borderTopColor: c.navyDivider, paddingHorizontal: 20, paddingVertical: 12, justifyContent: 'space-between' }}>
-        <Txt size={11} color={c.navyText}>MOA TRAVEL ROUTE</Txt><Txt size={11} color={c.navyText}>등록된 여행 일정 기준</Txt>
+      {!compact && <Row style={{ borderTopWidth: 1, borderTopColor: c.primaryTint, paddingHorizontal: 20, paddingVertical: 11, justifyContent: 'space-between', backgroundColor: '#FFFFFFB8' }}>
+        <Txt size={10} weight="700" color={c.primaryStrong} style={{ letterSpacing: 1.1 }}>MOA · MOTION MAP</Txt><Txt size={10} color={c.secondary}>등록된 여행 일정</Txt>
       </Row>}
     </View>
   );

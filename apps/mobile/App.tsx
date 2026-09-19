@@ -147,7 +147,7 @@ function Shell() {
               borderTopWidth: 1,
               borderColor: c.border,
               backgroundColor: c.paper,
-              paddingTop: 8,
+              paddingTop: 7,
               paddingBottom: 6,
             }),
       }}
@@ -168,37 +168,39 @@ function Shell() {
                     gap: 14,
                     alignItems: 'center',
                     padding: 16,
-                    borderRadius: 18,
+                    borderRadius: 16,
                     backgroundColor: selected ? c.mint : pressed ? c.paper : 'transparent',
                   }
-                : { flex: 1, minHeight: 53, alignItems: 'center', justifyContent: 'center', gap: 3 }
+                : { flex: 1, minHeight: 55, alignItems: 'center', justifyContent: 'center', gap: 2, opacity: pressed ? 0.65 : 1 }
             }
           >
             {name === 'create' ? (
               <View
                 style={{
-                  backgroundColor: c.green,
-                  borderRadius: 16,
-                  width: vertical ? 34 : 42,
-                  height: vertical ? 34 : 42,
+                  backgroundColor: c.primary,
+                  borderRadius: vertical ? 12 : 23,
+                  width: vertical ? 36 : 46,
+                  height: vertical ? 36 : 46,
                   justifyContent: 'center',
                   alignItems: 'center',
-                  marginTop: vertical ? 0 : -10,
+                  marginTop: vertical ? 0 : -8,
+                  borderWidth: vertical ? 0 : 3,
+                  borderColor: c.primarySoft,
                 }}
               >
-                <Plus size={25} color="white" />
+                <Plus size={25} color="white" strokeWidth={1.8} />
               </View>
             ) : (
-              <Icon
-                size={vertical ? 21 : 23}
-                color={selected ? c.green : c.muted}
-                strokeWidth={selected ? 2.2 : 1.7}
-              />
+              <View style={{ width: vertical ? 28 : 48, height: vertical ? 28 : 30, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: selected && !vertical ? c.primarySoft : 'transparent' }}><Icon
+                size={vertical ? 21 : 22}
+                color={selected ? c.primary : c.secondary}
+                strokeWidth={selected ? 2.1 : 1.6}
+              /></View>
             )}
             <Txt
               size={vertical ? 15 : 11}
               weight={selected ? '700' : '500'}
-              color={selected ? c.green : c.secondary}
+              color={selected ? c.primary : c.secondary}
             >
               {vertical && name === 'create' ? '새로 등록하기' : label}
             </Txt>
@@ -208,7 +210,7 @@ function Shell() {
     </View>
   );
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: c.canvas }} edges={['top', 'bottom']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: c.paper }} edges={['top', 'bottom']}>
       <StatusBar style="dark" />
       <View
         style={{

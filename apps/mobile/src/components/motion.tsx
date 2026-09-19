@@ -42,15 +42,15 @@ export function LoadingSkeleton({ variant = 'place' }: { variant?: SkeletonVaria
   useEffect(() => {
     if (reduced) { opacity.setValue(1); return; }
     const pulse = Animated.loop(Animated.sequence([
-      Animated.timing(opacity, { toValue: 0.45, duration: 800, useNativeDriver: true }),
-      Animated.timing(opacity, { toValue: 1, duration: 800, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 0.62, duration: 850, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 1, duration: 850, useNativeDriver: true }),
     ]));
     pulse.start();
     return () => pulse.stop();
   }, [opacity, reduced]);
-  return <Animated.View accessibilityRole="progressbar" accessibilityLabel="화면을 불러오는 중" style={{ padding: 20, gap: 24, opacity }}>
+  return <Animated.View accessibilityRole="progressbar" accessibilityLabel="화면을 불러오는 중" style={{ padding: 20, gap: 24, opacity, backgroundColor: c.paper }}>
     <Row style={{ justifyContent: 'space-between' }}><Bar width={110} height={28} /><View style={{ height: 40, width: 40, borderRadius: 20, backgroundColor: c.skeleton }} /></Row>
-    {variant === 'place' && <><Bar height={52} /><View style={{ height: 230, borderRadius: radius.image, backgroundColor: c.skeleton }} /><Bar width="65%" height={22} /></>}
+    {variant === 'place' && <><View style={{ height: 205, borderRadius: radius.image, backgroundColor: c.skeleton, padding: 20, justifyContent: 'flex-end', gap: 10 }}><View style={{ width: '65%', height: 22, backgroundColor: c.paper, borderRadius: 5 }} /><View style={{ width: '42%', height: 12, backgroundColor: c.paper, borderRadius: 4 }} /></View><Bar height={52} /><Row>{[0, 1].map((item) => <View key={item} style={{ flex: 1, height: 108, padding: 16, backgroundColor: c.primarySoft, borderRadius: radius.lg, gap: 14 }}><Bar width={28} height={28} /><Bar width="68%" height={15} /></View>)}</Row><Bar width="65%" height={22} /></>}
     {variant === 'transaction' && <><Bar width="75%" height={28} /><View style={{ height: 150, borderRadius: radius.lg, backgroundColor: c.skeleton }} /></>}
     {[0, 1, 2].map((id) => <Row key={id} style={{ padding: 16, backgroundColor: c.paper, borderRadius: radius.lg }}>
       <View style={{ width: variant === 'traveler' ? 48 : 76, height: variant === 'traveler' ? 48 : 76, borderRadius: variant === 'traveler' ? 24 : 14, backgroundColor: c.skeleton }} />

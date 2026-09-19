@@ -23,6 +23,7 @@ Wikimedia Commons의 아래 사진을 로컬 자산으로 제공한다. 각 카�
 | 파일 (`apps/mobile/assets/`) | 풍경 | 저작자 | 라이선스 및 원본 |
 | --- | --- | --- | --- |
 | tokyo-shibuya.jpg | 시부야 교차로 | David Kernan | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) · [원본](https://commons.wikimedia.org/wiki/File:Shibuya_Crossing,_Aerial.jpg) |
+| tokyo-tower-night.jpg | 도쿄타워와 미나토 야경 · 홈 Hero | David Kernan | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) · [원본](https://commons.wikimedia.org/wiki/File:Tokyo_Tower,_Minato_City.jpg) · 1280px 축소본, 화면 비율에 맞춘 crop 및 명암 overlay, 홈 하단 저작자·라이선스 링크 제공 |
 | tokyo-station.jpg | 도쿄역 | MaedaAkihiko | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) · [원본](https://commons.wikimedia.org/wiki/File:Tokyo-STA_Marunouchi-Entrance_2023.jpg) |
 | tokyo-disneysea.jpg | 디즈니씨 프로메테우스산 | Louiemantia | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) · [원본](https://commons.wikimedia.org/wiki/File:Mt_Prometheus_at_Tokyo_DisneySea.jpg) |
 | osaka-dotonbori.jpg | 도톤보리 | Type specimen | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) · [원본](https://commons.wikimedia.org/wiki/File:Osaka_Dotonbori_Ebisu_Bridge.jpg) |

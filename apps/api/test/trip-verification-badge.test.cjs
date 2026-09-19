@@ -122,7 +122,7 @@ test('profile navigation, viewing the associated schedule and selecting an offer
   app.mutate = async (...args) => { mutations.push(args); return { id: 'selected-trade' }; };
   render(OffersScreen);
   buttons.find((button) => button.label === '민트로드 프로필').onPress();
-  buttons.find((button) => button.label === '이 사람의 일정 보기').onPress();
+  buttons.find((button) => button.label === '민트로드님의 경로와 일정 보기').onPress();
   await buttons.find((button) => button.label === '민트로드님과 함께하기').onPress();
   assert.deepEqual(navigations, [
     ['profile', { id: 'u-min' }], ['trip-route', { id: 'trip-u-min', placeId: db.requests[0].placeId }],

@@ -46,7 +46,7 @@ test('place detail saves a favorite on tap and keeps photo attribution as a comp
     if (name.endsWith('/ui')) return ui;
     if (name.endsWith('/visuals')) return { Avatar: shell, AvatarStack: shell, Logo: shell, PlaceCard: shell, PlaceCover: () => h('div', { 'data-place-photo': 'true' }), ProductArt: shell, ProductRow: shell };
     if (name.endsWith('/PhotoCredit')) return { PhotoCredit: ({ compact }) => h('span', { 'data-photo-credit-compact': String(compact) }, '대표 사진 · 사진 정보') };
-    if (name === './Nearby' || name.includes('DestinationPicker') || name.includes('travel-route') || name.includes('/motion') || name.includes('RouteMap') || name.includes('HomeContent')) return new Proxy({}, { get: () => shell });
+    if (name === './Nearby' || name.includes('DestinationPicker') || name.includes('travel-route') || name.includes('/motion') || name.includes('RouteMap') || name.includes('HomeContent') || name.includes('MotionHome')) return new Proxy({}, { get: () => shell });
     if (name.includes('auth-storage') || name.includes('dev-menu')) return new Proxy({}, { get: () => async () => false });
     if (name.includes('home-discovery')) return { tripsToCity: () => [], uniqueTravelerCount: () => 0 };
     if (name.includes('nearby/model')) return { distanceMeters: () => 0 };
