@@ -462,10 +462,21 @@ export function SearchScreen() {
       )}
       {(trips.length > 0 || (cities.length > 0 && !q)) && <View>
         <Section title="이 경로로 가는 여행자" subtitle="공개된 체험 일정이에요." />
-        {trips.map((t) => {
-          const user = d.users.find((person) => person.id === t.travelerId);
-          return user ? <TravelerPreview key={t.id} user={user} trip={t} places={d.places} onPress={() => a.nav('trip-route', { id: t.id, placeId: initialPlace?.id })} /> : null;
-        })}
+        {!!trips.length && <View
+          style={{
+            overflow: 'hidden',
+            borderRadius: 20,
+            borderWidth: 1,
+            borderColor: c.border,
+            backgroundColor: c.paper,
+            paddingHorizontal: 16,
+          }}
+        >
+          {trips.map((t) => {
+            const user = d.users.find((person) => person.id === t.travelerId);
+            return user ? <TravelerPreview key={t.id} user={user} trip={t} places={d.places} onPress={() => a.nav('trip-route', { id: t.id, placeId: initialPlace?.id })} /> : null;
+          })}
+        </View>}
         {!trips.length && <Txt size={14} color={c.secondary}>아직 이곳으로 가는 공개 일정이 없어요. 아래 장소에서 부탁을 남길 수 있어요.</Txt>}
       </View>}
       <View testID="search-results-toolbar" style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
