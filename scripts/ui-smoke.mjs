@@ -122,7 +122,7 @@ try {
   await click('다음');
   await expectText('03 · 국내에서 전달');
   await click('모아 시작하기');
-  await expectText('부탁할게요');
+  await expectText('사고 싶어요');
   await expectText('가져올게요');
   await click('체험 계정으로 로그인');
   await expectText('아이디로 로그인');

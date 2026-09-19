@@ -1,4 +1,4 @@
-import type { Country } from '@moa/domain';
+import { DESTINATIONS, type Country } from '@moa/domain';
 
 const key = 'moa-trip-draft-v1';
 const countryCodes = ['JP', 'KR', 'TW', 'HK', 'CN', 'TH', 'VN', 'SG', 'MY', 'ID', 'US', 'CA', 'MX', 'BR', 'AR', 'CL', 'PE', 'CO', 'GB', 'FR', 'IT', 'ES', 'DE', 'CH', 'AU', 'NZ', 'IN', 'PH', 'KH', 'AE', 'TR', 'ZA', 'EG', 'MA', 'KE', 'TZ'] as const;
@@ -24,6 +24,14 @@ const validStrings = (value: unknown, maxItems: number, maxLength: number): valu
   value.every((item) => typeof item === 'string' && item.length > 0 && item.length <= maxLength) &&
   new Set(value).size === value.length;
 
+// A manual city is allowed, but a city that belongs to our known catalog must
+// not be restored under a different country after a stale/edited web session.
+const cityFitsCountry = (city: string, country: Country) => {
+  const knownCountry = (Object.keys(DESTINATIONS) as Country[])
+    .find((code) => DESTINATIONS[code].cities.includes(city.trim()));
+  return !knownCountry || knownCountry === country;
+};
+
 export function readTripDraft(storage: SessionStorage, ownerId: string): TripDraft | null {
   try {
     const raw = storage.getItem(key);
@@ -32,6 +40,7 @@ export function readTripDraft(storage: SessionStorage, ownerId: string): TripDra
     if (saved.ownerId !== ownerId || !draft ||
       !countryCodes.includes(draft.departureCountry) ||
       typeof draft.departureCity !== 'string' || draft.departureCity.length > 40 ||
+      !cityFitsCountry(draft.departureCity, draft.departureCountry) ||
       !countryCodes.includes(draft.destinationCountry) ||
       !validStrings(draft.cities, 12, 40) ||
       !/^\d{4}-\d{2}-\d{2}$/.test(draft.startDate) ||

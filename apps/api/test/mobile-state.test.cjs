@@ -4,12 +4,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 const ts = require('typescript');
 
-// Exercise the same dependency-free TypeScript utilities Metro bundles.
+// Exercise the TypeScript state utilities with the same workspace imports Metro resolves.
 function load(file) {
   const source = fs.readFileSync(path.resolve(__dirname, '../../mobile/src/state', file), 'utf8');
   const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } });
   const module = { exports: {} };
-  new Function('exports', 'module', outputText)(module.exports, module);
+  new Function('exports', 'module', 'require', outputText)(module.exports, module, require);
   return module.exports;
 }
 const { routeHash, parseRoute } = load('navigation.ts');

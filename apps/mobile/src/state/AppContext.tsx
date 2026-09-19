@@ -62,6 +62,14 @@ export type RequestDraft = {
   meetupPoint?: import('@moa/domain').MeetupPoint;
   inventoryStatus: 'IN_STOCK' | 'OUT_OF_STOCK' | 'PREORDER' | 'CHECK_REQUIRED';
 };
+export type BrowseState = {
+  query: string;
+  country: Country | 'ALL';
+  cities: string[];
+  view: '목록' | '지도';
+  selectedPlaceId?: string;
+};
+const emptyBrowseState: BrowseState = { query: '', country: 'ALL', cities: [], view: '목록' };
 type AppValue = {
   data: Snapshot | null;
   role: Role;
@@ -87,6 +95,8 @@ type AppValue = {
   setRequestDraft: (draft: RequestDraft | null) => void;
   tripDraft: TripDraft | null;
   setTripDraft: (draft: TripDraft | null) => void;
+  browseState: BrowseState;
+  setBrowseState: (state: BrowseState) => void;
   notify: (s: string) => void;
   mutate: <T>(path: string, body: unknown, success?: string) => Promise<T | undefined>;
 };
@@ -125,7 +135,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [toast, setToast] = useState(''),
     [oauthProviders, setOauthProviders] = useState<Record<OAuthProvider, boolean>>({ GOOGLE: false, KAKAO: false, NAVER: false }),
     [requestDraft, updateRequestDraft] = useState<RequestDraft | null>(null),
-    [tripDraft, updateTripDraft] = useState<TripDraft | null>(null);
+    [tripDraft, updateTripDraft] = useState<TripDraft | null>(null),
+    [browseState, updateBrowseState] = useState<BrowseState>(emptyBrowseState);
   const history = useRef<Route[]>([]),
     mutationLock = useRef(false);
   const session = useRef(0), actor = useRef<string | null>(null), authLock = useRef(false);
@@ -173,6 +184,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     }
   };
+  const setBrowseState = (next: BrowseState) => updateBrowseState((current) =>
+    current.query === next.query && current.country === next.country && current.view === next.view &&
+    current.selectedPlaceId === next.selectedPlaceId && current.cities.length === next.cities.length &&
+    current.cities.every((city, index) => city === next.cities[index]) ? current : next,
+  );
   useEffect(() => {
     if (toast) {
       const timer = setTimeout(() => setToast(''), 4500);
@@ -187,6 +203,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setData(null);
     updateRequestDraft(null);
     updateTripDraft(null);
+    updateBrowseState(emptyBrowseState);
     setError('');
     setToast('');
     history.current = [];
@@ -283,6 +300,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const nav = (name: Screen, params: Omit<Route, 'name'> = {}) => {
     if (name === 'login' || name === 'signup') setError('');
     const next = { name, ...params };
+    // A double tap should never create an identical screen in the stack.
+    if (routeHash(next) === routeHash(route)) return;
     history.current.push(route);
     setRoute(next);
     if (Platform.OS === 'web')
@@ -563,6 +582,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setRequestDraft,
         tripDraft,
         setTripDraft,
+        browseState,
+        setBrowseState,
         notify,
         mutate,
       }}

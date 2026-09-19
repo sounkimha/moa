@@ -15,10 +15,18 @@ export function meetupMapHtml(latitude: number, longitude: number, zoom: number,
 var initial=${initial},timer,map,geocoder,chooseToken=0,ready=false,didFail=false;
 function send(value){if(didFail&&!value.error)return;var message=JSON.stringify(Object.assign({channel:initial.channel},value));if(window.ReactNativeWebView)window.ReactNativeWebView.postMessage(message);else window.parent.postMessage(message,'*')}
 function failed(){if(didFail)return;didFail=true;ready=false;clearTimeout(timer);document.getElementById('pin').style.display='none';document.getElementById('error').style.display='grid';send({error:true})}
-function mapRuntimeFailure(event){failed();if(event&&event.preventDefault)event.preventDefault()}
+function mapRuntimeFailure(event){
+  // Image/tile retries are normal while a usable Kakao map is rendering. A
+  // document-level runtime error, on the other hand, means the picker can no
+  // longer safely report a selected coordinate.
+  var target=event&&event.target;
+  if(target&&target!==window&&String(target.tagName||'').toUpperCase()==='IMG')return;
+  failed();if(event&&event.preventDefault)event.preventDefault()
+}
 // Do not treat individual tile/resource failures as a fatal map failure. Kakao
 // can retry a tile while the map itself is already usable; the timeout below
 // still handles a missing/blocked SDK.
+window.addEventListener('error',mapRuntimeFailure,true);
 window.addEventListener('unhandledrejection',mapRuntimeFailure);
 function point(value){return {latitude:value.getLat(),longitude:((value.getLng()+180)%360+360)%360-180}}
 function choose(value){

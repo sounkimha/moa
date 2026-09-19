@@ -89,7 +89,7 @@ export function Onboarding() {
       <Stack gap={10}><Txt size={30} weight="800">여행에 취향을 싣다.</Txt><Txt size={15} color={c.secondary}>갖고 싶은 마음과 떠나는 여행이 만나요.</Txt></Stack>
       <Stack gap={12}>
         <Txt size={15} weight="600">어떻게 시작할까요?</Txt>
-        {([{ role: 'buyer', label: '부탁할게요', detail: '그곳에 가는 사람에게 물건 부탁하기', icon: ShoppingBag }, { role: 'traveler', label: '가져올게요', detail: '가는 길에 부탁 받고 보상받기', icon: Plane }] as const).map(({ role, label, detail, icon: Icon }) => (
+        {([{ role: 'buyer', label: '사고 싶어요', detail: '그곳에 가는 사람에게 원하는 물건을 부탁해요', icon: ShoppingBag }, { role: 'traveler', label: '가져올게요', detail: '여행 가는 김에 부탁을 받아요', icon: Plane }] as const).map(({ role, label, detail, icon: Icon }) => (
           <Pressable key={role} accessibilityRole="radio" accessibilityLabel={label} accessibilityState={{ checked: a.role === role }} onPress={() => a.setRole(role)} style={{ minHeight: 88, padding: 16, borderRadius: 18, borderWidth: 1.5, borderColor: a.role === role ? c.primary : c.border, backgroundColor: c.paper }}>
             <Row><View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.primarySoft, alignItems: 'center', justifyContent: 'center' }}><Icon size={22} color={c.primaryStrong} /></View><Stack gap={3} style={{ flex: 1 }}><Txt size={17} weight="700">{label}</Txt><Txt size={12} color={c.secondary}>{detail}</Txt></Stack>{a.role === role && <Check size={20} color={c.primaryStrong} />}</Row>
           </Pressable>
@@ -101,7 +101,6 @@ export function Onboarding() {
         {biometricReady && <Button label="생체 인증으로 로그인" kind="secondary" icon={Fingerprint} loading={a.busy} onPress={async () => { if (await a.biometricLogin()) a.tab('home'); }} />}
         <Button testID="start-demo" label="체험 계정으로 로그인" kind={kakaoReady ? 'secondary' : 'primary'} onPress={() => a.nav('login')} />
         {kakaoReady && <Button label="카카오로 계속하기" loading={a.busy} onPress={() => a.socialLogin('KAKAO')} style={{ backgroundColor: '#FEE500' }} kind="secondary" />}
-        <Button label="다른 방법으로 계속하기" kind="ghost" onPress={() => a.nav('login')} />
         <Txt size={12} color={c.secondary} style={{ textAlign: 'center' }}>체험에서는 실제 결제나 정산이 발생하지 않아요.</Txt>
       </Stack>
     </ScrollView>
@@ -382,12 +381,17 @@ export function SearchScreen() {
   const a = useApp(),
     d = a.data!;
   const initialPlace = d.places.find((place) => place.id === a.route.placeId);
-  const [query, setQuery] = useState(''),
-    [country, setCountry] = useState<DestinationCountry>(initialPlace?.country || 'ALL'),
-    [cities, setCities] = useState<string[]>(initialPlace ? [initialPlace.city] : []),
-    [view, setView] = useState('목록'),
+  // Opening a place from the home hero intentionally starts a location-focused
+  // search. Returning from a detail screen keeps the user's current filters.
+  const initialBrowse = initialPlace
+    ? { ...a.browseState, query: '', country: initialPlace.country, cities: [initialPlace.city] }
+    : a.browseState;
+  const [query, setQuery] = useState(initialBrowse.query),
+    [country, setCountry] = useState<DestinationCountry>(initialBrowse.country),
+    [cities, setCities] = useState<string[]>(initialBrowse.cities),
+    [view, setView] = useState<'목록' | '지도'>(initialBrowse.view),
     [resultsWidth, setResultsWidth] = useState(0),
-    [selected, setSelected] = useState<Place | null>(null);
+    [selected, setSelected] = useState<Place | null>(() => d.places.find((place) => place.id === initialBrowse.selectedPlaceId) || null);
   const normalizeSearch = (value: string) => value.toLowerCase().replace(/라스베가스/g, '라스베이거스');
   const q = normalizeSearch(query.trim());
   const match = (text: string) => normalizeSearch(text).includes(q);
@@ -396,6 +400,10 @@ export function SearchScreen() {
       (country === 'ALL' || p.country === country) && (!cities.length || cities.includes(p.city)) &&
       match(`${countryName(p.country)} ${p.name} ${p.englishName} ${p.city} ${p.region} ${p.tags.join(' ')}`),
   );
+  const selectedPlace = selected && places.some((place) => place.id === selected.id) ? selected : null;
+  useEffect(() => {
+    a.setBrowseState({ query, country, cities, view, selectedPlaceId: selectedPlace?.id });
+  }, [a, cities, country, query, selectedPlace?.id, view]);
   const requests = d.requests.filter(
     (r) =>
       (country === 'ALL' || r.country === country) && (!cities.length || cities.includes(r.city)) && match(`${countryName(r.country)} ${r.productName} ${r.city} ${r.storeName}`),
@@ -456,13 +464,13 @@ export function SearchScreen() {
         </Txt>
         {/* Bound the segmented control before its equal-width tabs flex in native Yoga. */}
         <View testID="search-view-toggle" style={{ width: 144, maxWidth: '55%', flexShrink: 0 }}>
-          <SectionTabs items={['목록', '지도']} value={view} onChange={setView} />
+          <SectionTabs items={['목록', '지도']} value={view} onChange={(next) => setView(next === '지도' ? '지도' : '목록')} />
         </View>
       </View>
       {view === '지도' ? (
         <>
-          <RouteMap places={places} selected={(selected || places[0])?.id} onSelect={setSelected} />
-          {(selected || places[0]) && <PlaceCard variant="list" place={selected || places[0]} onPress={() => select(selected || places[0])} />}
+          <RouteMap places={places} selected={(selectedPlace || places[0])?.id} onSelect={setSelected} />
+          {(selectedPlace || places[0]) && <PlaceCard variant="list" place={selectedPlace || places[0]} onPress={() => select(selectedPlace || places[0])} />}
         </>
       ) : (
         <View
