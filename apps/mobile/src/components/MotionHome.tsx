@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Image, Linking, Pressable, View } from 'react-native';
+import { Alert, Image, Linking, Pressable, View } from 'react-native';
 import { ArrowRight, Check, MapPin, Plane, ShoppingBag } from 'lucide-react-native';
 import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import { colors as c } from '../theme/tokens';
@@ -27,6 +27,9 @@ export function HomeRoleCards({ value, onChange }: { value: 'buyer' | 'traveler'
 /** Local, licensed city photo. A destination introduction, never a live-location claim. */
 export function TokyoMotionHero({ travelers, onPress }: { travelers: number; onPress: () => void }) {
   const [failed, setFailed] = useState(false);
+  const openCredit = (url: string) => {
+    void Linking.openURL(url).catch(() => Alert.alert('사진 출처를 열지 못했어요', '잠시 후 다시 시도해주세요.'));
+  };
   return <View>
     <Pressable testID="home-hero" accessibilityRole="button" accessibilityLabel="도쿄 여행자 일정 보기" onPress={onPress} style={({ pressed }) => ({ minHeight: 244, borderRadius: 24, overflow: 'hidden', backgroundColor: '#102D4C', opacity: pressed ? 0.88 : 1 })}>
       {!failed && <Image source={require('../../assets/tokyo-tower-night.jpg')} accessibilityLabel="도쿄타워 야경 대표 사진" resizeMode="cover" onError={() => setFailed(true)} style={{ position: 'absolute', top: 0, left: '30%', width: '85%', height: '100%' }} />}
@@ -47,8 +50,8 @@ export function TokyoMotionHero({ travelers, onPress }: { travelers: number; onP
       <Row style={{ paddingHorizontal: 22, paddingVertical: 11, backgroundColor: '#0A2139C9', borderTopWidth: 1, borderColor: '#FFFFFF20', gap: 7 }}><Plane size={14} color="#ABD6FF" /><Txt size={12} color="white" style={{ flex: 1 }}>{travelers > 0 ? `공개 일정 ${travelers}명 · 여행자 일정 보기` : '도쿄의 장소와 여행 일정 둘러보기'}</Txt></Row>
     </Pressable>
     <Row style={{ justifyContent: 'flex-end', gap: 4, marginTop: 2 }}>
-      <Pressable accessibilityRole="link" accessibilityLabel="도쿄타워 사진 원본과 작가 정보" onPress={() => void Linking.openURL('https://commons.wikimedia.org/wiki/File:Tokyo_Tower,_Minato_City.jpg')} style={{ minHeight: 24, justifyContent: 'center' }}><Txt size={10} color={c.muted}>도쿄 대표 사진 © David Kernan</Txt></Pressable>
-      <Pressable accessibilityRole="link" accessibilityLabel="사진 CC BY 4.0 라이선스, 화면에 맞게 잘라 표시" onPress={() => void Linking.openURL('https://creativecommons.org/licenses/by/4.0/')} style={{ minHeight: 24, justifyContent: 'center' }}><Txt size={10} color={c.muted}>· CC BY 4.0</Txt></Pressable>
+      <Pressable accessibilityRole="link" accessibilityLabel="도쿄타워 사진 원본과 작가 정보" hitSlop={{ top: 10, bottom: 10 }} onPress={() => openCredit('https://commons.wikimedia.org/wiki/File:Tokyo_Tower,_Minato_City.jpg')} style={{ minHeight: 24, justifyContent: 'center' }}><Txt size={10} color={c.muted}>도쿄 대표 사진 © David Kernan</Txt></Pressable>
+      <Pressable accessibilityRole="link" accessibilityLabel="사진 CC BY 4.0 라이선스, 화면에 맞게 잘라 표시" hitSlop={{ top: 10, bottom: 10 }} onPress={() => openCredit('https://creativecommons.org/licenses/by/4.0/')} style={{ minHeight: 24, justifyContent: 'center' }}><Txt size={10} color={c.muted}>· CC BY 4.0</Txt></Pressable>
     </Row>
   </View>;
 }
